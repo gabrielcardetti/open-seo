@@ -20,6 +20,7 @@ import {
   CATALOG_VERSION,
   RULES_BY_ID,
   computeVerdict,
+  type GuidelineRule,
 } from "@/shared/guidelines/catalog";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
@@ -56,10 +57,11 @@ export const getGuidelinesEvaluationBatchTool = {
   config: {
     title: "Get pages to judge against the content guidelines",
     description:
-      "Hand back crawled pages that still need a content-guideline verdict, each with the exact rules that apply to it and Google's own pass/fail criteria. YOU judge them with your own model, then call submit_guidelines_evaluation with the verdicts. Free — this spends no OpenSEO credits, which is the point: the judging runs on your subscription. Quote the page's own words as evidence for every fail, and answer 'unknown' rather than guessing when the page does not show enough to decide.",
+      "Hand back crawled pages that still need a content-guideline verdict. `rules` lists each rule's question and Google's own pass/fail criteria once; each page's `rule_ids` says which of them apply to it. YOU judge them with your own model, then call submit_guidelines_evaluation with the verdicts. Free — this spends no OpenSEO credits, which is the point: the judging runs on your subscription. Quote the page's own words as evidence for every fail, and answer 'unknown' rather than guessing when the page does not show enough to decide.",
     inputSchema: batchInputSchema,
     outputSchema: z
       .object({
+        rules: z.array(looseObjectOutputSchema).optional(),
         pages: z.array(looseObjectOutputSchema),
         response_format: looseObjectOutputSchema,
         ...optionalMetaOutputSchema,
@@ -114,6 +116,7 @@ export const getGuidelinesEvaluationBatchTool = {
     const { renderPageState } = await import("@/server/lib/guidelines/judge");
 
     const batch = [];
+    const rulesInBatch = new Map<string, GuidelineRule>();
     for (const target of sample.slice(0, args.limit)) {
       let fetched;
       try {
@@ -129,25 +132,31 @@ export const getGuidelinesEvaluationBatchTool = {
       }
       const classification = classifyPage(fetched);
       const applicable = applicableRulesFor(classification);
+      for (const rule of applicable) rulesInBatch.set(rule.id, rule);
       batch.push({
-        url: fetched.finalUrl,
+        // The crawled URL, not the post-redirect one: submit looks the page
+        // up by the URL the audit recorded.
+        url: target.url,
         page_type: classification.pageType,
         ymyl: classification.ymyl,
         ymyl_topics: classification.ymylTopics,
         content: renderPageState(fetched),
-        rules: applicable.map((rule) => ({
-          id: rule.id,
-          severity: rule.severity,
-          question: rule.question,
-          pass_if: rule.pass_if,
-          fail_if: rule.fail_if,
-          official_quote: rule.official_quote || undefined,
-        })),
+        rule_ids: applicable.map((rule) => rule.id),
       });
     }
 
     return mcpResponse({
       structuredContent: {
+        // Each rule's text once per batch, not once per page: the pages in a
+        // batch mostly share the same ~70 rules, and repeating them made a
+        // three-page batch four-fifths rule text.
+        rules: Array.from(rulesInBatch.values(), (rule) => ({
+          id: rule.id,
+          severity: rule.severity,
+          question: rule.question,
+          pass_if: rule.pass_if,
+          fail_if: rule.fail_if,
+        })),
         pages: batch,
         response_format: {
           tool: "submit_guidelines_evaluation",
