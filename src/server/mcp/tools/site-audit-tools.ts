@@ -61,6 +61,12 @@ const runInputSchema = {
     .describe(
       "Run Lighthouse on a sample of up to 10 representative pages (default false — it adds several minutes of wall-clock time). Pass true only when the user wants performance/Core Web Vitals detail.",
     ),
+  evaluateContent: z
+    .boolean()
+    .optional()
+    .describe(
+      "Also judge a sample of pages against Google's official content guidelines (people-first, E-E-A-T, spam policies, AI guidance) and give each a verdict (default false). Read the result with get_guideline_results. To judge with your own model instead, leave this off and use get_guidelines_evaluation_batch.",
+    ),
 } as const;
 
 type RunArgs = z.infer<z.ZodObject<typeof runInputSchema>>;
@@ -91,6 +97,8 @@ export const runSiteAuditTool = {
     // many-minute wait, which chat agents handle badly. The app UI passes its
     // own explicit lighthouseStrategy, so this default only governs agents.
     const lighthouseStrategy = (args.runLighthouse ?? false) ? "auto" : "none";
+    const guidelinesStrategy =
+      (args.evaluateContent ?? false) ? "sample" : "none";
     const limitTier = await AuditService.resolveAuditLimitTier(context.billing);
     let auditId: string;
     try {
@@ -101,6 +109,7 @@ export const runSiteAuditTool = {
         startUrl: args.url,
         maxPages: args.maxPages,
         lighthouseStrategy,
+        guidelinesStrategy,
         limitTier,
       }));
     } catch (error) {
