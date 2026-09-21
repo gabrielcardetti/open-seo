@@ -65,6 +65,9 @@ declare namespace Cloudflare {
     GUIDELINES_MODEL?: string;
     GUIDELINES_BASE_URL?: string;
     GUIDELINES_JUDGE?: string;
+    // AI Gateway the decision model is routed through (unified billing
+    // requires an authenticated gateway).
+    AI_GATEWAY_ID?: string;
   }
 }
 

@@ -376,9 +376,15 @@ export default Alchemy.Stack(
     // the guideline phase issues one judge call per sampled page, and this is
     // where those calls become observable (logs) and capped (spend limit)
     // without touching the audit code.
+    const aiGatewayId = prod ? "open-seo" : `open-seo-${stage}`;
     const aiGateway = yield* Cloudflare.AI.Gateway("AI_GATEWAY", {
-      id: prod ? "open-seo" : `open-seo-${stage}`,
+      id: aiGatewayId,
       collectLogs: true,
+      // Required, not optional: third-party models such as Jev are billed
+      // through unified billing, which rejects calls arriving through a gateway
+      // without authentication ("Gateway authentication is required to use
+      // unified billing"). The worker's binding authenticates on its own.
+      authentication: true,
     });
 
     // Aux worker: the site-audit engine (src/audit-worker.ts) — the
@@ -436,6 +442,7 @@ export default Alchemy.Stack(
         // `env.AI.run(...)` works; judge-config.ts degrades to the
         // language-model judge if it is ever absent.
         AI: aiGateway,
+        AI_GATEWAY_ID: aiGatewayId,
         // This worker is the code home of the scratchpad DO and the
         // site-audit workflow; the app worker binds to both cross-script.
         AUDIT_SCRATCHPAD: Cloudflare.DurableObject("AUDIT_SCRATCHPAD", {

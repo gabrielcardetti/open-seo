@@ -49,8 +49,11 @@ export async function resolveJudges(): Promise<ResolvedJudges> {
   // same pages without redeploying.
   const forced = await getOptionalEnvValue("GUIDELINES_JUDGE");
 
+  // Jev is only reachable through an authenticated AI Gateway (unified
+  // billing), so the decision judge needs both the binding and the gateway id.
   const ai = forced === "llm" ? null : aiBinding();
-  const decisionJudge = ai ? new JevJudge(ai) : null;
+  const gatewayId = await getOptionalEnvValue("AI_GATEWAY_ID");
+  const decisionJudge = ai && gatewayId ? new JevJudge(ai, gatewayId) : null;
 
   let languageJudge: RuleJudge | null = null;
   if (forced !== "jev") {

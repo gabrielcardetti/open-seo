@@ -240,12 +240,24 @@ export async function evaluatePage({
   const judgeNames: string[] = [];
 
   if (askable.length > 0 && decisionJudge) {
-    judged = await decisionJudge.judge({
-      page,
-      rules: askable,
-      businessOverview,
-    });
-    judgeNames.push(decisionJudge.modelId);
+    // The decision model is an optimisation, not a dependency. If it is down
+    // or misconfigured, the page carries on exactly as if it were absent: the
+    // language model judges every rule, or, with none configured, the rules
+    // are recorded as unanswered. Failing the page would throw away the
+    // deterministic results that were already correct.
+    try {
+      judged = await decisionJudge.judge({
+        page,
+        rules: askable,
+        businessOverview,
+      });
+      judgeNames.push(decisionJudge.modelId);
+    } catch (error) {
+      console.warn(
+        `Guideline decision model failed for ${page.finalUrl}; continuing without it`,
+        error,
+      );
+    }
   }
 
   if (askable.length > 0 && languageJudge) {

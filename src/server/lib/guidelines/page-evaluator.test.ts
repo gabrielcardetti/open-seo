@@ -287,6 +287,47 @@ describe("evaluatePage", () => {
     warn.mockRestore();
   });
 
+  // A misconfigured gateway or a provider outage must not turn every page
+  // into "could not evaluate": the decision model is an optimisation.
+  it("falls back to the language model when the decision model fails", async () => {
+    const broken: RuleJudge = {
+      name: "jev",
+      modelId: "typesafe/jev",
+      judge: vi.fn().mockRejectedValue(new Error("gateway auth required")),
+    };
+    const language = stubJudge("llm", passAll);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await evaluatePage({
+      page: fetchedPage(),
+      decisionJudge: broken,
+      languageJudge: language,
+    });
+
+    // With no first pass, the language model is asked everything.
+    expect(language.askedRuleIds.flat().length).toBeGreaterThan(1);
+    expect(result.judge).toBe("stub-llm");
+    warn.mockRestore();
+  });
+
+  it("still returns deterministic results when the only judge fails", async () => {
+    const broken: RuleJudge = {
+      name: "jev",
+      modelId: "typesafe/jev",
+      judge: vi.fn().mockRejectedValue(new Error("gateway auth required")),
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await evaluatePage({
+      page: fetchedPage({ robotsMeta: "noindex" }),
+      decisionJudge: broken,
+    });
+
+    expect(result.verdict).toBe("reject");
+    expect(result.judge).toBe("deterministic");
+    warn.mockRestore();
+  });
+
   it("propagates a judge failure instead of reporting a clean page", async () => {
     const failing: RuleJudge = {
       name: "llm",

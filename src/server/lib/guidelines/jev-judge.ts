@@ -62,7 +62,11 @@ const responseSchema = z.object({
 
 /** Minimal shape of the Workers AI binding this judge needs. */
 export interface AiBinding {
-  run(model: string, input: unknown): Promise<unknown>;
+  run(
+    model: string,
+    input: unknown,
+    options?: { gateway?: { id: string } },
+  ): Promise<unknown>;
 }
 
 function buildQuestions(
@@ -166,7 +170,16 @@ export class JevJudge implements RuleJudge {
   readonly name = "jev" as const;
   readonly modelId = JEV_MODEL;
 
-  constructor(private readonly ai: AiBinding) {}
+  /**
+   * Jev is a third-party model billed through Cloudflare's unified billing,
+   * which refuses requests that do not arrive through an AI Gateway with
+   * authentication enabled. The binding authenticates on its own; it only has
+   * to be told which gateway to route through.
+   */
+  constructor(
+    private readonly ai: AiBinding,
+    private readonly gatewayId: string,
+  ) {}
 
   async judge({
     page,
@@ -180,10 +193,11 @@ export class JevJudge implements RuleJudge {
 
     for (let i = 0; i < rules.length; i += QUESTIONS_PER_CALL) {
       const batch = rules.slice(i, i + QUESTIONS_PER_CALL);
-      const raw = await this.ai.run(JEV_MODEL, {
-        state,
-        questions: buildQuestions(batch),
-      });
+      const raw = await this.ai.run(
+        JEV_MODEL,
+        { state, questions: buildQuestions(batch) },
+        { gateway: { id: this.gatewayId } },
+      );
       const parsed = responseSchema.safeParse(raw);
       if (!parsed.success) {
         // A malformed batch leaves its rules unanswered rather than taking the
