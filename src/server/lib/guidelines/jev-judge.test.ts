@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { RULES_BY_ID } from "@/shared/guidelines/catalog";
+import { UpstreamError, withRetry } from "@/server/lib/retry";
 import {
   classifierDevTransport,
-  DecisionModelError,
-  withRetry,
   workersAiTransport,
   type DecisionTransport,
 } from "./decision-transport";
@@ -222,7 +221,7 @@ describe("classifierDevTransport", () => {
       classifierDevTransport({ fetchImpl, retry: noSleep }).ask("state", [
         binary,
       ]),
-    ).rejects.toBeInstanceOf(DecisionModelError);
+    ).rejects.toBeInstanceOf(UpstreamError);
     expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 
@@ -247,7 +246,7 @@ describe("withRetry", () => {
       () => {
         calls += 1;
         if (calls === 1) {
-          return Promise.reject(new DecisionModelError("429", 429, 600_000));
+          return Promise.reject(new UpstreamError("429", 429, 600_000));
         }
         return Promise.resolve("ok");
       },

@@ -19,7 +19,6 @@ export interface EvaluationContext {
   site?: {
     hasAboutPage?: boolean;
     hasContactPage?: boolean;
-    servesLlmsTxt?: boolean;
   };
 }
 
@@ -205,16 +204,6 @@ const evaluators: Record<string, Evaluator> = {
 
   // Same question, asked at site level by the catalog.
   "SITE-02": evaluateAboutAndContact,
-
-  // Google has said llms.txt gets no special treatment; its absence is correct.
-  "AIO-01": (ctx) =>
-    ctx.site?.servesLlmsTxt
-      ? {
-          status: "warn",
-          reason:
-            "The site serves llms.txt. Google gives it no special treatment, so it should not be relied on.",
-        }
-      : { status: "pass" },
 
   // Structured data must describe what the page actually shows.
   "SD-01": ({ page }) => {

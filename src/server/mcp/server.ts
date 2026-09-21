@@ -80,6 +80,10 @@ import {
 } from "@/server/mcp/tools/site-audit-tools";
 import { getGuidelineResultsTool } from "@/server/mcp/tools/guideline-tools";
 import {
+  getAgentReadinessTool,
+  runAgentReadinessScanTool,
+} from "@/server/mcp/tools/agent-readiness-tools";
+import {
   getGuidelinesEvaluationBatchTool,
   submitGuidelinesEvaluationTool,
 } from "@/server/mcp/tools/guideline-judge-tools";
@@ -222,6 +226,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGuidelineResultsTool);
   register(getGuidelinesEvaluationBatchTool);
   register(submitGuidelinesEvaluationTool);
+  register(runAgentReadinessScanTool);
+  register(getAgentReadinessTool);
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Link2,
   MessageSquare,
+  Radar,
   Search,
   Sparkles,
   TrendingUp,
@@ -58,6 +59,11 @@ const projectNavItems = [
     to: "/p/$projectId/audit" as const,
     label: "Site Audit",
     icon: ClipboardCheck,
+  },
+  {
+    to: "/p/$projectId/agent-readiness" as const,
+    label: "Agent Readiness",
+    icon: Radar,
   },
   {
     to: "/p/$projectId/brand-lookup" as const,
@@ -135,6 +141,7 @@ export function getProjectNavGroups(projectId: string) {
         byPath("/p/$projectId/rank-tracking"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),
+        byPath("/p/$projectId/agent-readiness"),
       ],
     },
     {

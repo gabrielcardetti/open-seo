@@ -58,6 +58,7 @@ import { Route as ProjectPProjectIdContextRouteImport } from './routes/_project/
 import { Route as ProjectPProjectIdBrandLookupRouteImport } from './routes/_project/p/$projectId/brand-lookup'
 import { Route as ProjectPProjectIdBacklinksRouteImport } from './routes/_project/p/$projectId/backlinks'
 import { Route as ProjectPProjectIdAuditRouteImport } from './routes/_project/p/$projectId/audit'
+import { Route as ProjectPProjectIdAgentReadinessRouteImport } from './routes/_project/p/$projectId/agent-readiness'
 import { Route as ProjectPProjectIdSettingsIndexRouteImport } from './routes/_project/p/$projectId/settings/index'
 import { Route as ProjectPProjectIdReportsIndexRouteImport } from './routes/_project/p/$projectId/reports/index'
 import { Route as ProjectPProjectIdRankTrackingIndexRouteImport } from './routes/_project/p/$projectId/rank-tracking/index'
@@ -321,6 +322,12 @@ const ProjectPProjectIdAuditRoute = ProjectPProjectIdAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => ProjectPProjectIdRouteRoute,
 } as any)
+const ProjectPProjectIdAgentReadinessRoute =
+  ProjectPProjectIdAgentReadinessRouteImport.update({
+    id: '/agent-readiness',
+    path: '/agent-readiness',
+    getParentRoute: () => ProjectPProjectIdRouteRoute,
+  } as any)
 const ProjectPProjectIdSettingsIndexRoute =
   ProjectPProjectIdSettingsIndexRouteImport.update({
     id: '/',
@@ -413,6 +420,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AppSettingsIndexRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/s/$token/': typeof STokenIndexRoute
+  '/p/$projectId/agent-readiness': typeof ProjectPProjectIdAgentReadinessRoute
   '/p/$projectId/audit': typeof ProjectPProjectIdAuditRouteWithChildren
   '/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
   '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
@@ -468,6 +476,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsIndexRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
   '/s/$token': typeof STokenIndexRoute
+  '/p/$projectId/agent-readiness': typeof ProjectPProjectIdAgentReadinessRoute
   '/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
   '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
   '/p/$projectId/context': typeof ProjectPProjectIdContextRoute
@@ -527,6 +536,7 @@ export interface FileRoutesById {
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/s/$token/': typeof STokenIndexRoute
+  '/_project/p/$projectId/agent-readiness': typeof ProjectPProjectIdAgentReadinessRoute
   '/_project/p/$projectId/audit': typeof ProjectPProjectIdAuditRouteWithChildren
   '/_project/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
   '/_project/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
@@ -586,6 +596,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/onboarding/'
     | '/s/$token/'
+    | '/p/$projectId/agent-readiness'
     | '/p/$projectId/audit'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/brand-lookup'
@@ -641,6 +652,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/onboarding'
     | '/s/$token'
+    | '/p/$projectId/agent-readiness'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/brand-lookup'
     | '/p/$projectId/context'
@@ -699,6 +711,7 @@ export interface FileRouteTypes {
     | '/_app/settings/'
     | '/_authenticated/onboarding/'
     | '/s/$token/'
+    | '/_project/p/$projectId/agent-readiness'
     | '/_project/p/$projectId/audit'
     | '/_project/p/$projectId/backlinks'
     | '/_project/p/$projectId/brand-lookup'
@@ -1093,6 +1106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectPProjectIdAuditRouteImport
       parentRoute: typeof ProjectPProjectIdRouteRoute
     }
+    '/_project/p/$projectId/agent-readiness': {
+      id: '/_project/p/$projectId/agent-readiness'
+      path: '/agent-readiness'
+      fullPath: '/p/$projectId/agent-readiness'
+      preLoaderRoute: typeof ProjectPProjectIdAgentReadinessRouteImport
+      parentRoute: typeof ProjectPProjectIdRouteRoute
+    }
     '/_project/p/$projectId/settings/': {
       id: '/_project/p/$projectId/settings/'
       path: '/'
@@ -1264,6 +1284,7 @@ const ProjectPProjectIdSettingsRouteWithChildren =
   )
 
 interface ProjectPProjectIdRouteRouteChildren {
+  ProjectPProjectIdAgentReadinessRoute: typeof ProjectPProjectIdAgentReadinessRoute
   ProjectPProjectIdAuditRoute: typeof ProjectPProjectIdAuditRouteWithChildren
   ProjectPProjectIdBacklinksRoute: typeof ProjectPProjectIdBacklinksRoute
   ProjectPProjectIdBrandLookupRoute: typeof ProjectPProjectIdBrandLookupRoute
@@ -1284,6 +1305,7 @@ interface ProjectPProjectIdRouteRouteChildren {
 
 const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
   {
+    ProjectPProjectIdAgentReadinessRoute: ProjectPProjectIdAgentReadinessRoute,
     ProjectPProjectIdAuditRoute: ProjectPProjectIdAuditRouteWithChildren,
     ProjectPProjectIdBacklinksRoute: ProjectPProjectIdBacklinksRoute,
     ProjectPProjectIdBrandLookupRoute: ProjectPProjectIdBrandLookupRoute,

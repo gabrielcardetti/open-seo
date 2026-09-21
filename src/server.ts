@@ -231,6 +231,16 @@ export default {
     }
     // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
     await withPgClient(() => runScheduledRankChecks(env));
+    // Daily agent-readiness scans. Isolated so a scanner outage never stops
+    // the other cron jobs, and loaded lazily to keep the probe code out of the
+    // fetch path's baseline heap.
+    try {
+      const { AgentReadinessService } =
+        await import("@/server/features/agent-readiness/AgentReadinessService");
+      await withPgClient(() => AgentReadinessService.runScheduledScans());
+    } catch (err) {
+      console.error("[cron] Agent-readiness scans failed:", err);
+    }
     if (watchdogError) throw watchdogError;
   },
 };

@@ -21,6 +21,12 @@
 import { z } from "zod";
 import type { GuidelineRule } from "@/shared/guidelines/catalog";
 import { instructionsFor, questionFor } from "@/shared/guidelines/judge-map";
+import {
+  readRetryAfter,
+  UpstreamError,
+  withRetry,
+  type RetryPolicy,
+} from "@/server/lib/retry";
 
 /** One answer, in the vocabulary of the rule's question. */
 export interface DecisionAnswer {
@@ -56,82 +62,6 @@ function batches<T>(items: readonly T[]): T[][] {
     out.push(items.slice(i, i + QUESTIONS_PER_CALL));
   }
   return out;
-}
-
-// ─── Retry ──────────────────────────────────────────────────────────────────
-
-/** An upstream refusal worth distinguishing from a malformed answer. */
-export class DecisionModelError extends Error {
-  constructor(
-    message: string,
-    readonly status: number | null,
-    readonly retryAfterMs: number | null = null,
-  ) {
-    super(message);
-    this.name = "DecisionModelError";
-  }
-}
-
-/**
- * Rate limits and overloads pass; bad requests and missing balance do not.
- * Retrying a 402 would only spend the step's time budget failing the same way.
- */
-function isRetryable(error: unknown): boolean {
-  if (error instanceof DecisionModelError) {
-    return (
-      error.status === 429 ||
-      error.status === 529 ||
-      (error.status !== null && error.status >= 500)
-    );
-  }
-  // The Workers AI binding throws plain errors; read the transient ones by
-  // their message, and leave everything else (402 balance, 400) terminal.
-  const message = error instanceof Error ? error.message : String(error);
-  return /\b(429|529|rate limit|overloaded|timed? ?out|temporarily)\b/i.test(
-    message,
-  );
-}
-
-interface RetryPolicy {
-  attempts: number;
-  baseDelayMs: number;
-  /** No single wait may exceed this, whatever Retry-After asks for. */
-  maxDelayMs: number;
-  sleep?: (ms: number) => Promise<void>;
-}
-
-/**
- * Sized to fit inside the evaluation step's three-minute budget: four attempts
- * with waits capped at 20s cost at most a minute of backoff per batch.
- */
-const DEFAULT_RETRY: RetryPolicy = {
-  attempts: 4,
-  baseDelayMs: 1_000,
-  maxDelayMs: 20_000,
-};
-
-const realSleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-export async function withRetry<T>(
-  call: () => Promise<T>,
-  policy: RetryPolicy = DEFAULT_RETRY,
-): Promise<T> {
-  const sleep = policy.sleep ?? realSleep;
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= policy.attempts; attempt++) {
-    try {
-      return await call();
-    } catch (error) {
-      lastError = error;
-      if (attempt === policy.attempts || !isRetryable(error)) throw error;
-      const asked =
-        error instanceof DecisionModelError ? error.retryAfterMs : null;
-      const backoff = policy.baseDelayMs * 2 ** (attempt - 1);
-      await sleep(Math.min(asked ?? backoff, policy.maxDelayMs));
-    }
-  }
-  throw lastError;
 }
 
 // ─── Workers AI (through an authenticated AI Gateway) ───────────────────────
@@ -222,7 +152,7 @@ export const DECISION_MODEL_IDS = [WORKERS_AI_JEV, CLASSIFIER_DEV_JEV] as const;
 export function workersAiTransport(
   ai: AiBinding,
   gatewayId: string,
-  retry: RetryPolicy = DEFAULT_RETRY,
+  retry?: RetryPolicy,
 ): DecisionTransport {
   return {
     modelId: WORKERS_AI_JEV,
@@ -300,15 +230,6 @@ function fromClassifier(
   return { label, confidence };
 }
 
-function readRetryAfter(response: Response): number | null {
-  const header = response.headers.get("retry-after");
-  if (!header) return null;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds)) return seconds * 1000;
-  const date = Date.parse(header);
-  return Number.isNaN(date) ? null : Math.max(0, date - Date.now());
-}
-
 export function classifierDevTransport(
   options: {
     apiKey?: string | null;
@@ -348,7 +269,7 @@ export function classifierDevTransport(
           });
           if (!response.ok) {
             const detail = await response.text().catch(() => "");
-            throw new DecisionModelError(
+            throw new UpstreamError(
               `classifier.dev returned ${response.status}: ${detail.slice(0, 200)}`,
               response.status,
               readRetryAfter(response),
@@ -356,7 +277,7 @@ export function classifierDevTransport(
           }
           const body: unknown = await response.json();
           return body;
-        }, options.retry ?? DEFAULT_RETRY);
+        }, options.retry);
 
         const parsed = classifierResponseSchema.safeParse(payload);
         const dims = parsed.success ? parsed.data.results[0]?.dimensions : null;
