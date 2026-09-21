@@ -75,7 +75,7 @@ export const getGuidelinesEvaluationBatchTool = {
     const audit = await resolveAudit(args.projectId, args.auditId);
     const [pages, alreadyDone] = await Promise.all([
       AuditRepository.getPagesForAudit(audit.id),
-      GuidelineEvaluationRepository.getEvaluatedUrls(audit.id),
+      GuidelineEvaluationRepository.getJudgedUrls(audit.id),
     ]);
 
     const { selectGuidelinesSample } =
@@ -103,7 +103,7 @@ export const getGuidelinesEvaluationBatchTool = {
           args.projectId,
           auditPath(args.projectId, audit.id),
         ),
-        text: "Every sampled page in this audit already has a verdict.",
+        text: "Every sampled page in this audit already has a judged verdict.",
       });
     }
 

@@ -8,7 +8,7 @@
  * with `onConflictDoNothing`, because persistence happens inside Workflow steps
  * that retry.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { auditPageEvaluations, auditRuleResults, audits } from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
@@ -187,12 +187,27 @@ async function getEvaluationResultsForProject(
   return { evaluations, results };
 }
 
-/** URLs already evaluated, so a resumed or externally-judged run skips them. */
-async function getEvaluatedUrls(auditId: string): Promise<Set<string>> {
+/**
+ * URLs that already carry a judged verdict, so the externalized judge skips
+ * them.
+ *
+ * A row counts only when a judge actually answered. When every model judge
+ * was unavailable the phase still writes a row, settled by the deterministic
+ * rules alone with most of the catalog unanswered — and that page is exactly
+ * the one an external judge should pick up, not skip.
+ */
+async function getJudgedUrls(auditId: string): Promise<Set<string>> {
   const rows = await db
     .select({ pageUrl: auditPageEvaluations.pageUrl })
     .from(auditPageEvaluations)
-    .where(eq(auditPageEvaluations.auditId, auditId));
+    .where(
+      and(
+        eq(auditPageEvaluations.auditId, auditId),
+        isNotNull(auditPageEvaluations.judge),
+        ne(auditPageEvaluations.judge, "deterministic"),
+        isNull(auditPageEvaluations.errorMessage),
+      ),
+    );
   return new Set(rows.map((row) => row.pageUrl));
 }
 
@@ -225,7 +240,7 @@ export const GuidelineEvaluationRepository = {
   getEvaluationsForAudit,
   getRuleResultsForAudit,
   getEvaluationResultsForProject,
-  getEvaluatedUrls,
+  getJudgedUrls,
   deleteEvaluationsForAudit,
   getResultsForRules,
 } as const;
