@@ -68,6 +68,10 @@ declare namespace Cloudflare {
     // AI Gateway the decision model is routed through (unified billing
     // requires an authenticated gateway).
     AI_GATEWAY_ID?: string;
+    // Route to the decision model: "classifier" (default), "gateway" or "none".
+    GUIDELINES_DECISION_MODEL?: string;
+    // Optional classifier.dev workspace/Pro key, for higher rate limits.
+    CLASSIFIER_API_KEY?: string;
   }
 }
 

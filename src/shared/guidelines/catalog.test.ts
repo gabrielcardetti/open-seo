@@ -130,6 +130,8 @@ describe("judgeableRules", () => {
     // carry, so they stay out even though their check type is judgeable.
     expect(ids.has("SPAM-01")).toBe(false);
     expect(ids.has("SPAM-04")).toBe(false);
+    // A text judge asked about mobile layout can only guess.
+    expect(ids.has("PX-02")).toBe(false);
     expect(judged.length).toBeGreaterThan(0);
   });
 

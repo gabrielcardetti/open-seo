@@ -3,8 +3,8 @@
  *
  * Both are optional and they degrade independently:
  *
- * - no `AI` binding: the decision model is skipped and the language model
- *   judges every rule, which costs more but works;
+ * - no decision model: the language model judges every rule, which costs more
+ *   but works;
  * - no API key: the language model is skipped, so findings carry a verdict and
  *   a confidence but no quote;
  * - neither: only the deterministic rules are answered and everything else is
@@ -16,7 +16,13 @@
 import { env } from "cloudflare:workers";
 import { getEnvValueSync, getOptionalEnvValue } from "@/server/lib/runtime-env";
 import type { RuleJudge } from "./judge";
-import { JevJudge, type AiBinding } from "./jev-judge";
+import {
+  classifierDevTransport,
+  workersAiTransport,
+  type AiBinding,
+  type DecisionTransport,
+} from "./decision-transport";
+import { JevJudge } from "./jev-judge";
 import { LlmJudge } from "./llm-judge";
 
 /** Sensible default: cheap, fast, and adequate once a decision model pre-filters. */
@@ -44,16 +50,40 @@ function aiBinding(): AiBinding | null {
   return isAiBinding(candidate) ? candidate : null;
 }
 
+/**
+ * Which route reaches Jev, from GUIDELINES_DECISION_MODEL:
+ *
+ * - `classifier` (default): classifier.dev. Free and keyless, so it works on a
+ *   fresh deploy with nothing configured; the trade-off is that page text goes
+ *   to a third party and anonymous calls share a rate limit.
+ * - `gateway`: Workers AI through the authenticated AI Gateway. Needs the `AI`
+ *   binding, AI_GATEWAY_ID, and unified-billing balance on the gateway.
+ * - `none`: no decision model.
+ *
+ * A route whose prerequisites are missing resolves to no decision model rather
+ * than failing; the audit then leans on the language model.
+ */
+async function resolveDecisionTransport(): Promise<DecisionTransport | null> {
+  const route =
+    (await getOptionalEnvValue("GUIDELINES_DECISION_MODEL")) ?? "classifier";
+  if (route === "none") return null;
+  if (route === "gateway") {
+    const ai = aiBinding();
+    const gatewayId = await getOptionalEnvValue("AI_GATEWAY_ID");
+    return ai && gatewayId ? workersAiTransport(ai, gatewayId) : null;
+  }
+  return classifierDevTransport({
+    apiKey: getEnvValueSync(env, "CLASSIFIER_API_KEY"),
+  });
+}
+
 export async function resolveJudges(): Promise<ResolvedJudges> {
   // GUIDELINES_JUDGE forces one instrument, for comparing them against the
   // same pages without redeploying.
   const forced = await getOptionalEnvValue("GUIDELINES_JUDGE");
 
-  // Jev is only reachable through an authenticated AI Gateway (unified
-  // billing), so the decision judge needs both the binding and the gateway id.
-  const ai = forced === "llm" ? null : aiBinding();
-  const gatewayId = await getOptionalEnvValue("AI_GATEWAY_ID");
-  const decisionJudge = ai && gatewayId ? new JevJudge(ai, gatewayId) : null;
+  const transport = forced === "llm" ? null : await resolveDecisionTransport();
+  const decisionJudge = transport ? new JevJudge(transport) : null;
 
   let languageJudge: RuleJudge | null = null;
   if (forced !== "jev") {

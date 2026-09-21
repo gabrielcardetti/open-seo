@@ -26,6 +26,21 @@ const JUDGEABLE_CHECKS = new Set(["llm", "heuristic", "hybrid"]);
  */
 const NEVER_AUTO_CLOSE = new Set(["SPAM-01", "SPAM-04", "SPAM-08", "AI-03"]);
 
+/**
+ * Rules about how a page renders or is wired, not what it says. A judge sees
+ * the page's text, so asked "does this read well on mobile?" or "do ads cover
+ * the content?" it can only guess — and a live run did exactly that, failing
+ * mobile usability on a page it had never seen laid out. These need rendering
+ * (Lighthouse) or crawl data, and stay `unknown` until something measures them.
+ */
+const NEEDS_RENDERING = new Set([
+  "PX-02", // mobile usability
+  "PX-06", // ads or interstitials covering the main content
+  "TECH-05", // canonical target
+  "TECH-07", // inbound internal links
+  "TECH-08", // content only available after JavaScript
+]);
+
 type JudgeQuestion =
   | { kind: "binary"; labels: [string, string] }
   | { kind: "score"; levels: string[] }
@@ -95,7 +110,9 @@ export function judgeableRules(
 ): GuidelineRule[] {
   return rules.filter(
     (rule) =>
-      JUDGEABLE_CHECKS.has(rule.check) && !NEVER_AUTO_CLOSE.has(rule.id),
+      JUDGEABLE_CHECKS.has(rule.check) &&
+      !NEVER_AUTO_CLOSE.has(rule.id) &&
+      !NEEDS_RENDERING.has(rule.id),
   );
 }
 
@@ -103,6 +120,9 @@ export function judgeableRules(
 export function unjudgeableReason(rule: GuidelineRule): string | null {
   if (NEVER_AUTO_CLOSE.has(rule.id)) {
     return "Needs evidence the page cannot show; a reviewer has to decide.";
+  }
+  if (NEEDS_RENDERING.has(rule.id)) {
+    return "Needs the rendered page or crawl data, not its text.";
   }
   switch (rule.check) {
     case "gsc":

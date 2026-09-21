@@ -434,6 +434,9 @@ export default Alchemy.Stack(
         GUIDELINES_MODEL: optionalVar("GUIDELINES_MODEL"),
         GUIDELINES_BASE_URL: optionalVar("GUIDELINES_BASE_URL"),
         GUIDELINES_JUDGE: optionalVar("GUIDELINES_JUDGE"),
+        // Route to the decision model: classifier.dev (free) or the gateway.
+        GUIDELINES_DECISION_MODEL: optionalVar("GUIDELINES_DECISION_MODEL"),
+        CLASSIFIER_API_KEY: optionalSecret("CLASSIFIER_API_KEY"),
         AUTH_MODE: authMode,
         DATABASE_PROVIDER: databaseProvider || "d1",
         ...(prodHyperdrive ? { HYPERDRIVE: prodHyperdrive } : {}),
