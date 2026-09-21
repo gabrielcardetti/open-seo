@@ -255,6 +255,38 @@ describe("evaluatePage", () => {
     );
   });
 
+  // The evidence-writing pass is the fragile one (rate limits, credit). Its
+  // failure must not throw away verdicts the decision model already produced.
+  it("keeps first-pass verdicts when the second pass fails", async () => {
+    const decision = stubJudge("jev", (rules) =>
+      rules.map((rule, index) => ({
+        ruleId: rule.id,
+        status: index === 0 ? ("fail" as const) : ("pass" as const),
+        confidence: 0.95,
+      })),
+    );
+    const failing: RuleJudge = {
+      name: "llm",
+      modelId: "out-of-credit",
+      judge: vi.fn().mockRejectedValue(new Error("402 insufficient credit")),
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await evaluatePage({
+      page: fetchedPage(),
+      decisionJudge: decision,
+      languageJudge: failing,
+    });
+
+    const flagged = decision.askedRuleIds.flat()[0];
+    expect(result.findings.find((f) => f.ruleId === flagged)).toMatchObject({
+      status: "fail",
+      evidence: null,
+    });
+    expect(result.judge).toBe("stub-jev");
+    warn.mockRestore();
+  });
+
   it("propagates a judge failure instead of reporting a clean page", async () => {
     const failing: RuleJudge = {
       name: "llm",

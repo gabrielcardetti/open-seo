@@ -414,11 +414,20 @@ export default Alchemy.Stack(
         // Deliberately NOT ...dataEnv: this worker crawls and parses
         // attacker-influenced HTML, so it gets only the secrets its code
         // path reads — DataForSEO (Lighthouse), Autumn (metering), PostHog
-        // (capture). No auth/OAuth/Loops/Turnstile secrets.
+        // (capture), and the guideline judge's model key. No
+        // auth/OAuth/Loops/Turnstile secrets.
         DATAFORSEO_API_KEY: dataEnv.DATAFORSEO_API_KEY,
         AUTUMN_SECRET_KEY: dataEnv.AUTUMN_SECRET_KEY,
         POSTHOG_PUBLIC_KEY: dataEnv.POSTHOG_PUBLIC_KEY,
         POSTHOG_HOST: dataEnv.POSTHOG_HOST,
+        // The guideline phase's language-model judge, which writes the quoted
+        // evidence behind a finding. GUIDELINES_API_KEY/_BASE_URL point it at
+        // any chat-completions endpoint; it falls back to OpenRouter.
+        OPENROUTER_API_KEY: dataEnv.OPENROUTER_API_KEY,
+        GUIDELINES_API_KEY: optionalSecret("GUIDELINES_API_KEY"),
+        GUIDELINES_MODEL: optionalVar("GUIDELINES_MODEL"),
+        GUIDELINES_BASE_URL: optionalVar("GUIDELINES_BASE_URL"),
+        GUIDELINES_JUDGE: optionalVar("GUIDELINES_JUDGE"),
         AUTH_MODE: authMode,
         DATABASE_PROVIDER: databaseProvider || "d1",
         ...(prodHyperdrive ? { HYPERDRIVE: prodHyperdrive } : {}),

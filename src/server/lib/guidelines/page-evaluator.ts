@@ -254,13 +254,36 @@ export async function evaluatePage({
         ? askable.filter((rule) => rulesNeedingSecondPass(judged).has(rule.id))
         : askable;
     if (needed.length > 0) {
-      const second = await languageJudge.judge({
-        page,
-        rules: needed,
-        businessOverview,
-      });
-      judged = judged.length > 0 ? mergeJudgements(judged, second) : second;
-      judgeNames.push(languageJudge.modelId);
+      if (judged.length > 0) {
+        // A second pass that fails must not cost the first pass's answers.
+        // The decision model already produced verdicts; losing them because
+        // the evidence-writing model was rate limited or out of credit would
+        // make the whole page depend on its most fragile judge. The findings
+        // keep their verdicts and simply arrive without a quote.
+        try {
+          const second = await languageJudge.judge({
+            page,
+            rules: needed,
+            businessOverview,
+          });
+          judged = mergeJudgements(judged, second);
+          judgeNames.push(languageJudge.modelId);
+        } catch (error) {
+          console.warn(
+            `Guideline second pass failed for ${page.finalUrl}; keeping first-pass verdicts`,
+            error,
+          );
+        }
+      } else {
+        // With no first pass there is nothing to fall back to, so the failure
+        // surfaces and the page is recorded as not evaluated.
+        judged = await languageJudge.judge({
+          page,
+          rules: needed,
+          businessOverview,
+        });
+        judgeNames.push(languageJudge.modelId);
+      }
     }
   }
 

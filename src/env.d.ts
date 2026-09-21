@@ -59,6 +59,12 @@ declare namespace Cloudflare {
     OPENROUTER_API_KEY?: string;
     // Optional OpenRouter model slug override (defaults in openrouter.ts).
     OPENROUTER_MODEL?: string;
+    // Content-guideline judge (audit worker). All optional: without a key the
+    // phase judges with the Workers AI decision model alone.
+    GUIDELINES_API_KEY?: string;
+    GUIDELINES_MODEL?: string;
+    GUIDELINES_BASE_URL?: string;
+    GUIDELINES_JUDGE?: string;
   }
 }
 
