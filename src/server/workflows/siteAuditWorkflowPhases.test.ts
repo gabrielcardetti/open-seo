@@ -68,7 +68,11 @@ const PHASE_PARAMS = {
   },
   projectId: "project-1",
   startUrl: "https://example.com/",
-  config: { maxPages: 50, lighthouseStrategy: "auto" as const },
+  config: {
+    maxPages: 50,
+    lighthouseStrategy: "auto" as const,
+    guidelinesStrategy: "none" as const,
+  },
 };
 
 describe("runLighthousePhase", () => {

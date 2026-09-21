@@ -12,6 +12,7 @@ data, or sensitive paths.
 
 - [ ] `2026-09-03T00:00:00Z` — `claude` — `pnpm ci:check` does not run `pnpm build`, so a route file that pulls `cloudflare:workers` into the client bundle passes every check and still breaks the build (hit on the dynamic-reports branch). Add a build step to `ci:check`, or document that `pnpm build` must be run separately before opening a PR.
 - [ ] `2026-09-11T00:13:05Z` — `codex` — The web-content review skill points to the removed `src/server/features/onboarding/openseo-fact-sheet.md`; the reference now lives at `src/server/features/sam/openseo-fact-sheet.md`. Update the skill's pointer so content reviews reach the current fact sheet.
+- [ ] `2026-09-21T00:15:00Z` — `claude` — `npm run db:generate` dies with "Wrangler requires at least Node.js v22.0.0" on Node 20, printed mid-way through drizzle-kit's output so it reads like a drizzle config problem. The repo pins pnpm via `packageManager` but never pins Node: no `.nvmrc`, no `engines.node`. Add one so the version manager picks the right Node instead of each contributor rediscovering this.
 
 - `2026-09-05T23:52:53Z` — `codex` — After `pnpm build` ran alongside an active Vite dev server, browser navigation failed and server functions returned undefined. The server logged `Cannot read properties of undefined (reading 'map')` in `runInRunnerObject` / `loadEntries`. Restarting Vite restored the same dashboard without code changes. Stop and restart the dev server around production builds before browser QA; consider documenting or isolating the shared build/runtime state.
 

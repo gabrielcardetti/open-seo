@@ -17,6 +17,7 @@ import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import {
   parseAuditConfig,
   type AuditConfig,
+  type GuidelinesStrategy,
   type LighthouseStrategy,
 } from "@/server/lib/audit/types";
 import {
@@ -54,6 +55,7 @@ async function startAudit(input: {
   startUrl: string;
   maxPages?: number;
   lighthouseStrategy?: LighthouseStrategy;
+  guidelinesStrategy?: GuidelinesStrategy;
   limitTier: AuditLimitTier;
 }) {
   const limits = AUDIT_LIMITS[input.limitTier];
@@ -63,13 +65,20 @@ async function startAudit(input: {
   }
 
   const lighthouseStrategy = input.lighthouseStrategy ?? "auto";
+  // Off unless asked for: the guideline phase spends judge calls, and an audit
+  // is otherwise free to run.
+  const guidelinesStrategy = input.guidelinesStrategy ?? "none";
   const reservation = getEstimatedAuditCapacity({
     maxPages,
     lighthouseStrategy,
   });
 
   const auditId = crypto.randomUUID();
-  const config: AuditConfig = { maxPages, lighthouseStrategy };
+  const config: AuditConfig = {
+    maxPages,
+    lighthouseStrategy,
+    guidelinesStrategy,
+  };
   // Anchor the audit to the site's real origin: a start domain that 301s
   // elsewhere (…net -> …com, apex -> www) would otherwise dead-end after
   // one page at the same-origin crawl boundary.

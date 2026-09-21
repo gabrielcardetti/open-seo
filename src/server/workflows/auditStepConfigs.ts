@@ -47,3 +47,19 @@ export const MULTIPAGE_CHECKS_STEP: WorkflowStepConfig = {
   retries: { limit: 2, delay: "5 seconds", backoff: "exponential" },
   timeout: "5 minutes",
 };
+
+/**
+ * One page through the guideline catalog: fetch, deterministic rules, then the
+ * judges. Retries are off for the same reason as the Lighthouse fetch — a
+ * replay would re-issue judge calls that were already paid for and answered.
+ */
+export const GUIDELINES_EVAL_STEP: WorkflowStepConfig = {
+  retries: { limit: 0, delay: 0 },
+  timeout: "3 minutes",
+};
+
+/** DB-only, idempotent on stable ids, so retrying is free. */
+export const GUIDELINES_PERSIST_STEP: WorkflowStepConfig = {
+  retries: { limit: 3, delay: "5 seconds", backoff: "exponential" },
+  timeout: "2 minutes",
+};

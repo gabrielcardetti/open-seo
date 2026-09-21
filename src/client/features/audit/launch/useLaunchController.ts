@@ -85,6 +85,7 @@ export function useLaunchController({
           startUrl: value.url,
           maxPages: effectiveMaxPages,
           lighthouseStrategy: value.runLighthouse ? "auto" : "none",
+          guidelinesStrategy: value.evaluateContent ? "sample" : "none",
         });
         toast.success("Audit started!");
         onAuditStarted(result.auditId);
@@ -120,6 +121,7 @@ function useLaunchMutations({
       startUrl: string;
       maxPages: number;
       lighthouseStrategy: "auto" | "none";
+      guidelinesStrategy: "none" | "sample" | "all";
     }) => startAudit({ data }),
   });
 

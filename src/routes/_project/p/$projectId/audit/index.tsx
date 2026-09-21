@@ -9,7 +9,10 @@ import {
 } from "@/serverFunctions/audit";
 import { auditSearchSchema } from "@/types/schemas/audit";
 import { LaunchView } from "@/client/features/audit/launch/LaunchView";
-import { ResultsView } from "@/client/features/audit/results/ResultsView";
+import {
+  ResultsView,
+  type ResultsTab,
+} from "@/client/features/audit/results/ResultsView";
 import {
   extractHostname,
   extractPathname,
@@ -72,7 +75,7 @@ function AuditDetail({
   auditId: string;
   tab: string;
   onBack: () => void;
-  onTabChange: (tab: "issues" | "pages" | "performance") => void;
+  onTabChange: (tab: ResultsTab) => void;
 }) {
   const statusQuery = useQuery({
     queryKey: ["audit-status", projectId, auditId],

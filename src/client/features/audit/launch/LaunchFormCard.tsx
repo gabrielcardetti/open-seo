@@ -77,6 +77,7 @@ export function LaunchFormCard({
               maxPagesLimit={maxPagesLimit}
             />
             <LighthouseOptions launchForm={launchForm} />
+            <ContentGuidelinesOption launchForm={launchForm} />
           </div>
         </form>
 
@@ -204,6 +205,46 @@ function LaunchErrors({ launchForm }: Pick<Props, "launchForm">) {
             </div>
           ) : null;
         }}
+      </launchForm.Subscribe>
+    </div>
+  );
+}
+
+function ContentGuidelinesOption({ launchForm }: Pick<Props, "launchForm">) {
+  return (
+    <div className="rounded-lg border border-base-300 bg-base-200/20 p-3 space-y-2">
+      <label className="label cursor-pointer justify-start gap-2 p-0">
+        <launchForm.Field name="evaluateContent">
+          {(field) => (
+            <input
+              type="checkbox"
+              className="toggle toggle-sm toggle-primary"
+              checked={Boolean(field.state.value)}
+              onChange={(event) => field.handleChange(event.target.checked)}
+            />
+          )}
+        </launchForm.Field>
+        <span
+          className="text-sm font-medium text-base-content/80"
+          title="Judges your content against Google's published content guidelines."
+        >
+          Evaluate content against Google&apos;s guidelines
+        </span>
+      </label>
+
+      <launchForm.Subscribe
+        selector={(snapshot) => snapshot.values.evaluateContent}
+      >
+        {(evaluateContent) =>
+          evaluateContent ? (
+            <p className="text-xs text-base-content/60">
+              We judge a sample of your pages against Google&apos;s published
+              content guidelines — people-first content, E-E-A-T, spam policies
+              and AI guidance — and give each one a verdict with the evidence
+              behind it. Adds a few minutes to the audit.
+            </p>
+          ) : null
+        }
       </launchForm.Subscribe>
     </div>
   );

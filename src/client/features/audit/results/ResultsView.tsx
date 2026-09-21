@@ -11,13 +11,15 @@ import {
   IssuesView,
   resolveIssueSeverity,
 } from "@/client/features/audit/results/IssuesView";
+import { GuidelinesTab } from "@/client/features/audit/results/GuidelinesTab";
 import { PagesTable } from "@/client/features/audit/results/PagesTable";
 import {
   ExportDropdown,
   PerformanceTable,
 } from "@/client/features/audit/results/ResultsTables";
 
-type ResultsTab = "issues" | "pages" | "performance";
+/** Declared once and exported: the route mirrors this union for its handler. */
+export type ResultsTab = "issues" | "pages" | "performance" | "guidelines";
 
 export function ResultsView({
   projectId,
@@ -124,6 +126,9 @@ export function ResultsView({
           />
 
           {activeTab === "issues" && <IssuesView issues={issues} />}
+          {activeTab === "guidelines" && (
+            <GuidelinesTab projectId={projectId} auditId={audit.id} />
+          )}
           {activeTab === "pages" && (
             <PagesTable
               pages={pages}
@@ -228,6 +233,7 @@ function ResultsHeader({
   const tabs: Array<{ tab: ResultsTab; label: string }> = [
     { tab: "issues", label: `Issues (${issueCount})` },
     { tab: "pages", label: `Pages (${pageCount})` },
+    { tab: "guidelines", label: "Content guidelines" },
     ...(hasPerformanceTab
       ? [
           {

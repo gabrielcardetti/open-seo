@@ -179,3 +179,91 @@ export const auditLighthouseResults = pgTable(
     index("audit_lighthouse_results_page_id_idx").on(table.pageId),
   ],
 );
+
+// ============================================================================
+// Content guideline evaluation
+// ============================================================================
+// Kept separate from `audit_issues` on purpose. That table's severity is looked
+// up from a fixed registry of ~29 crawler issue types (see shared/audit-issues),
+// and its whole payload is shipped to the browser unpaginated; folding 117
+// catalog rules into it would break the lookup and multiply that payload.
+
+// One row per page put through the guideline catalog.
+export const auditPageEvaluations = pgTable(
+  "audit_page_evaluations",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    pageId: text("page_id").references(() => auditPages.id, {
+      onDelete: "cascade",
+    }),
+    pageUrl: text("page_url").notNull(),
+    // Which catalog produced this verdict. Google revises its guidelines, so a
+    // verdict is only comparable to another from the same catalog version.
+    catalogVersion: text("catalog_version").notNull(),
+    // Classification that decided which rules were asked at all.
+    pageType: text("page_type"),
+    ymyl: boolean("ymyl").notNull().default(false),
+    ymylTopicsJson: text("ymyl_topics_json"),
+    aiSuspected: boolean("ai_suspected").notNull().default(false),
+    verdict: text("verdict", {
+      enum: ["pass", "pass_with_warnings", "revise", "reject"],
+    }).notNull(),
+    criticalFails: integer("critical_fails").notNull().default(0),
+    highFails: integer("high_fails").notNull().default(0),
+    mediumFails: integer("medium_fails").notNull().default(0),
+    lowFails: integer("low_fails").notNull().default(0),
+    // How many applicable rules got no answer — the honesty column. A verdict
+    // resting on 30 unknowns is not the same as one resting on none.
+    unknownCount: integer("unknown_count").notNull().default(0),
+    // Which judge answered, so a later catalog or model change is attributable.
+    judge: text("judge"),
+    evaluatedAt: timestampColumn("evaluated_at").notNull().default(isoNow),
+    // Set when the page could not be evaluated; the row still records the try.
+    errorMessage: text("error_message"),
+  },
+  (table) => [
+    index("audit_page_evaluations_audit_id_idx").on(table.auditId),
+    index("audit_page_evaluations_page_id_idx").on(table.pageId),
+  ],
+);
+
+// One row per rule that did NOT pass. Passes are derived from the applicable
+// rule set, so a clean page costs no rows.
+export const auditRuleResults = pgTable(
+  "audit_rule_results",
+  {
+    id: text("id").primaryKey(),
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    evaluationId: text("evaluation_id")
+      .notNull()
+      .references(() => auditPageEvaluations.id, { onDelete: "cascade" }),
+    pageUrl: text("page_url").notNull(),
+    ruleId: text("rule_id").notNull(),
+    status: text("status", {
+      enum: ["fail", "warn", "unknown"],
+    }).notNull(),
+    severity: text("severity", {
+      enum: ["critical", "high", "medium", "low"],
+    }).notNull(),
+    // 1-5 for graded rules, null for binary ones.
+    score: integer("score"),
+    // The judge's own certainty, kept so a finding can be weighed later.
+    confidence: real("confidence"),
+    // Short quote from the page backing the finding. Null when the judge that
+    // answered cannot produce text (decision models return values, not prose).
+    evidence: text("evidence"),
+    reason: text("reason"),
+    // Copied from the catalog at write time so a report stays readable after
+    // the catalog moves on.
+    remediation: text("remediation"),
+  },
+  (table) => [
+    index("audit_rule_results_audit_rule_idx").on(table.auditId, table.ruleId),
+    index("audit_rule_results_evaluation_id_idx").on(table.evaluationId),
+  ],
+);

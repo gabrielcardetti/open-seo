@@ -175,6 +175,7 @@ const resolveSelfHostAccess = (
   stage: string,
   provision: boolean,
   workersSubdomain: string,
+  customDomain: string,
 ) =>
   Effect.gen(function* () {
     let teamDomain = yield* optionalVar("TEAM_DOMAIN");
@@ -249,7 +250,9 @@ const resolveSelfHostAccess = (
         applicationId: "SelfHostAccess",
         policyName: `open-seo ${stage} self-host users`,
         applicationName: `open-seo ${stage}`,
-        domain: `${workerName(stage)}.${subdomain}`,
+        // SELFHOST_DOMAIN moves the gate onto the custom hostname the worker
+        // serves; without it Access would only protect the workers.dev one.
+        domain: customDomain || `${workerName(stage)}.${subdomain}`,
         emails: allowedEmails,
       });
       policyAud = application.aud;
@@ -352,16 +355,31 @@ export default Alchemy.Stack(
       authUrl = "";
     }
 
+    // Self-host on a domain of your own: the worker serves it and the Access
+    // application gates it. The zone must live in the same Cloudflare account.
+    const selfHostDomain = prod ? "" : yield* optionalVar("SELFHOST_DOMAIN");
+
     const access = yield* resolveSelfHostAccess(
       stage,
       authMode === "cloudflare_access" && !prod,
       workersSubdomain,
+      selfHostDomain,
     );
 
     // Created once and bound into BOTH workers — they share the same
     // D1/KV/R2 (and prod Hyperdrive). OAUTH_KV stays app-worker-only.
     const resources = makeResources(stage);
     const prodHyperdrive = prod ? makeHyperdrive() : undefined;
+
+    // Workers AI, reached through a gateway because that is the only shape
+    // Alchemy exposes an `ai` binding in. The gateway earns its place anyway:
+    // the guideline phase issues one judge call per sampled page, and this is
+    // where those calls become observable (logs) and capped (spend limit)
+    // without touching the audit code.
+    const aiGateway = yield* Cloudflare.AI.Gateway("AI_GATEWAY", {
+      id: prod ? "open-seo" : `open-seo-${stage}`,
+      collectLogs: true,
+    });
 
     // Aux worker: the site-audit engine (src/audit-worker.ts) — the
     // SiteAuditWorkflow orchestrator and the per-audit AuditScratchpad DO.
@@ -404,6 +422,11 @@ export default Alchemy.Stack(
         AUTH_MODE: authMode,
         DATABASE_PROVIDER: databaseProvider || "d1",
         ...(prodHyperdrive ? { HYPERDRIVE: prodHyperdrive } : {}),
+        // Workers AI: the decision model (typesafe/jev) the guideline phase
+        // uses as its cheap first-pass judge. The binding is a plain `Ai`, so
+        // `env.AI.run(...)` works; judge-config.ts degrades to the
+        // language-model judge if it is ever absent.
+        AI: aiGateway,
         // This worker is the code home of the scratchpad DO and the
         // site-audit workflow; the app worker binds to both cross-script.
         AUDIT_SCRATCHPAD: Cloudflare.DurableObject("AUDIT_SCRATCHPAD", {
@@ -423,7 +446,12 @@ export default Alchemy.Stack(
     const app = yield* Cloudflare.Worker("open-seo", {
       name: workerName(stage),
       // Prod serves the real domains; the zone is inferred from the hostname.
-      domain: prod ? ["app.openseo.so", "www.app.openseo.so"] : undefined,
+      domain: prod
+        ? ["app.openseo.so", "www.app.openseo.so"]
+        : selfHostDomain || undefined,
+      // The Access application gates exactly one hostname. On a custom domain
+      // the workers.dev URL would keep serving the app ungated, so turn it off.
+      ...(selfHostDomain ? { url: false as const } : {}),
       // Prebuilt worker from `vite build` (@cloudflare/vite-plugin). The entry
       // exports the DO + WorkflowEntrypoint classes (re-exported by
       // src/server.ts), which `bundle: false` requires. Sibling chunks under

@@ -8,6 +8,7 @@ import {
   deleteAuditSchema,
   getAuditHistorySchema,
   getAuditResultsSchema,
+  getGuidelineResultsSchema,
   getAuditStatusSchema,
   getCrawlProgressSchema,
   startAuditSchema,
@@ -58,6 +59,26 @@ export const getAuditResults = createServerFn({ method: "POST" })
   .validator(getAuditResultsSchema)
   .handler(async ({ data, context }) => {
     return AuditService.getResults(data.auditId, context.projectId);
+  });
+
+/**
+ * Guideline evaluations for one audit.
+ *
+ * Deliberately its own server function rather than another field on
+ * getAuditResults: that one already ships every page, every Lighthouse row and
+ * every issue in a single unpaginated payload, and the guideline tab is only
+ * opened when someone asks for it.
+ */
+export const getGuidelineResults = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getGuidelineResultsSchema)
+  .handler(async ({ data, context }) => {
+    const { GuidelineEvaluationRepository } =
+      await import("@/server/features/audit/repositories/GuidelineEvaluationRepository");
+    return GuidelineEvaluationRepository.getEvaluationResultsForProject(
+      data.auditId,
+      context.projectId,
+    );
   });
 
 export const getAuditHistory = createServerFn({ method: "POST" })

@@ -25,6 +25,7 @@ import {
   type CrawlPhaseResult,
 } from "@/server/workflows/siteAuditWorkflowCrawl";
 import { pgStep } from "@/server/workflows/pgStep";
+import { runGuidelinesPhase } from "@/server/workflows/siteAuditWorkflowGuidelines";
 import {
   DB_STEP,
   DISCOVERY_STEP,
@@ -89,6 +90,16 @@ export async function runAuditPhases(
     auditId,
     workflowInstanceId,
     billingCustomer,
+    projectId,
+    startUrl,
+    config,
+  });
+  // Content guidelines run after the crawl has persisted every page row: the
+  // sample is drawn from those rows, and the phase is a no-op unless the audit
+  // was started with it turned on.
+  await runGuidelinesPhase(step, {
+    auditId,
+    workflowInstanceId,
     projectId,
     startUrl,
     config,

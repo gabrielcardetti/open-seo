@@ -78,6 +78,11 @@ import {
   getAuditStatusTool,
   runSiteAuditTool,
 } from "@/server/mcp/tools/site-audit-tools";
+import { getGuidelineResultsTool } from "@/server/mcp/tools/guideline-tools";
+import {
+  getGuidelinesEvaluationBatchTool,
+  submitGuidelinesEvaluationTool,
+} from "@/server/mcp/tools/guideline-judge-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
@@ -214,6 +219,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getAuditStatusTool);
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
+  register(getGuidelineResultsTool);
+  register(getGuidelinesEvaluationBatchTool);
+  register(submitGuidelinesEvaluationTool);
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);

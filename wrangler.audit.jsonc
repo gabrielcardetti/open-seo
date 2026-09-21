@@ -74,6 +74,12 @@
   //     "localConnectionString": "postgres://openseo:openseo@localhost:5433/openseo",
   //   },
   // ],
+  // Workers AI: the decision model (typesafe/jev) the guideline phase uses as
+  // its cheap first-pass judge. Optional at runtime — judge-config.ts falls
+  // back to the language model when the binding is absent.
+  "ai": {
+    "binding": "AI",
+  },
   "r2_buckets": [
     {
       "bucket_name": "open-seo",

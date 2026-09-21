@@ -9,9 +9,17 @@ import { jsonCodec } from "@/shared/json";
 
 export type LighthouseStrategy = "auto" | "none";
 
+/**
+ * Whether the crawl is followed by a content-guideline evaluation, and over how
+ * much of it. "sample" judges one page per URL template up to a cap; "all"
+ * judges every indexable page, which costs a judge call each.
+ */
+export type GuidelinesStrategy = "none" | "sample" | "all";
+
 export interface AuditConfig {
   maxPages: number;
   lighthouseStrategy: LighthouseStrategy;
+  guidelinesStrategy: GuidelinesStrategy;
 }
 
 // Read-side only (writes stringify a typed AuditConfig). Stored rows may hold
@@ -27,9 +35,18 @@ const lighthouseStrategySchema = z
   )
   .catch("auto");
 
+// Audits predating the guideline phase have no such key, and audits written by
+// a newer deploy may carry a value this one does not know. Both must still
+// parse, or their results become unviewable — same reasoning as the Lighthouse
+// strategy above.
+const guidelinesStrategySchema = z
+  .enum(["none", "sample", "all"])
+  .catch("none");
+
 const auditConfigSchema = z.object({
   maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
   lighthouseStrategy: lighthouseStrategySchema,
+  guidelinesStrategy: guidelinesStrategySchema.default("none"),
 });
 
 const auditConfigCodec = jsonCodec(auditConfigSchema);

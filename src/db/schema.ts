@@ -101,6 +101,8 @@ export const {
   auditPages,
   auditIssues,
   auditLighthouseResults,
+  auditPageEvaluations,
+  auditRuleResults,
   samSessions,
   user,
   session,
