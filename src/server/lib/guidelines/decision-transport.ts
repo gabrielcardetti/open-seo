@@ -210,6 +210,14 @@ function fromWorkersAi(
 }
 
 const WORKERS_AI_JEV = "typesafe/jev";
+const CLASSIFIER_DEV_JEV = "classifier.dev/jev";
+
+/**
+ * The judge ids a decision model records on its own. An evaluation carrying
+ * only one of these has verdicts but no quoted evidence, so it still wants a
+ * reading judge.
+ */
+export const DECISION_MODEL_IDS = [WORKERS_AI_JEV, CLASSIFIER_DEV_JEV] as const;
 
 export function workersAiTransport(
   ai: AiBinding,
@@ -317,7 +325,7 @@ export function classifierDevTransport(
   if (options.apiKey) headers.Authorization = `Bearer ${options.apiKey}`;
 
   return {
-    modelId: "classifier.dev/jev",
+    modelId: CLASSIFIER_DEV_JEV,
     async ask(state, rules) {
       const byKey = new Map(rules.map((rule) => [keyFor(rule.id), rule]));
       const answers = new Map<string, DecisionAnswer>();

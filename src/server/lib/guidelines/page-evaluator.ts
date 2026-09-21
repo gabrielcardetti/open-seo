@@ -299,8 +299,31 @@ export async function evaluatePage({
     }
   }
 
+  // A decision model is a filter, not a verdict. It is exact on clear-cut pages
+  // and unreliable on the nuanced middle where real sites live — its first
+  // production run rejected a page that reads as exemplary, over rules about
+  // first-hand experience written for product reviews. Without a second judge
+  // to read the page and quote it, its failures are recorded as warnings to
+  // confirm, so they surface without being able to reject a page on their own.
+  const decisionOnly =
+    decisionJudge !== undefined &&
+    decisionJudge !== null &&
+    judgeNames.length === 1 &&
+    judgeNames[0] === decisionJudge.modelId;
   for (const result of judged) {
-    if (askableIds.has(result.ruleId)) settled.set(result.ruleId, result);
+    if (!askableIds.has(result.ruleId)) continue;
+    settled.set(
+      result.ruleId,
+      decisionOnly && result.status === "fail"
+        ? {
+            ...result,
+            status: "warn",
+            reason:
+              result.reason ??
+              "Flagged by the decision model; no second judge has confirmed it.",
+          }
+        : result,
+    );
   }
 
   // A rule nobody answered is unknown, not a pass. Recording it keeps the

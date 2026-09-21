@@ -278,9 +278,10 @@ describe("evaluatePage", () => {
       languageJudge: failing,
     });
 
+    // Kept, not lost — but unconfirmed, so it can flag the page and not reject it.
     const flagged = decision.askedRuleIds.flat()[0];
     expect(result.findings.find((f) => f.ruleId === flagged)).toMatchObject({
-      status: "fail",
+      status: "warn",
       evidence: null,
     });
     expect(result.judge).toBe("stub-jev");
@@ -325,6 +326,73 @@ describe("evaluatePage", () => {
 
     expect(result.verdict).toBe("reject");
     expect(result.judge).toBe("deterministic");
+    warn.mockRestore();
+  });
+
+  // A classifier's fail carries no quote and no reason. On its own it may flag
+  // a page, but it must not be able to reject one.
+  it("records unconfirmed decision-model failures as warnings", async () => {
+    const decision = stubJudge("jev", (rules) =>
+      rules.map((rule) => ({
+        ruleId: rule.id,
+        status: "fail" as const,
+        confidence: 0.95,
+      })),
+    );
+    const result = await evaluatePage({
+      page: fetchedPage(),
+      decisionJudge: decision,
+    });
+    expect(result.verdict).toBe("pass");
+    const judged = result.findings.filter((f) => f.confidence === 0.95);
+    expect(judged.length).toBeGreaterThan(0);
+    expect(judged.every((f) => f.status === "warn")).toBe(true);
+  });
+
+  it("keeps failures a second judge confirmed", async () => {
+    const decision = stubJudge("jev", (rules) =>
+      rules.map((rule, index) => ({
+        ruleId: rule.id,
+        status: index === 0 ? ("fail" as const) : ("pass" as const),
+        confidence: 0.95,
+      })),
+    );
+    const language = stubJudge("llm", (rules) =>
+      rules.map((rule) => ({
+        ruleId: rule.id,
+        status: "fail" as const,
+        evidence: "quote",
+      })),
+    );
+    const result = await evaluatePage({
+      page: fetchedPage(),
+      decisionJudge: decision,
+      languageJudge: language,
+    });
+    const flagged = decision.askedRuleIds.flat()[0];
+    expect(result.findings.find((f) => f.ruleId === flagged)?.status).toBe(
+      "fail",
+    );
+  });
+
+  // Only the decision model's own verdicts are downgraded; a language model
+  // that judged alone after the decision model failed keeps its failures.
+  it("does not soften a language model that judged alone", async () => {
+    const broken: RuleJudge = {
+      name: "jev",
+      modelId: "typesafe/jev",
+      judge: vi.fn().mockRejectedValue(new Error("down")),
+    };
+    const language = stubJudge("llm", (rules) =>
+      rules.map((rule) => ({ ruleId: rule.id, status: "fail" as const })),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await evaluatePage({
+      page: fetchedPage(),
+      decisionJudge: broken,
+      languageJudge: language,
+    });
+    expect(result.verdict).toBe("reject");
     warn.mockRestore();
   });
 

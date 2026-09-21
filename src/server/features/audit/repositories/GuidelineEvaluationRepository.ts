@@ -8,11 +8,12 @@
  * with `onConflictDoNothing`, because persistence happens inside Workflow steps
  * that retry.
  */
-import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, notInArray } from "drizzle-orm";
 import { db } from "@/db";
 import { auditPageEvaluations, auditRuleResults, audits } from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
+import { DECISION_MODEL_IDS } from "@/server/lib/guidelines/decision-transport";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
 
 interface StoredEvaluationInput {
@@ -191,10 +192,10 @@ async function getEvaluationResultsForProject(
  * URLs that already carry a judged verdict, so the externalized judge skips
  * them.
  *
- * A row counts only when a judge actually answered. When every model judge
- * was unavailable the phase still writes a row, settled by the deterministic
- * rules alone with most of the catalog unanswered — and that page is exactly
- * the one an external judge should pick up, not skip.
+ * A row counts only when a judge that reads the page answered. Rows settled by
+ * the deterministic rules alone, or by a decision model alone (verdicts with no
+ * quote and no reason), are exactly the pages an external judge should pick
+ * up, not skip.
  */
 async function getJudgedUrls(auditId: string): Promise<Set<string>> {
   const rows = await db
@@ -204,7 +205,10 @@ async function getJudgedUrls(auditId: string): Promise<Set<string>> {
       and(
         eq(auditPageEvaluations.auditId, auditId),
         isNotNull(auditPageEvaluations.judge),
-        ne(auditPageEvaluations.judge, "deterministic"),
+        notInArray(auditPageEvaluations.judge, [
+          "deterministic",
+          ...DECISION_MODEL_IDS,
+        ]),
         isNull(auditPageEvaluations.errorMessage),
       ),
     );
