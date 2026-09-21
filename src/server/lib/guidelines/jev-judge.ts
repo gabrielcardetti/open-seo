@@ -86,16 +86,16 @@ function buildQuestions(
       questions[keyFor(rule.id)] = {
         type: "score",
         instructions,
-        criteria: Object.fromEntries(
-          question.levels.map((level, index) => [String(index + 1), level]),
-        ),
+        // An ordered array: Jev answers with a continuous, 0-based position
+        // on it (1.04 on a three-level scale means "the second level").
+        criteria: question.levels,
       };
     } else {
       questions[keyFor(rule.id)] = {
         type: "choice",
         instructions,
         criteria: Object.fromEntries(
-          question.options.map((option) => [option, option]),
+          question.options.map((option) => [option, `Page quality: ${option}`]),
         ),
       };
     }
@@ -142,15 +142,22 @@ function toJudged(
   }
 
   if (question.kind === "score") {
-    const score =
-      typeof answer.score === "number" ? Math.round(answer.score) : null;
+    // 0-based and continuous, so the nearest level is the rounded value. The
+    // stored score is 1-based to match the catalog's 1-5 vocabulary.
+    const index =
+      typeof answer.score === "number"
+        ? Math.min(
+            question.levels.length - 1,
+            Math.max(0, Math.round(answer.score)),
+          )
+        : null;
     return {
       ruleId: rule.id,
       status: statusFromAnswer(rule, {
-        index: score === null ? undefined : score - 1,
+        index: index ?? undefined,
         confidence,
       }),
-      score,
+      score: index === null ? null : index + 1,
       confidence,
       evidence: null,
       reason: null,
