@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { RULES_BY_ID } from "@/shared/guidelines/catalog";
 import { JevJudge, type AiBinding } from "./jev-judge";
 import type { FetchedPage } from "./page-fetch";
@@ -39,12 +40,23 @@ describe("JevJudge", () => {
   });
 
   it("sends score criteria as an ordered array", async () => {
-    const { run, judge } = judgeReturning({});
+    let sent: unknown;
+    const judge = new JevJudge(
+      {
+        run: (_model, input) => {
+          sent = input;
+          return Promise.resolve({ answers: {} });
+        },
+      },
+      "open-seo-selfhost",
+    );
     await judge.judge({ page, rules: [RULES_BY_ID.get("PF-Q01")!] });
-    const input = run.mock.calls[0]![1] as {
-      questions: Record<string, { criteria: unknown }>;
-    };
-    expect(Array.isArray(input.questions["PF_Q01"]!.criteria)).toBe(true);
+    const parsed = z
+      .object({
+        questions: z.object({ PF_Q01: z.object({ criteria: z.unknown() }) }),
+      })
+      .parse(sent);
+    expect(Array.isArray(parsed.questions.PF_Q01.criteria)).toBe(true);
   });
 
   // Score answers are 0-based and continuous (documented: 1.04 on a
@@ -82,7 +94,7 @@ describe("JevJudge", () => {
       page,
       rules: [RULES_BY_ID.get("PF-W01")!],
     });
-    expect(result!.status).toBe("unknown");
+    expect(result?.status).toBe("unknown");
   });
 
   it("fails a confident noul, which is the probability of the failing condition", async () => {
@@ -93,6 +105,6 @@ describe("JevJudge", () => {
       page,
       rules: [RULES_BY_ID.get("PF-W01")!],
     });
-    expect(result!.status).toBe("fail");
+    expect(result?.status).toBe("fail");
   });
 });
