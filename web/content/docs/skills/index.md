@@ -9,6 +9,8 @@ Run a slash command when you need keyword research, clustering, competitor analy
 
 You stay in charge of strategy. Your agent uses OpenSEO data and the skill instructions to research the answer, then saves the result as a report in your project.
 
+No account yet? Try the [free SEO tools](/tools).
+
 ## Set up OpenSEO Agent Skills
 
 On Claude Code, the [OpenSEO plugin](/docs/claude-code-plugin) installs MCP and every skill below in one step. On Codex CLI, the [OpenSEO plugin](/docs/codex-plugin) does the same. Use the manual steps here for other agents, or if you want to pick individual skills.
@@ -25,7 +27,7 @@ MCP connects your agent to OpenSEO data. Skills tell your agent which SEO workfl
 
 ## Audit workflows
 
-- [SEO Audit](/docs/skills/seo-audit): audit a site and get a one-page, plain-language report built around a single next action.
+- [SEO Audit](/docs/skills/seo-audit): audit a site and understand its important problems, worthwhile improvements, and likely effects on traffic and the business.
 
 ## Research workflows
 

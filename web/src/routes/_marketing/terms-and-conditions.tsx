@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import TermsAndConditionsContent, {
   frontmatter as termsFrontmatter,
-} from "../../content/legal/terms-and-conditions.md";
+} from "../../../content/legal/terms-and-conditions.md";
 import { LegalPage } from "@/components/legal-page";
 import { buildPageSeo } from "@/lib/seo";
 
-export const Route = createFileRoute("/terms-and-conditions")({
+export const Route = createFileRoute("/_marketing/terms-and-conditions")({
   head: () =>
     buildPageSeo({
       title: termsFrontmatter.title,

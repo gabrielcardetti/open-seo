@@ -25,16 +25,16 @@ export const searchSerpLocationsTool = {
     description:
       "Find the exact DataForSEO location name for local rank tracking. Returns up to 10 matches; pass the chosen `locationName` verbatim to create_rank_tracker. Uses no credits.",
     inputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       locations: z.array(
-        z.object({
+        z.looseObject({
           locationName: z.string(),
           locationCode: z.number(),
           locationType: z.string(),
         }),
       ),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
       readOnlyHint: true,
       openWorldHint: false,

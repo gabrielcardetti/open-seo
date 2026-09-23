@@ -16,6 +16,10 @@ const mocks = vi.hoisted(() => ({
   listKeyPages: vi.fn(),
   listResearchLog: vi.fn(),
   listTemplates: vi.fn(),
+  deleteSection: vi.fn(),
+  deleteCompetitors: vi.fn(),
+  deleteKeyPages: vi.fn(),
+  deleteResearchLogEntries: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
@@ -51,6 +55,47 @@ beforeEach(() => {
 });
 
 describe("update_project_context", () => {
+  it("removes each kind of context entry within the authorized project", async () => {
+    await updateProjectContextTool.handler(
+      {
+        projectId: "project_1",
+        updates: [
+          { section: "current_goal", content: "" },
+          { deleteCustomSection: "old-findings" },
+          { removeCompetitors: ["https://www.Example.com/"] },
+          { removeKeyPages: ["https://Example.com/pricing#old"] },
+          { removeResearchLog: ["research_1"] },
+        ],
+      },
+      makeToolContext(),
+    );
+    expect(mocks.deleteSection).toHaveBeenCalledWith(
+      expect.anything(),
+      "project_1",
+      "current_goal",
+    );
+    expect(mocks.deleteSection).toHaveBeenCalledWith(
+      expect.anything(),
+      "project_1",
+      "custom:old-findings",
+    );
+    expect(mocks.deleteCompetitors).toHaveBeenCalledWith(
+      expect.anything(),
+      "project_1",
+      ["example.com"],
+    );
+    expect(mocks.deleteKeyPages).toHaveBeenCalledWith(
+      expect.anything(),
+      "project_1",
+      ["https://example.com/pricing"],
+    );
+    expect(mocks.deleteResearchLogEntries).toHaveBeenCalledWith(
+      expect.anything(),
+      "project_1",
+      ["research_1"],
+    );
+  });
+
   // Provenance is the contract: a write arriving over MCP must be attributable
   // to MCP in the UI, and silently recording it as a user edit would be
   // invisible everywhere else.

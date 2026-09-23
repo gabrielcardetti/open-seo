@@ -42,6 +42,7 @@ import {
   updateProjectContextTool,
 } from "@/server/mcp/tools/project-context";
 import { listSavedKeywordsTool } from "@/server/mcp/tools/list-saved-keywords";
+import { removeSavedKeywordsTool } from "@/server/mcp/tools/remove-saved-keywords";
 import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
@@ -58,11 +59,13 @@ import {
   listBusinessCategoriesTool,
 } from "@/server/mcp/tools/local-seo-tools";
 import {
+  deleteReportTool,
   getReportTool,
   listReportsTool,
   saveReportTool,
 } from "@/server/mcp/tools/report-tools";
 import {
+  deleteReportTemplateTool,
   listReportTemplatesTool,
   saveReportTemplateTool,
 } from "@/server/mcp/tools/report-template-tools";
@@ -88,6 +91,10 @@ import {
   getGuidelinesEvaluationBatchTool,
   submitGuidelinesEvaluationTool,
 } from "@/server/mcp/tools/guideline-judge-tools";
+import {
+  deleteSiteAuditTool,
+  listSiteAuditsTool,
+} from "@/server/mcp/tools/site-audit-cleanup-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
@@ -121,6 +128,9 @@ function registerOpenSeoTool<Input extends ToolSchema>(
   tool: OpenSeoToolDefinition<Input>,
   authProps: McpProps,
 ) {
+  // Output objects must allow added fields, including nested objects. The
+  // tools/list contract test checks every registered tool for cached-client
+  // compatibility; input schemas keep their existing validation rules.
   const outputSchema = objectSchema(tool.config.outputSchema);
   const handler = instrumentMcpToolHandler(
     tool.name,
@@ -183,6 +193,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getProjectContextTool);
   register(updateProjectContextTool);
   register(listSavedKeywordsTool);
+  register(removeSavedKeywordsTool);
   register(researchKeywordsTool);
   register(saveKeywordsTool);
   register(getDomainOverviewTool);
@@ -221,6 +232,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGoogleAnalyticsSiteSearchTool);
   register(getGoogleAnalyticsAudienceBreakdownTool);
   register(runSiteAuditTool);
+  register(listSiteAuditsTool);
+  register(deleteSiteAuditTool);
   register(getAuditStatusTool);
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
@@ -233,8 +246,10 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);
+  register(deleteReportTool);
   register(listReportTemplatesTool);
   register(saveReportTemplateTool);
+  register(deleteReportTemplateTool);
 
   return server;
 }

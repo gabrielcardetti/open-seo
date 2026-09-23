@@ -15,7 +15,7 @@ Accepted. Shipped in PR #616 on top of reports (`specs/0012-dynamic-reports.md`)
 
 **Data.** Two columns on `reports`: `share_token` (nullable, unique) and `shared_at`. The token is 192 random bits as 32 base64url characters, stored as-is; it is a capability, and revoking it means nulling it. Sharing mints, unsharing nulls, and content saves never touch either column.
 
-**Public page** at `/s/<token>`: no auth guard, server-rendered enough for link previews, with `noindex` and Open Graph tags from the title and the summary's first line. The summary is markdown and the preview does not try to render it: a stray `##` costs less than a stripper that eats the minus sign off a number.
+**Public page** at `/s/<token>`: a hand-written HTML document the worker serves, not a route in the app, with no auth guard, `noindex`, and Open Graph tags from the title and the summary's first line. The bar, the frame and the preview tags are all in the first response, and the page ships no JavaScript beyond the Share button's clipboard handler. The reader is usually someone who has never opened OpenSEO, and the app's root shell renders only on the client, so a page inside it would have cost them the whole app bundle before the frame existed. The summary is markdown and the preview does not try to render it: a stray `##` costs less than a stripper that eats the minus sign off a number.
 
 **Raw endpoint** at `/s/<token>/raw` serves the stored HTML with the same sandbox policy as the in-app route, `frame-ancestors 'self'` and a noindex header. The raw document only renders inside the frame: a request whose fetch destination is not an iframe is redirected to the wrapped page, and a client that sends no destination header is served the document, since it cannot load the wrapper's frame either. A token of the wrong shape is answered before any query.
 
@@ -42,6 +42,7 @@ Shares, unshares and public views are counted in telemetry, the last with a hash
 - An agent-facing share tool: sharing is a human decision made on the report page.
 - A per-organization cap and a rate limit: deferred until abuse shows up.
 - Edge caching: deferred out of the first PR, then added as the 60-second cache above once the query-string redirect closed the cache-key hole.
+- A React route for the public page: shipped first and replaced once measured. The frame could not mount until the app bundle had loaded and hydrated, so a first-time reader waited on hundreds of kilobytes of JavaScript that a two-button bar does not need.
 
 ## Not in scope
 

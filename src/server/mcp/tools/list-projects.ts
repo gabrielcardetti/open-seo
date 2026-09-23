@@ -43,7 +43,7 @@ export const listProjectsTool = {
     description:
       "Lists the user's projects. Uses no credits — does not call DataForSEO. Use this whenever you need a `projectId` for another OpenSEO tool. Returns an array of {id, name, domain, locationCode, languageCode}; pass the `id` value as `projectId`. locationCode/languageCode are the project's default market — tools fall back to them when a call omits location/language args. When the user belongs to several organizations, each project is labeled with its organization and organizationId (pass that to create_project).",
     inputSchema: {} as Record<string, never>,
-    outputSchema: {
+    outputSchema: z.looseObject({
       projects: z.array(
         z
           .object({
@@ -59,7 +59,7 @@ export const listProjectsTool = {
           .passthrough(),
       ),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
       readOnlyHint: true,
       openWorldHint: false,

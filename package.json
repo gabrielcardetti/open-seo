@@ -42,6 +42,7 @@
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=dot",
     "test:e2e": "playwright test",
+    "test:e2e:free-tools": "playwright test --config playwright.free-tools.config.ts",
     "test:e2e:domain": "playwright test e2e/domain-overview-filters.spec.ts",
     "test:e2e:domain:perf": "playwright test e2e/domain-overview-filters.perf.spec.ts",
     "test:e2e:keywords": "playwright test e2e/keyword-research-navigation.spec.ts",
@@ -115,6 +116,7 @@
     "robots-parser": "^3.0.1",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.1.16",
+    "takumi-js": "2.13.7",
     "tldts": "^7.0.25",
     "yaml": "^2.9.0",
     "zod": "^4.1.12"
@@ -148,7 +150,7 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.6",
+    "vitest": "^4.1.11",
     "wrangler": "^4.105.0"
   }
 }

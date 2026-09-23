@@ -8,13 +8,7 @@ import {
   getAgentSetupPrompt,
 } from "@/client/features/ai-mcp/agentSetupPrompt";
 import { CopyButton } from "@/client/features/ai-mcp/SetupControls";
-import {
-  ClaudeIcon,
-  GrokIcon,
-  HermesIcon,
-  OpenAIIcon,
-  OpenClawIcon,
-} from "@/client/features/ai-mcp/AgentIcons";
+import { AgentList } from "@/client/features/ai-mcp/AgentList";
 
 const DOCS_URL = "https://openseo.so/docs/agent-setup";
 const COACH_DOCS_URL = "https://openseo.so/docs/skills/seo-coach";
@@ -38,13 +32,6 @@ const SKILLS = [
   ["link-prospecting", "Finds link prospects and drafts outreach."],
   ["local-seo", "Audits a Google Business Profile and Maps visibility."],
   ["seo-report", "Saves any of the above as a report on your Reports page."],
-];
-const AGENTS = [
-  { name: "Claude Code", Icon: ClaudeIcon },
-  { name: "ChatGPT", Icon: OpenAIIcon },
-  { name: "Grok Bot", Icon: GrokIcon },
-  { name: "Hermes", Icon: HermesIcon },
-  { name: "OpenClaw", Icon: OpenClawIcon },
 ];
 
 export const Route = createFileRoute("/_app/ai")({
@@ -99,20 +86,7 @@ function AiPage() {
                   install its SEO skills. It will guide you through any manual
                   steps.
                 </p>
-                <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {AGENTS.map(({ name, Icon }) => (
-                    <li
-                      key={name}
-                      className="flex items-center gap-1.5 text-xs text-base-content/60"
-                    >
-                      <Icon className="size-4" />
-                      {name}
-                    </li>
-                  ))}
-                  <li className="text-xs text-base-content/45">
-                    or any MCP client
-                  </li>
-                </ul>
+                <AgentList />
                 <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 [&>button]:h-11 [&>button]:gap-2 [&>button]:text-sm">
                   <CopyButton
                     primary

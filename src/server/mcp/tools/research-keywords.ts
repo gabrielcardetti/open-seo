@@ -88,7 +88,7 @@ export const researchKeywordsTool = {
     description:
       "Research keyword data (search volume, difficulty, CPC, related ideas) for 1-5 seed keywords in one call. Charges credits per seed (~30-100 credits each, varies by source; flat ~96 for countries served from Google Ads data, where difficulty/intent are unavailable). Returns per-seed results — a single bad seed won't fail the batch.",
     inputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       results: z.array(
         z.union([
           z
@@ -111,7 +111,7 @@ export const researchKeywordsTool = {
         ]),
       ),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
       readOnlyHint: false,
       openWorldHint: false,

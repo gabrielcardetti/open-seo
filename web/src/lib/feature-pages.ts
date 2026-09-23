@@ -100,6 +100,12 @@ export const featurePages = {
       "DataForSEO-backed metrics without locking the research process into a black box.",
       "MCP access so AI agents can research and save keywords for you.",
     ],
+    featuredLink: {
+      title: "Free competitor analysis tool",
+      description:
+        "Pull a competitor's top organic keywords and the terms they rank for that you don't. No signup required.",
+      href: "/competitor-analysis",
+    },
     related: [
       { label: "Keyword Clustering", href: "/docs/skills/keyword-clustering" },
       {
@@ -210,6 +216,12 @@ export const featurePages = {
       "Open-source implementation for teams that want to inspect or extend the audit flow.",
       "Simple reports that expose page-level signals and optional Lighthouse findings instead of relying only on a generic score.",
     ],
+    featuredLink: {
+      title: "Free SERP simulator",
+      description:
+        "Preview how a title and meta description render on Google, with pixel widths. No signup required.",
+      href: "/serp-simulator",
+    },
     related: [
       { label: "Domain Overview", href: "/features/domain-overview" },
       { label: "Backlinks", href: "/features/backlink-checker" },
@@ -353,7 +365,6 @@ export const featurePages = {
         href: "/docs/skills/link-prospecting",
       },
       { label: "Domain Overview", href: "/features/domain-overview" },
-      { label: "OpenSEO MCP", href: "/features/mcp" },
     ],
     faqs: [
       {
@@ -423,6 +434,12 @@ export const featurePages = {
       "Built around ranking keywords, estimated traffic, and top pages for practical competitor research.",
       "Open-source and self-hostable for teams that want control over their SEO stack.",
     ],
+    featuredLink: {
+      title: "Free website traffic checker",
+      description:
+        "Estimate any domain's organic traffic, keywords, and top pages. No signup required.",
+      href: "/website-traffic-checker",
+    },
     related: [
       {
         label: "Competitor Analysis",
@@ -539,6 +556,12 @@ export const featurePages = {
       "Optional desktop and mobile tracking helps teams avoid one-dimensional rank reports.",
       "OpenSEO can expose ranking data to AI agents through MCP.",
     ],
+    featuredLink: {
+      title: "Free competitor keyword finder",
+      description:
+        "Find the keywords a competitor ranks for before choosing what to track. No signup required.",
+      href: "/competitor-keyword-finder",
+    },
     related: [
       { label: "Keyword Clustering", href: "/docs/skills/keyword-clustering" },
       {

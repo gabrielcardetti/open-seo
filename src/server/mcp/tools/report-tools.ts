@@ -24,9 +24,8 @@ import {
   type ReportMetadata,
 } from "@/types/schemas/reports";
 
-// The three report tools. All free (they touch only the app DB), all wrapped in
-// withMcpProjectAuth, and all answering with the in-app report URL so an agent
-// can hand back a link instead of pasting a document into chat.
+// Report tools use only the app DB and authorize the project before access.
+// Reads/saves link to the report; deletion links back to the report list.
 
 const reportPath = (projectId: string, reportId: string) =>
   `/p/${projectId}/reports/${reportId}`;
@@ -64,7 +63,7 @@ const saveInputSchema = {
     .string()
     .min(1)
     .describe(
-      `Specific title shown in the report list, e.g. "badseo.dev SEO audit, Sep 2026". Never a generic label like "SEO Report". Max ${REPORT_MAX_TITLE_CHARS} characters.`,
+      `Report type or specific subject and full report date, e.g. "Competitive Landscape — Sep 17, 2026". Omit the project's website; include the subject's bare hostname only when it differs from the project website or the project has no website. Use the same title in the HTML title and h1. Never a generic label like "SEO Report". Max ${REPORT_MAX_TITLE_CHARS} characters.`,
     ),
   summary: z
     .string()
@@ -101,21 +100,21 @@ const saveInputSchema = {
     ),
 } as const;
 
-const saveOutputSchema = {
+const saveOutputSchema = z.looseObject({
   reportId: z.string(),
   title: z.string(),
   created: z.boolean(),
   htmlBytes: z.number(),
   url: z.string(),
   ...optionalMetaOutputSchema,
-} as const;
+});
 
 export const saveReportTool = {
   name: "save_report",
   config: {
     title: "Save report",
     description:
-      "Saves a finished HTML report to this project, where anyone in the workspace can read and print it. Uses no credits. Call list_reports first and pass the matching reportId to replace that report instead of creating a near-duplicate — a save whose title already exists in the project is refused. Give the report a specific title (the subject and the period), a summary carrying the verdict, the top action and the key numbers, and the skill slug you are running. Then reply with the returned url, a one-line verdict and the single top action; do not paste the report into chat.",
+      "Saves a finished HTML report to this project, where anyone in the workspace can read and print it. Uses no credits. Call list_reports first and pass the matching reportId to replace that report instead of creating a near-duplicate — a save whose title already exists in the project is refused. Give the report a specific title (the report type or subject and full report date), a summary carrying the verdict, the top action and the key numbers, and the skill slug you are running. Then reply with the returned url, a one-line verdict and the single top action; do not paste the report into chat.",
     inputSchema: saveInputSchema,
     outputSchema: saveOutputSchema,
     annotations: {
@@ -205,13 +204,13 @@ const listInputSchema = {
     .describe("Rows to skip. Omit for the first page."),
 } as const;
 
-const listOutputSchema = {
+const listOutputSchema = z.looseObject({
   reports: z.array(looseObjectOutputSchema),
   totalCount: z.number(),
   rowCount: z.number(),
   remaining: z.number(),
   ...optionalMetaOutputSchema,
-} as const;
+});
 
 export const listReportsTool = {
   name: "list_reports",
@@ -296,10 +295,10 @@ const getInputSchema = {
     ),
 } as const;
 
-const getOutputSchema = {
+const getOutputSchema = z.looseObject({
   report: looseObjectOutputSchema,
   ...optionalMetaOutputSchema,
-} as const;
+});
 
 export const getReportTool = {
   name: "get_report",
@@ -358,6 +357,45 @@ export const getReportTool = {
             url,
           },
         },
+      });
+    },
+  ),
+};
+
+const deleteInputSchema = {
+  projectId: projectIdSchema,
+  reportId: getInputSchema.reportId,
+} as const;
+
+export const deleteReportTool = {
+  name: "delete_report",
+  config: {
+    title: "Delete report",
+    description:
+      "Permanently deletes one saved report and makes its shared link unavailable. Uses no credits. Call list_reports to find the exact reportId. Does not delete site audits, templates, or project context.",
+    inputSchema: deleteInputSchema,
+    outputSchema: z.looseObject({
+      reportId: z.string(),
+      deleted: z.literal(true),
+      ...optionalMetaOutputSchema,
+    }),
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: true,
+    },
+  },
+  handler: withMcpProjectAuth(
+    async (args: z.infer<z.ZodObject<typeof deleteInputSchema>>, context) => {
+      await ReportService.deleteReport(args.projectId, args.reportId);
+      return mcpResponse({
+        text: `Deleted report ${args.reportId}.`,
+        meta: buildProjectMeta(
+          context,
+          args.projectId,
+          `/p/${args.projectId}/reports`,
+        ),
+        structuredContent: { reportId: args.reportId, deleted: true as const },
       });
     },
   ),

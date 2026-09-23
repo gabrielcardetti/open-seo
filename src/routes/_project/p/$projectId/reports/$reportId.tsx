@@ -257,41 +257,24 @@ function ReportDetailPage() {
               {(close) => (
                 <>
                   {hosted ? (
-                    <li>
-                      <button
-                        onClick={() => {
-                          close();
-                          exportPdf();
-                        }}
-                      >
-                        <FileDown className="size-4" />
-                        Export
-                      </button>
-                    </li>
+                    <>
+                      <li>
+                        <button
+                          onClick={() => {
+                            close();
+                            exportPdf();
+                          }}
+                        >
+                          <FileDown className="size-4" />
+                          Export
+                        </button>
+                      </li>
+                      <li
+                        role="separator"
+                        className="mx-1 my-1 h-px bg-base-300"
+                      />
+                    </>
                   ) : null}
-                  <li>
-                    <button
-                      onClick={() => {
-                        close();
-                        setExpanded(true);
-                      }}
-                    >
-                      <Maximize2 className="size-4" />
-                      Full screen
-                    </button>
-                  </li>
-                  <li>
-                    <a
-                      href={`/r/${report.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={close}
-                    >
-                      <ExternalLink className="size-4" />
-                      Open in new tab
-                    </a>
-                  </li>
-                  <li role="separator" className="mx-1 my-1 h-px bg-base-300" />
                   <li>
                     <button
                       className="text-error"
@@ -311,7 +294,33 @@ function ReportDetailPage() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
+        {/* View controls float over the top-right corner of the report frame.
+            They belong to the viewer, not the document, so they overlay the
+            iframe instead of being injected into it. Placed before the iframe
+            so keyboard focus reaches them without tabbing through the report;
+            inset from the edge so they clear a classic scrollbar. */}
+        <div className="absolute top-1 right-5 flex items-center gap-0.5 rounded-md border border-base-300 bg-base-100/95 p-0.5 shadow-sm backdrop-blur">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            aria-label="Full screen"
+            title="Full screen"
+            onClick={() => setExpanded(true)}
+          >
+            <Maximize2 className="size-4" />
+          </button>
+          <a
+            href={`/r/${report.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-ghost btn-sm btn-square"
+            aria-label="Open in new tab"
+            title="Open in new tab"
+          >
+            <ExternalLink className="size-4" />
+          </a>
+        </div>
         <ReportViewer src={`/r/${report.id}`} title={report.title} />
       </div>
 

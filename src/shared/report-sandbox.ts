@@ -34,12 +34,13 @@ export const REPORT_CSP = `sandbox ${REPORT_IFRAME_SANDBOX}; ${CSP_TAIL}`;
 
 /**
  * The script print mode appends, and the only script authorized to run in a
- * report. A small delay after `load`, so fonts and images settle before the
- * dialog snapshots the page. It is injected with no attributes at all — see
- * withPrintScript.
+ * report. It opens every closed `<details>` first, so an evidence appendix a
+ * skill collapsed on screen still lands in the PDF, then waits a little after
+ * `load` so fonts and images settle before the dialog snapshots the page. It is
+ * injected with no attributes at all — see withPrintScript.
  */
 export const PRINT_SCRIPT =
-  'addEventListener("load",()=>{setTimeout(()=>print(),150)})';
+  'addEventListener("load",()=>{for(const d of document.querySelectorAll("details"))d.open=true;setTimeout(()=>print(),150)})';
 
 /**
  * Base64 SHA-256 of PRINT_SCRIPT, for the `script-src` hash source. Hardcoded
@@ -49,7 +50,7 @@ export const PRINT_SCRIPT =
  * of silently breaking printing.
  */
 export const PRINT_SCRIPT_SHA256 =
-  "thhppZwgMkIvdqds8iPeCMHMT5bX6Wi4nx2PdnxB36w=";
+  "uE0MLbgBgIu3I3pghlY0762kVHKlP7Udz5qzZNT7piw=";
 
 /**
  * The policy for one response. Outside print mode it is REPORT_CSP, byte for

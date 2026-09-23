@@ -84,6 +84,9 @@ export const getRankTrackerTool = {
                 status: z.enum(["pending", "running", "completed", "failed"]),
                 errorMessage: z.string().nullable(),
               })
+              // Cached client schemas must tolerate new run fields too;
+              // passthrough on the parent results object is not recursive.
+              .passthrough()
               .nullable(),
           })
           .passthrough()

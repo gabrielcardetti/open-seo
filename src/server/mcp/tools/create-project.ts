@@ -105,7 +105,7 @@ export const createProjectTool = {
     description:
       "Create a new project in the user's organization. Uses no credits — does not call DataForSEO. Provide a name, and optionally a domain and default market (locationCode/languageCode; a languageCode requires a locationCode). Returns the created {id, name, domain, locationCode, languageCode, url}; pass the returned `id` as `projectId` to other OpenSEO tools. Call list_projects first to avoid creating a duplicate.",
     inputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       project: z
         .object({
           id: z.string(),
@@ -117,7 +117,7 @@ export const createProjectTool = {
         })
         .passthrough(),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
       readOnlyHint: false,
       openWorldHint: false,

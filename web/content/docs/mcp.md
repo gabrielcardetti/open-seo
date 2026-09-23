@@ -17,6 +17,8 @@ For the most current setup UI and a copyable endpoint, open [Agent setup in Open
 
 For setup prompts, plugin commands, and skill updates, see [Agent setup](/docs/agent-setup).
 
+No account yet? Try the [free SEO tools](/tools).
+
 ## Claude Code
 
 The [OpenSEO plugin](/docs/claude-code-plugin) is the preferred way to connect Claude Code — one install adds MCP and the public SEO skills together. Use the steps below only if you want MCP on its own.
