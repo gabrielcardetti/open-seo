@@ -6,6 +6,7 @@
  * as resolved even when the same issue type is still present elsewhere.
  * Guideline verdicts are matched by URL.
  */
+import { sort } from "remeda";
 
 const VERDICT_RANK: Record<string, number> = {
   reject: 0,
@@ -34,14 +35,22 @@ interface VerdictChange {
   after: string;
 }
 
+const issueKey = (issue: { issueType: string; pageUrl: string | null }) =>
+  `${issue.issueType}\u0000${issue.pageUrl ?? ""}`;
+
+function countVerdicts(verdicts: ReadonlyMap<string, string>) {
+  const counts: Record<string, number> = {};
+  for (const verdict of verdicts.values()) {
+    counts[verdict] = (counts[verdict] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
   const basePages = new Set(base.pageUrls);
   const currentPages = new Set(current.pageUrls);
-
-  const key = (issue: { issueType: string; pageUrl: string | null }) =>
-    `${issue.issueType}\u0000${issue.pageUrl ?? ""}`;
-  const baseKeys = new Set(base.issues.map(key));
-  const currentKeys = new Set(current.issues.map(key));
+  const baseKeys = new Set(base.issues.map(issueKey));
+  const currentKeys = new Set(current.issues.map(issueKey));
 
   const byType = new Map<string, IssueTypeDelta>();
   const entry = (issueType: string) => {
@@ -55,12 +64,12 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
   for (const issue of base.issues) {
     const delta = entry(issue.issueType);
     delta.before += 1;
-    if (!currentKeys.has(key(issue))) delta.resolved += 1;
+    if (!currentKeys.has(issueKey(issue))) delta.resolved += 1;
   }
   for (const issue of current.issues) {
     const delta = entry(issue.issueType);
     delta.after += 1;
-    if (!baseKeys.has(key(issue))) delta.introduced += 1;
+    if (!baseKeys.has(issueKey(issue))) delta.introduced += 1;
   }
 
   const improved: VerdictChange[] = [];
@@ -76,14 +85,6 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
     }
   }
 
-  const countVerdicts = (verdicts: ReadonlyMap<string, string>) => {
-    const counts: Record<string, number> = {};
-    for (const verdict of verdicts.values()) {
-      counts[verdict] = (counts[verdict] ?? 0) + 1;
-    }
-    return counts;
-  };
-
   return {
     pages: {
       before: basePages.size,
@@ -94,7 +95,8 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
     issues: {
       before: base.issues.length,
       after: current.issues.length,
-      byType: Array.from(byType.values()).sort(
+      byType: sort(
+        Array.from(byType.values()),
         (a, b) => b.resolved + b.introduced - (a.resolved + a.introduced),
       ),
     },
