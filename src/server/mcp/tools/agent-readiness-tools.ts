@@ -12,6 +12,7 @@ import {
 } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
+import { AGENT_READINESS_PROFILES } from "@/server/lib/agent-readiness/check-types";
 
 const pagePath = (projectId: string) => `/p/${projectId}/agent-readiness`;
 
@@ -109,7 +110,15 @@ export const runAgentReadinessScanTool = {
     title: "Scan agent readiness",
     description:
       "Scan the project's site for AI-agent readiness now: robots.txt AI rules and Content Signals, markdown for agents, missing pages that wrongly answer 200 (soft 404), content visible without JavaScript, whether AI crawler user-agents are served, and — for products — API, OAuth and MCP discovery documents. Runs OpenSEO's checks and Cloudflare's scanner together and returns the comparison. Free. Takes up to a minute.",
-    inputSchema: { projectId: projectIdSchema },
+    inputSchema: {
+      projectId: projectIdSchema,
+      profile: z
+        .enum(AGENT_READINESS_PROFILES)
+        .optional()
+        .describe(
+          'Which checks apply, saved for later scans: "content" for a content or marketing site, "apiApp" for a product with a public API (adds API, OAuth, MCP and A2A discovery). Omit to keep the project\'s current profile.',
+        ),
+    },
     outputSchema,
     annotations: {
       readOnlyHint: false,
@@ -117,17 +126,39 @@ export const runAgentReadinessScanTool = {
       destructiveHint: false,
     },
   },
-  handler: withMcpProjectAuth(async (args: { projectId: string }, context) => {
-    await AgentReadinessService.runScan({
-      projectId: args.projectId,
-      domain: context.project.domain,
-      trigger: "manual",
-    });
-    const { structured, text } = await renderOverview(args.projectId);
-    return mcpResponse({
-      text,
-      structuredContent: structured,
-      meta: buildProjectMeta(context, args.projectId, pagePath(args.projectId)),
-    });
-  }),
+  handler: withMcpProjectAuth(
+    async (
+      args: {
+        projectId: string;
+        profile?: (typeof AGENT_READINESS_PROFILES)[number];
+      },
+      context,
+    ) => {
+      if (args.profile) {
+        const { config } = await AgentReadinessService.getOverview(
+          args.projectId,
+        );
+        await AgentReadinessService.updateConfig({
+          projectId: args.projectId,
+          profile: args.profile,
+          scheduleEnabled: config.scheduleEnabled,
+        });
+      }
+      await AgentReadinessService.runScan({
+        projectId: args.projectId,
+        domain: context.project.domain,
+        trigger: "manual",
+      });
+      const { structured, text } = await renderOverview(args.projectId);
+      return mcpResponse({
+        text,
+        structuredContent: structured,
+        meta: buildProjectMeta(
+          context,
+          args.projectId,
+          pagePath(args.projectId),
+        ),
+      });
+    },
+  ),
 };
