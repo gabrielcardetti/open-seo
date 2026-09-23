@@ -48,9 +48,29 @@ const batchInputSchema = {
     .optional()
     .default(3)
     .describe("How many pages to hand back. Each is a sizeable block of text."),
+  strategy: z
+    .enum(["sample", "all"])
+    .optional()
+    .default("sample")
+    .describe(
+      '"sample" (default) judges one page per URL template, up to 30. "all" judges every indexable 2xx page, for a full-site evaluation.',
+    ),
+  urls: z
+    .array(z.string())
+    .max(10)
+    .optional()
+    .describe(
+      "Hand back exactly these crawled URLs (when still eligible and unjudged). Lets several judges split one audit without taking the same pages.",
+    ),
 };
 
-type BatchArgs = { projectId: string; auditId?: string; limit: number };
+type BatchArgs = {
+  projectId: string;
+  auditId?: string;
+  limit: number;
+  strategy: "sample" | "all";
+  urls?: string[];
+};
 
 export const getGuidelinesEvaluationBatchTool = {
   name: "get_guidelines_evaluation_batch",
@@ -94,8 +114,12 @@ export const getGuidelinesEvaluationBatchTool = {
         crawlDepth: page.crawlDepth,
       })),
       audit.startUrl,
-      "sample",
-    ).filter((page) => !alreadyDone.has(page.url));
+      args.urls ? "all" : args.strategy,
+    ).filter(
+      (page) =>
+        !alreadyDone.has(page.url) &&
+        (!args.urls || args.urls.includes(page.url)),
+    );
 
     if (sample.length === 0) {
       return mcpResponse({
