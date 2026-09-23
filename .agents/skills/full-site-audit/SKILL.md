@@ -64,8 +64,8 @@ Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivi
 
 ## Repetir y medir
 
-- Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log): issues por tipo y sección, veredictos de guías, nivel de agent readiness.
-- La comparación entre auditorías todavía se hace a mano por D1; si se vuelve rutina, conviene construirla en la app.
+- Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron. Agent readiness guarda su propio historial en `get_agent_readiness`.
+- Anotá el resultado de cada ronda en el research log, para que la evolución quede en un solo lugar.
 
 ## Guardrails
 

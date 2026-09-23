@@ -68,6 +68,7 @@ import {
 } from "@/server/mcp/tools/report-template-tools";
 import { researchKeywordsTool } from "@/server/mcp/tools/research-keywords";
 import { saveKeywordsTool } from "@/server/mcp/tools/save-keywords";
+import { compareAuditsTool } from "@/server/mcp/tools/audit-compare-tool";
 import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
@@ -223,6 +224,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getAuditStatusTool);
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
+  register(compareAuditsTool);
   register(getGuidelineResultsTool);
   register(getGuidelinesEvaluationBatchTool);
   register(submitGuidelinesEvaluationTool);
