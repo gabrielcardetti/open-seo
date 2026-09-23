@@ -82,8 +82,18 @@ export const compareAuditsTool = {
       snapshot(current.id),
     ]);
     const diff = compareAudits(before, after);
+    // A crawl still in progress has fewer pages, so everything it has not
+    // reached yet reads as "removed" or "resolved". Say so up front.
+    const unfinished = [base, current].filter(
+      (audit) => audit.status !== "completed",
+    );
+    const warning =
+      unfinished.length > 0
+        ? `Not comparable yet: ${unfinished.map((a) => `${a.id} is ${a.status}`).join(", ")}. Pages and issues not crawled yet show as removed or resolved; guideline verdicts are unaffected.`
+        : null;
 
     const text = [
+      ...(warning ? [warning] : []),
       `Audit ${base.id} (${base.startedAt}) → ${current.id} (${current.startedAt}).`,
       `Pages: ${diff.pages.before} → ${diff.pages.after} (+${diff.pages.added.length}, -${diff.pages.removed.length}).`,
       `Issues: ${diff.issues.before} → ${diff.issues.after}.`,
@@ -98,6 +108,7 @@ export const compareAuditsTool = {
       text,
       meta: buildProjectMeta(context, args.projectId),
       structuredContent: {
+        warning,
         pages: {
           ...diff.pages,
           added: diff.pages.added.slice(0, MAX_LISTED),
