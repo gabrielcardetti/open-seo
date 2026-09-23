@@ -14,7 +14,8 @@ Lo que es propio de cada sitio (dominios, secciones, migraciones, fuentes de dat
 ## Acceso
 
 - **MCP con OAuth** (sesión interactiva de Claude Code): el server `openseo` apunta a `https://open-seo.cafecafe.dev/mcp`; si dice "Needs authentication", pedile al usuario que corra `/mcp`.
-- **MCP por API key** (subagentes, Grok, scripts): `pnpm mcp:call <tool> '<json>'` con `OPENSEO_API_KEY=oseo_...` en `.env.local`. La key se crea en Settings de la app. Imprime el `structuredContent` en JSON.
+- **Subagentes de Claude Code** heredan esa misma conexión MCP: pueden pedir lotes y enviar veredictos directamente.
+- **Grok u otros CLIs** no tienen sesión en el MCP (el self-host está detrás de Cloudflare Access con login por email; las API keys solo existen en modo hosted). El orquestador baja cada lote a un archivo del scratchpad, Grok juzga desde el archivo y escribe JSON, y el orquestador lo envía.
 - **D1 de producción** (lecturas agregadas que el MCP no da, p. ej. conteos por tipo de issue): `npx wrangler d1 execute open-seo-db-selfhost --remote --json --command "<sql>"` con `.env.selfhost` cargado y Node 22. Solo lectura; las escrituras van por el MCP.
 
 ## Fase 0 — Alcance y contexto
@@ -71,3 +72,4 @@ Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivi
 - No enviar veredictos de un juez sin calibrar.
 - No reportar nada que no se haya visto en el HTML vivo o en los datos.
 - No tocar el código del sitio auditado desde esta skill: el backlog se entrega, y los cambios se hacen en el repo del sitio con su propio flujo.
+- Para ubicar un hallazgo en el código del sitio, leé lo que está desplegado (normalmente `origin/main`), nunca el working tree: suele tener ramas y cambios locales sin publicar que confunden lo que ve el crawler con lo que hay en el disco. `git fetch origin main && git archive origin/main | tar -x -C <scratchpad>/<sitio>-main`, sin checkout.
