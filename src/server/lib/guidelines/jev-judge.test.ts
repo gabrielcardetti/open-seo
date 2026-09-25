@@ -9,6 +9,7 @@ import {
 } from "./decision-transport";
 import { JevJudge } from "./jev-judge";
 import type { FetchedPage } from "./page-fetch";
+import { emptySpamSignals } from "./spam-signals";
 
 const page: FetchedPage = {
   url: "https://example.com/a",
@@ -18,6 +19,8 @@ const page: FetchedPage = {
   metaDescription: "",
   canonical: null,
   robotsMeta: null,
+  googlebotMeta: null,
+  robotsHeader: null,
   h1s: ["A page"],
   wordCount: 300,
   bodyText: "Some content.",
@@ -27,6 +30,7 @@ const page: FetchedPage = {
   internalLinks: 1,
   externalLinks: 0,
   isHttps: true,
+  spamSignals: emptySpamSignals(),
 };
 
 const binary = RULES_BY_ID.get("PF-W01")!;

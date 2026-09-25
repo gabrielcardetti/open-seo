@@ -9,19 +9,15 @@
  * pay for, and the audit costs nothing to evaluate.
  *
  * Submitted verdicts are untrusted input. They are checked against the catalog
- * before they are stored: a verdict on a rule that was never applicable to that
- * page is rejected rather than written, and the page's verdict is computed from
- * the catalog's severity rules rather than taken from the caller.
+ * before they are stored: a verdict on a rule that was never asked for that
+ * page is rejected rather than written, the rules the page data settles are
+ * answered here rather than by the caller, and the page's verdict is computed
+ * from the catalog's severity rules rather than taken from the caller.
  */
 import { z } from "zod";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
-import {
-  CATALOG_VERSION,
-  RULES_BY_ID,
-  computeVerdict,
-  type GuidelineRule,
-} from "@/shared/guidelines/catalog";
+import type { GuidelineRule } from "@/shared/guidelines/catalog";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import {
@@ -31,7 +27,6 @@ import {
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
 import {
-  applicableRulesFor,
   auditIdSchema,
   auditPath,
   resolveAudit,
@@ -135,7 +130,7 @@ export const getGuidelinesEvaluationBatchTool = {
 
     const { fetchPageForEvaluation } =
       await import("@/server/lib/guidelines/page-fetch");
-    const { classifyPage } =
+    const { planEvaluation } =
       await import("@/server/lib/guidelines/page-evaluator");
     const { renderPageState } = await import("@/server/lib/guidelines/judge");
 
@@ -154,9 +149,10 @@ export const getGuidelinesEvaluationBatchTool = {
         });
         continue;
       }
-      const classification = classifyPage(fetched);
-      const applicable = applicableRulesFor(classification);
-      for (const rule of applicable) rulesInBatch.set(rule.id, rule);
+      // Only what is left for a judge: rules the page data settles (noindex,
+      // rating markup with no reviews) are answered at submit, not asked.
+      const { classification, askable } = planEvaluation(fetched);
+      for (const rule of askable) rulesInBatch.set(rule.id, rule);
       batch.push({
         // The crawled URL, not the post-redirect one: submit looks the page
         // up by the URL the audit recorded.
@@ -165,7 +161,7 @@ export const getGuidelinesEvaluationBatchTool = {
         ymyl: classification.ymyl,
         ymyl_topics: classification.ymylTopics,
         content: renderPageState(fetched),
-        rule_ids: applicable.map((rule) => rule.id),
+        rule_ids: askable.map((rule) => rule.id),
       });
     }
 
@@ -197,7 +193,7 @@ export const getGuidelinesEvaluationBatchTool = {
               ],
             },
           ],
-          note: "Report only rules that do NOT pass. Anything you omit counts as a pass. Do not invent policies beyond the rules supplied.",
+          note: "Report only rules that do NOT pass. Anything you omit counts as a pass. Do not invent policies beyond the rules supplied. A fail whose evidence is not a verbatim quote from the page is stored as a warning. Rules about a pattern across pages or about why a page was made: fail only when this page itself shows it, otherwise answer unknown.",
         },
       },
       meta: buildProjectMeta(
@@ -278,7 +274,7 @@ export const submitGuidelinesEvaluationTool = {
     const pages = await AuditRepository.getPagesForAudit(audit.id);
     const pageByUrl = new Map(pages.map((page) => [page.url, page]));
 
-    const { classifyPage } =
+    const { outcomesFromSubmission, planEvaluation, summarizeEvaluation } =
       await import("@/server/lib/guidelines/page-evaluator");
     const { fetchPageForEvaluation } =
       await import("@/server/lib/guidelines/page-fetch");
@@ -293,78 +289,40 @@ export const submitGuidelinesEvaluationTool = {
         continue;
       }
 
-      // Re-derive which rules were applicable rather than trusting the caller
-      // to have judged the right set.
-      let classification;
+      // Re-derive the plan rather than trusting the caller to have judged the
+      // right set. It also runs the deterministic rules, so the stored verdict
+      // matches what the audit's own judges would have recorded.
+      let fetched;
       try {
-        classification = classifyPage(await fetchPageForEvaluation(result.url));
+        fetched = await fetchPageForEvaluation(result.url);
       } catch (error) {
         rejected.push(
           `${result.url}: could not re-read the page (${error instanceof Error ? error.message : "unknown"})`,
         );
         continue;
       }
-      const applicable = applicableRulesFor(classification);
-      const applicableIds = new Set(applicable.map((rule) => rule.id));
-
-      const findings: Array<{
-        ruleId: string;
-        status: "fail" | "warn" | "unknown";
-        severity: "critical" | "high" | "medium" | "low";
-        score: number | null;
-        confidence: number | null;
-        evidence: string | null;
-        reason: string | null;
-        remediation: string;
-      }> = [];
-      for (const finding of result.findings) {
-        if (!applicableIds.has(finding.ruleId)) {
-          rejected.push(
-            `${result.url}: ${finding.ruleId} was not applicable to this page`,
-          );
-          continue;
-        }
-        const rule = RULES_BY_ID.get(finding.ruleId)!;
-        findings.push({
-          ruleId: finding.ruleId,
-          status: finding.status,
-          severity: rule.severity,
-          score: null,
-          confidence: null,
-          evidence: finding.evidence?.slice(0, 1000) ?? null,
-          reason: finding.reason?.slice(0, 1000) ?? null,
-          // From the catalog, never from the caller.
-          remediation: rule.remediation,
-        });
+      const plan = planEvaluation(fetched);
+      const { outcomes, notAsked } = outcomesFromSubmission(
+        plan,
+        fetched,
+        result.findings,
+      );
+      for (const ruleId of notAsked) {
+        rejected.push(`${result.url}: ${ruleId} was not asked for this page`);
       }
 
-      // Rules the caller did not mention passed; rules nobody answered did not.
-      const answered = new Set(findings.map((finding) => finding.ruleId));
-      const outcomes = applicable.map((rule) => ({
-        id: rule.id,
-        status: answered.has(rule.id)
-          ? findings.find((f) => f.ruleId === rule.id)!.status
-          : ("pass" as const),
-      }));
-      const summary = computeVerdict(outcomes);
-
+      const evaluation = summarizeEvaluation({
+        page: fetched,
+        classification: plan.classification,
+        applicable: plan.applicable,
+        outcomes,
+        judge: args.judgeModel ? `mcp:${args.judgeModel}` : "mcp",
+      });
       stored.push({
         auditId: audit.id,
         pageId: page.id,
-        evaluation: {
-          url: result.url,
-          catalogVersion: CATALOG_VERSION,
-          classification,
-          verdict: summary.verdict,
-          criticalFails: summary.criticalFails,
-          highFails: summary.highFails,
-          mediumFails: summary.mediumFails,
-          lowFails: summary.lowFails,
-          unknownCount: findings.filter((f) => f.status === "unknown").length,
-          judge: args.judgeModel ? `mcp:${args.judgeModel}` : "mcp",
-          findings,
-          applicableRuleIds: applicable.map((rule) => rule.id),
-        },
+        // The crawled URL, which is what the audit's rows are keyed by.
+        evaluation: { ...evaluation, url: result.url },
       });
     }
 

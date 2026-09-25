@@ -5,6 +5,7 @@ import {
   RULES_BY_ID,
   computeVerdict,
   rulesForContext,
+  verdictSeverity,
 } from "./catalog";
 import {
   gradedRuleIds,
@@ -26,7 +27,7 @@ describe("catalog", () => {
   // The catalog is data we replace wholesale when Google updates a source
   // document. This is the test that fails on a bad or truncated replacement.
   it("parses and carries the rules it declares", () => {
-    expect(GUIDELINE_RULES).toHaveLength(117);
+    expect(GUIDELINE_RULES).toHaveLength(107);
     expect(RULES_BY_ID.size).toBe(GUIDELINE_RULES.length);
     expect(CATALOG_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
@@ -36,6 +37,17 @@ describe("catalog", () => {
       (rule) => !rule.source_url.startsWith("http"),
     );
     expect(untraceable).toEqual([]);
+  });
+
+  // A rule that can reject or send back a page has to show the words it rests
+  // on. A truncated quote hides whether the rule says more than Google does.
+  it("quotes the official text in full for every critical and high rule", () => {
+    const unquoted = GUIDELINE_RULES.filter(
+      (rule) =>
+        (rule.severity === "critical" || rule.severity === "high") &&
+        (!rule.official_quote.trim() || /\.\.\.|…/.test(rule.official_quote)),
+    ).map((rule) => rule.id);
+    expect(unquoted).toEqual([]);
   });
 });
 
@@ -100,16 +112,42 @@ describe("computeVerdict", () => {
     });
   });
 
-  // `warn` is a backlog item and `unknown` is the absence of an answer. Letting
-  // either count as a failure would reject pages on missing data.
-  it("counts only failures, never warnings or unknowns", () => {
+  // `unknown` is the absence of an answer. Letting it count as a failure would
+  // reject pages on missing data.
+  it("never counts an unknown against a page", () => {
     const summary = computeVerdict([
-      { id: idOfSeverity("critical"), status: "warn" },
       { id: idOfSeverity("critical"), status: "unknown" },
       { id: idOfSeverity("critical"), status: "n/a" },
       { id: idOfSeverity("critical"), status: "pass" },
     ]);
     expect(summary.verdict).toBe("pass");
+  });
+
+  // A detector hit or an unconfirmed judge failure cannot block a page, but a
+  // page carrying one is not a clean pass either.
+  it("lets a warning neither block a page nor pass it clean", () => {
+    const summary = computeVerdict([
+      { id: idOfSeverity("critical"), status: "warn" },
+    ]);
+    expect(summary.verdict).toBe("pass_with_warnings");
+    expect(summary.publishAllowed).toBe(true);
+  });
+
+  // Doorways, scaled content, one URL per query variant: a pattern across pages
+  // that one page can only hint at. Answered from a single page, such a rule
+  // can send it back for revision but not reject it.
+  it("caps a pattern rule judged from one page at revise", () => {
+    const pattern = GUIDELINE_RULES.find(
+      (r) => r.scope === "both" && r.severity === "critical",
+    )!;
+    expect(verdictSeverity(pattern, "page")).toBe("high");
+    expect(verdictSeverity(pattern, "site")).toBe("critical");
+    expect(computeVerdict([{ id: pattern.id, status: "fail" }]).verdict).toBe(
+      "revise",
+    );
+    expect(
+      computeVerdict([{ id: pattern.id, status: "fail" }], "site").verdict,
+    ).toBe("reject");
   });
 
   it("ignores results for rules the catalog no longer carries", () => {

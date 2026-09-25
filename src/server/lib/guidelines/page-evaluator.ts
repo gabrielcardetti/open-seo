@@ -16,6 +16,7 @@ import {
   RULES_BY_ID,
   computeVerdict,
   rulesForContext,
+  verdictSeverity,
   type GuidelineRule,
   type RuleContext,
   type Verdict,
@@ -27,42 +28,16 @@ import {
 import {
   mergeJudgements,
   rulesNeedingSecondPass,
+  withoutUngroundedFails,
   type JudgedRule,
   type RuleJudge,
 } from "./judge";
 import type { FetchedPage } from "./page-fetch";
+import { classifyPage, type PageClassification } from "./page-classifier";
 import {
   evaluateDeterministic,
   type EvaluationContext,
 } from "./rule-evaluators";
-
-export type PageType =
-  | "article"
-  | "hub"
-  | "product"
-  | "review"
-  | "category"
-  | "landing"
-  | "ugc"
-  | "other";
-
-const YMYL_TOPICS = [
-  "health_safety",
-  "financial",
-  "government_civics_society",
-  "other_wellbeing",
-] as const;
-
-export type YmylTopic = (typeof YMYL_TOPICS)[number];
-
-export interface PageClassification {
-  pageType: PageType;
-  ymyl: boolean;
-  ymylTopics: YmylTopic[];
-  isReview: boolean;
-  hasSchema: boolean;
-  aiSuspected: boolean;
-}
 
 export interface PageEvaluation {
   url: string;
@@ -93,84 +68,6 @@ export interface EvaluatedRule {
   remediation: string;
 }
 
-/**
- * Topic markers for the YMYL call, matched against the page's own words.
- *
- * Deliberately broad. Misclassifying a YMYL page as ordinary drops the strict
- * rules that exist precisely for pages that can hurt someone; the opposite
- * mistake only asks a few extra questions. When a judge is available it decides
- * instead, and this is the floor.
- */
-const YMYL_MARKERS: Array<{ topic: YmylTopic; pattern: RegExp }> = [
-  {
-    topic: "health_safety",
-    pattern:
-      /\b(s[ií]ntoma|diagn[oó]stic|tratamiento|medicament|dosis|enfermedad|salud|m[eé]dic|terapia|symptom|diagnos|treatment|medication|dosage|disease|health|medical)\w*/i,
-  },
-  {
-    topic: "financial",
-    pattern:
-      /\b(invers|hipotec|pr[eé]stamo|impuesto|jubilaci[oó]n|seguro|cr[eé]dito|invest|mortgage|loan|tax|retirement|insurance|credit)\w*/i,
-  },
-  {
-    topic: "government_civics_society",
-    pattern:
-      /\b(oposici[oó]n|convocatoria|bolet[ií]n oficial|legal|derecho|abogad|elecci[oó]n|votaci[oó]n|inmigraci[oó]n|visa|law|legal|rights|election|immigration|government)\w*/i,
-  },
-];
-
-/** Phrasing that suggests a page exists for a search engine rather than a reader. */
-const AI_SCALE_MARKERS =
-  /\b(en conclusi[oó]n|esperamos que este art[ií]culo|en este art[ií]culo te (mostramos|explicamos)|gu[ií]a definitiva|in conclusion|we hope this article|ultimate guide|in this article we will)\b/i;
-
-/**
- * Classify a page from its own content.
- *
- * Used as the input to rule selection, so it runs before anything expensive.
- * It stays heuristic on purpose: the classification decides which questions get
- * asked, and it is better to ask a few unnecessary questions than to skip the
- * strict ones.
- */
-export function classifyPage(page: FetchedPage): PageClassification {
-  const haystack = `${page.title} ${page.h1s.join(" ")} ${page.bodyText.slice(0, 6000)}`;
-
-  const ymylTopics = YMYL_MARKERS.filter(({ pattern }) =>
-    pattern.test(haystack),
-  ).map(({ topic }) => topic);
-
-  const isReview =
-    /\b(review|rese[ñn]a|an[aá]lisis de|comparativa|mejores \d+|best \d+|vs\.?)\b/i.test(
-      `${page.title} ${page.h1s.join(" ")}`,
-    );
-
-  const path = (() => {
-    try {
-      return new URL(page.finalUrl).pathname;
-    } catch {
-      return "/";
-    }
-  })();
-
-  const pageType: PageType = isReview
-    ? "review"
-    : path === "/" || path === ""
-      ? "landing"
-      : /\/(blog|guias|guides|articulo|article|post)\//i.test(path)
-        ? "article"
-        : page.internalLinks > 30 && page.wordCount < 400
-          ? "category"
-          : "article";
-
-  return {
-    pageType,
-    ymyl: ymylTopics.length > 0,
-    ymylTopics,
-    isReview,
-    hasSchema: page.structuredData.length > 0,
-    aiSuspected: AI_SCALE_MARKERS.test(haystack),
-  };
-}
-
 function toRuleContext(classification: PageClassification): RuleContext {
   return {
     ymyl: classification.ymyl,
@@ -184,23 +81,30 @@ function toRuleContext(classification: PageClassification): RuleContext {
   };
 }
 
-interface EvaluatePageOptions {
-  page: FetchedPage;
-  context?: Omit<EvaluationContext, "page">;
-  businessOverview?: string | null;
-  /** Cheap, calibrated, no prose. Skipped when unavailable. */
-  decisionJudge?: RuleJudge | null;
-  /** Writes evidence and reasoning. Skipped when unavailable. */
-  languageJudge?: RuleJudge | null;
+/** Below this many words of served text, content rules are not put to a judge. */
+const MIN_JUDGEABLE_WORDS = 20;
+
+interface EvaluationPlan {
+  classification: PageClassification;
+  applicable: GuidelineRule[];
+  /** Rules answered without a judge: from page data, or `unknown` with a reason. */
+  settled: Map<string, JudgedRule>;
+  /** Rules left for a judge. */
+  askable: GuidelineRule[];
 }
 
-export async function evaluatePage({
-  page,
-  context,
-  businessOverview,
-  decisionJudge,
-  languageJudge,
-}: EvaluatePageOptions): Promise<PageEvaluation> {
+/**
+ * Everything decided before a judge is asked: which rules apply, what the page
+ * data settles outright, and what no judge may answer.
+ *
+ * Both judging paths start here — the audit workflow's own judges and an MCP
+ * caller judging on its own model — so a noindex or a fake rating fails the
+ * same way whichever of them answers the rest.
+ */
+export function planEvaluation(
+  page: FetchedPage,
+  context?: Omit<EvaluationContext, "page">,
+): EvaluationPlan {
   const classification = classifyPage(page);
   const applicable = rulesForContext(toRuleContext(classification), "page");
 
@@ -220,9 +124,13 @@ export async function evaluatePage({
     });
   }
 
-  // 2. What a judge could answer but no judge will be asked.
+  // 2. What a judge could answer but no judge will be asked. With almost no
+  // text in the served HTML — typically an app rendered in the browser — every
+  // judged rule is a question about content the judge cannot see, and a judge
+  // asked anyway can reject an empty shell for having "no value".
   const remaining = applicable.filter((rule) => !settled.has(rule.id));
-  const askable = judgeableRules(remaining);
+  const tooLittleText = page.wordCount < MIN_JUDGEABLE_WORDS;
+  const askable = tooLittleText ? [] : judgeableRules(remaining);
   const askableIds = new Set(askable.map((rule) => rule.id));
   for (const rule of remaining) {
     if (askableIds.has(rule.id)) continue;
@@ -231,9 +139,90 @@ export async function evaluatePage({
       status: "unknown",
       confidence: null,
       evidence: null,
-      reason: unjudgeableReason(rule) ?? "No evaluator for this rule.",
+      reason:
+        tooLittleText && judgeableRules([rule]).length > 0
+          ? "Too little text in the served HTML to judge; needs the rendered page."
+          : (unjudgeableReason(rule) ?? "No evaluator for this rule."),
     });
   }
+
+  return { classification, applicable, settled, askable };
+}
+
+/** One non-passing verdict as an external judge submits it. */
+export interface SubmittedFinding {
+  ruleId: string;
+  status: "fail" | "warn" | "unknown";
+  evidence?: string;
+  reason?: string;
+}
+
+/**
+ * Turns an external judge's findings into rule outcomes for one page.
+ *
+ * The caller answers only the rules the plan left for a judge; a finding on
+ * any other rule is returned in `notAsked` and ignored, so a caller cannot
+ * overrule what the page data settled. Silence is the pass signal, as the
+ * batch told the caller, and a failure whose quote is not on the page is kept
+ * as a warning, exactly as on the audit's own judging path.
+ */
+export function outcomesFromSubmission(
+  plan: EvaluationPlan,
+  page: FetchedPage,
+  findings: readonly SubmittedFinding[],
+): { outcomes: JudgedRule[]; notAsked: string[] } {
+  const askableIds = new Set(plan.askable.map((rule) => rule.id));
+  const outcomes = new Map(plan.settled);
+  const notAsked: string[] = [];
+  for (const finding of findings) {
+    if (!askableIds.has(finding.ruleId)) {
+      notAsked.push(finding.ruleId);
+      continue;
+    }
+    if (outcomes.has(finding.ruleId)) continue;
+    outcomes.set(
+      finding.ruleId,
+      withoutUngroundedFails(
+        {
+          ruleId: finding.ruleId,
+          status: finding.status,
+          evidence: finding.evidence?.slice(0, 1000) ?? null,
+          reason: finding.reason?.slice(0, 1000) ?? null,
+        },
+        page,
+      ),
+    );
+  }
+  for (const rule of plan.askable) {
+    if (!outcomes.has(rule.id)) {
+      outcomes.set(rule.id, { ruleId: rule.id, status: "pass" });
+    }
+  }
+  return { outcomes: Array.from(outcomes.values()), notAsked };
+}
+
+interface EvaluatePageOptions {
+  page: FetchedPage;
+  context?: Omit<EvaluationContext, "page">;
+  businessOverview?: string | null;
+  /** Cheap, calibrated, no prose. Skipped when unavailable. */
+  decisionJudge?: RuleJudge | null;
+  /** Writes evidence and reasoning. Skipped when unavailable. */
+  languageJudge?: RuleJudge | null;
+}
+
+export async function evaluatePage({
+  page,
+  context,
+  businessOverview,
+  decisionJudge,
+  languageJudge,
+}: EvaluatePageOptions): Promise<PageEvaluation> {
+  const { classification, applicable, settled, askable } = planEvaluation(
+    page,
+    context,
+  );
+  const askableIds = new Set(askable.map((rule) => rule.id));
 
   // 3. The decision model, then the language model over what it flagged.
   let judged: JudgedRule[] = [];
@@ -322,7 +311,7 @@ export async function evaluatePage({
               result.reason ??
               "Flagged by the decision model; no second judge has confirmed it.",
           }
-        : result,
+        : withoutUngroundedFails(result, page),
     );
   }
 
@@ -340,7 +329,32 @@ export async function evaluatePage({
     }
   }
 
-  const outcomes = Array.from(settled.values());
+  return summarizeEvaluation({
+    page,
+    classification,
+    applicable,
+    outcomes: Array.from(settled.values()),
+    judge: judgeNames.join("+") || "deterministic",
+  });
+}
+
+/**
+ * Rolls every rule's outcome into the stored evaluation: the verdict, the
+ * counts, and the non-passing rules as findings in severity order.
+ */
+export function summarizeEvaluation({
+  page,
+  classification,
+  applicable,
+  outcomes,
+  judge,
+}: {
+  page: FetchedPage;
+  classification: PageClassification;
+  applicable: readonly GuidelineRule[];
+  outcomes: readonly JudgedRule[];
+  judge: string;
+}): PageEvaluation {
   const summary = computeVerdict(
     outcomes.map((result) => ({ id: result.ruleId, status: result.status })),
   );
@@ -357,7 +371,7 @@ export async function evaluatePage({
       return {
         ruleId: result.ruleId,
         status: result.status,
-        severity: rule.severity,
+        severity: verdictSeverity(rule, "page"),
         score: result.score ?? null,
         confidence: result.confidence ?? null,
         evidence: result.evidence ?? null,
@@ -385,7 +399,7 @@ export async function evaluatePage({
     lowFails: summary.lowFails,
     unknownCount: outcomes.filter((result) => result.status === "unknown")
       .length,
-    judge: judgeNames.join("+") || "deterministic",
+    judge,
     findings: orderedFindings,
     applicableRuleIds: applicable.map((rule) => rule.id),
   };

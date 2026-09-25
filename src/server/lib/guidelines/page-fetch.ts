@@ -10,8 +10,13 @@
  * The second thing this recovers is the raw JSON-LD. `audit_pages` stores only
  * `has_structured_data` as a boolean, and the SD-* rules need the actual markup
  * to say anything.
+ *
+ * The third is spam evidence that only the raw HTML carries: inline scripts,
+ * inline styles and refresh directives, which the analyzer discards. Only the
+ * resulting findings are kept, never the HTML itself.
  */
 import { isCrawlableUrl } from "../audit/url-policy";
+import type { SpamSignals } from "./spam-signals";
 
 const USER_AGENT = "OpenSEO-Audit/1.0";
 const FETCH_TIMEOUT_MS = 15_000;
@@ -28,6 +33,10 @@ export interface FetchedPage {
   metaDescription: string;
   canonical: string | null;
   robotsMeta: string | null;
+  /** `<meta name="googlebot">`, which Google reads alongside `robots`. */
+  googlebotMeta: string | null;
+  /** The `X-Robots-Tag` response header, as received. */
+  robotsHeader: string | null;
   h1s: string[];
   wordCount: number;
   bodyText: string;
@@ -38,6 +47,8 @@ export interface FetchedPage {
   internalLinks: number;
   externalLinks: number;
   isHttps: boolean;
+  /** Spam evidence read from the raw HTML while it is still in memory. */
+  spamSignals: SpamSignals;
 }
 
 async function readTextUpTo(
@@ -87,6 +98,39 @@ function extractJsonLd(html: string): unknown[] {
     }
   }
   return blocks;
+}
+
+/**
+ * The `googlebot` meta tag, which the streaming analyzer does not keep (it
+ * reads only `robots`). Attribute order varies, so both orders are tried.
+ */
+function extractGooglebotMeta(rawHtml: string): string | null {
+  // A tag left in a comment ("staging: noindex") is not one Google reads.
+  const html = rawHtml.replace(/<!--[\s\S]*?-->/g, "");
+  const match =
+    html.match(
+      /<meta[^>]+name=["']googlebot["'][^>]*content=["']([^"']*)["']/i,
+    ) ??
+    html.match(
+      /<meta[^>]+content=["']([^"']*)["'][^>]*name=["']googlebot["']/i,
+    );
+  return match?.[1] ?? null;
+}
+
+/**
+ * The spam detectors only ever produce warnings, so a bug in one must not
+ * cost the page its whole evaluation.
+ */
+function safeSpamSignals(
+  detect: () => SpamSignals,
+  fallback: () => SpamSignals,
+): SpamSignals {
+  try {
+    return detect();
+  } catch (error) {
+    console.warn("Spam signal detection failed; continuing without it", error);
+    return fallback();
+  }
 }
 
 class GuidelinesFetchError extends Error {
@@ -141,16 +185,21 @@ export async function fetchPageForEvaluation(
   // Loaded lazily for the same reason crawlPage does it: the parser must stay
   // out of the worker's baseline heap (see vite-plugin-lean-worker-bundle).
   const { analyzeHtml } = await import("../audit/page-analyzer");
-  const analysis = analyzeHtml(html, response.url || url, response.status, 0);
+  const { detectSpamSignals, emptySpamSignals } =
+    await import("./spam-signals");
+  const finalUrl = response.url || url;
+  const analysis = analyzeHtml(html, finalUrl, response.status, 0);
 
   return {
     url,
-    finalUrl: response.url || url,
+    finalUrl,
     statusCode: response.status,
     title: analysis.title,
     metaDescription: analysis.metaDescription,
     canonical: analysis.canonical,
     robotsMeta: analysis.robotsMeta,
+    googlebotMeta: extractGooglebotMeta(html),
+    robotsHeader: response.headers.get("x-robots-tag"),
     h1s: analysis.h1s,
     wordCount: analysis.wordCount,
     bodyText: analysis.bodyText,
@@ -161,6 +210,16 @@ export async function fetchPageForEvaluation(
     ).length,
     internalLinks: analysis.links.filter((link) => link.isInternal).length,
     externalLinks: analysis.links.filter((link) => !link.isInternal).length,
-    isHttps: (response.url || url).startsWith("https://"),
+    isHttps: finalUrl.startsWith("https://"),
+    spamSignals: safeSpamSignals(
+      () =>
+        detectSpamSignals({
+          html,
+          finalUrl,
+          bodyText: analysis.bodyText,
+          refreshHeader: response.headers.get("refresh"),
+        }),
+      emptySpamSignals,
+    ),
   };
 }

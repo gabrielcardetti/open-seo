@@ -8,8 +8,8 @@
  * the default is a binary and only the genuinely graded rules need an entry
  * here.
  *
- * The catalog itself stays untouched: it is versioned data copied from the
- * research pack, and this mapping is our reading of it.
+ * The catalog says what each rule means; this mapping is our reading of how to
+ * put it to a judge.
  */
 import { RULES_BY_ID, type GuidelineRule, type RuleStatus } from "./catalog";
 
@@ -20,11 +20,11 @@ const JUDGEABLE_CHECKS = new Set(["llm", "heuristic", "hybrid"]);
  * Rules a model must never close on its own, whatever its check type says.
  *
  * `hybrid` rules are judgeable — the model contributes half the answer — but
- * these four turn on evidence that does not exist on the page: server-side
- * cloaking, an injected-malware scan, the operator's own disclosure of how the
- * page was made. A model asked anyway will answer confidently from nothing.
+ * these turn on evidence that does not exist on the page: server-side cloaking
+ * and an injected-malware scan. A model asked anyway will answer confidently
+ * from nothing.
  */
-const NEVER_AUTO_CLOSE = new Set(["SPAM-01", "SPAM-04", "SPAM-08", "AI-03"]);
+const NEVER_AUTO_CLOSE = new Set(["SPAM-01", "SPAM-04"]);
 
 /**
  * Rules about how a page renders or is wired, not what it says. A judge sees
@@ -36,7 +36,7 @@ const NEVER_AUTO_CLOSE = new Set(["SPAM-01", "SPAM-04", "SPAM-08", "AI-03"]);
 const NEEDS_RENDERING = new Set([
   "PX-02", // mobile usability
   "PX-06", // ads or interstitials covering the main content
-  "TECH-05", // canonical target
+  "TECH-06", // links wired as <a href> rather than script handlers
   "TECH-07", // inbound internal links
   "TECH-08", // content only available after JavaScript
 ]);
@@ -96,7 +96,9 @@ export function instructionsFor(rule: GuidelineRule): string {
     `PASS when: ${rule.pass_if}`,
     `FAIL when: ${rule.fail_if}`,
     "This judges a web page against Google Search's official quality" +
-      " guidelines. Judge only what the page itself shows.",
+      " guidelines. Judge only what the page itself shows: when the rule is" +
+      " about a pattern across many pages or about why the page was made," +
+      " fail only if this page itself shows it.",
   ].join("\n");
 }
 

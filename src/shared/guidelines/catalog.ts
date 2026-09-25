@@ -1,16 +1,22 @@
 /**
  * The Google Search guidelines rule catalog.
  *
- * `catalog.json` is a verbatim copy of the research pack's rule set — 117
- * atomic rules distilled from Google's official documentation (people-first
- * content, spam policies, generative-AI guidance, Search Essentials, the
- * Quality Rater Guidelines). It is data, not code: it gets versioned and
- * replaced wholesale when Google updates a source document, and the parse
- * below is what catches a malformed replacement at module load instead of
- * mid-audit.
+ * `catalog.json` started as the research pack's rule set and is now maintained
+ * here: atomic rules distilled from Google's official documentation
+ * (people-first content, spam policies, generative-AI guidance, Search
+ * Essentials, the Quality Rater Guidelines). It is data, not code: it gets
+ * versioned and re-checked against the source documents when Google updates
+ * one, and the parse below is what catches a malformed edit at module load
+ * instead of mid-audit.
  *
- * Every rule carries the official quote and source URL it came from, so a
- * finding can always be traced back to the guideline that produced it.
+ * Severity follows how Google frames each source. `critical` is for what Google
+ * calls a violation or a blocker (spam policies, pages it cannot index, YMYL
+ * harm, active deception); the people-first self-assessment questions are
+ * advice and top out at `high`.
+ *
+ * Every rule carries the source URL it came from, and every critical or high
+ * rule an official quote, so a finding can always be traced back to the
+ * guideline that produced it.
  */
 import { z } from "zod";
 import catalogJson from "./catalog.json";
@@ -188,6 +194,28 @@ export function rulesForContext(
   );
 }
 
+/**
+ * The severity a rule's failure carries at a given level of evaluation.
+ *
+ * A `both` rule asks about a pattern — doorway sets, scaled content, one URL per
+ * query variant — and a single page shows at most a hint of it. Answered from
+ * one page, a critical `both` rule can send the page back for revision but not
+ * reject it; rejecting on a pattern takes the site-level view that can see it.
+ */
+export function verdictSeverity(
+  rule: GuidelineRule,
+  level: "page" | "site",
+): GuidelineRule["severity"] {
+  if (
+    rule.severity === "critical" &&
+    rule.scope === "both" &&
+    level === "page"
+  ) {
+    return "high";
+  }
+  return rule.severity;
+}
+
 interface RuleOutcome {
   id: string;
   status: RuleStatus;
@@ -204,22 +232,29 @@ interface VerdictSummary {
 
 /**
  * Rolls per-rule outcomes into one verdict, using the catalog's own
- * `verdict_logic`: any critical failure rejects, any high failure sends the
- * page back for revision, and medium/low failures are warnings you can publish
- * with. Only `fail` counts — a `warn` is a backlog item, and `unknown` is the
- * absence of an answer, so neither can reject a page.
+ * `verdict_logic`: any critical failure rejects (see `verdictSeverity` for
+ * pattern rules judged from one page), any high failure sends the page back
+ * for revision, and medium/low failures are warnings you can publish
+ * with. Only `fail` can block a page. A `warn` — a detector hit, a judge's
+ * unquoted or unconfirmed failure — cannot, but it keeps the page from reading
+ * as a clean pass; `unknown` is the absence of an answer and counts for
+ * nothing.
  */
 export function computeVerdict(
   outcomes: readonly RuleOutcome[],
+  level: "page" | "site" = "page",
 ): VerdictSummary {
   let criticalFails = 0;
   let highFails = 0;
   let mediumFails = 0;
   let lowFails = 0;
+  let warnings = 0;
 
   for (const outcome of outcomes) {
+    if (outcome.status === "warn") warnings += 1;
     if (outcome.status !== "fail") continue;
-    switch (RULES_BY_ID.get(outcome.id)?.severity) {
+    const rule = RULES_BY_ID.get(outcome.id);
+    switch (rule && verdictSeverity(rule, level)) {
       case "critical":
         criticalFails += 1;
         break;
@@ -244,7 +279,7 @@ export function computeVerdict(
       ? "reject"
       : highFails > 0
         ? "revise"
-        : mediumFails > 0 || lowFails > 0
+        : mediumFails > 0 || lowFails > 0 || warnings > 0
           ? "pass_with_warnings"
           : "pass";
 

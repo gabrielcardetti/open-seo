@@ -1,7 +1,9 @@
 import { sort } from "remeda";
 import { describe, expect, it, vi } from "vitest";
-import { classifyPage, evaluatePage } from "./page-evaluator";
+import { classifyPage } from "./page-classifier";
+import { evaluatePage } from "./page-evaluator";
 import type { FetchedPage } from "./page-fetch";
+import { emptySpamSignals } from "./spam-signals";
 import type { JudgedRule, RuleJudge } from "./judge";
 
 function fetchedPage(overrides: Partial<FetchedPage> = {}): FetchedPage {
@@ -13,6 +15,8 @@ function fetchedPage(overrides: Partial<FetchedPage> = {}): FetchedPage {
     metaDescription: "Descripción",
     canonical: "https://example.com/guias/una-guia",
     robotsMeta: null,
+    googlebotMeta: null,
+    robotsHeader: null,
     h1s: ["Una guía cualquiera"],
     wordCount: 900,
     bodyText: "Contenido de la página con bastante texto útil.",
@@ -22,6 +26,7 @@ function fetchedPage(overrides: Partial<FetchedPage> = {}): FetchedPage {
     internalLinks: 10,
     externalLinks: 2,
     isHttps: true,
+    spamSignals: emptySpamSignals(),
     ...overrides,
   };
 }
@@ -77,6 +82,35 @@ describe("classifyPage", () => {
 
   it("leaves an ordinary page outside YMYL", () => {
     expect(classifyPage(fetchedPage()).ymyl).toBe(false);
+  });
+
+  // Titles that share a stem with a YMYL word. Each once put the critical
+  // YMYL rules on a recipe, a horoscope or a shop.
+  it.each([
+    "Healthy banana bread | Healthy Kitchen",
+    "Horóscopo Cáncer hoy",
+    "Guía para la elección del colchón perfecto",
+    "Inversor de corriente 3000W",
+    "Proyecto de investigación sobre abejas",
+    "Situaciones embarazosas en el trabajo",
+    "Convocatoria de casting para figurantes",
+  ])("does not treat %s as YMYL", (title) => {
+    expect(classifyPage(fetchedPage({ title, h1s: [title] })).ymyl).toBe(false);
+  });
+
+  // Footers and checkouts carry "Aviso legal", "pago seguro", "Visa" on every
+  // site. Counting them made nearly any Spanish page YMYL, which put the
+  // critical YMYL rules on a recipe.
+  it("does not treat footer and checkout boilerplate as YMYL", () => {
+    const classification = classifyPage(
+      fetchedPage({
+        title: "Tarta de manzana fácil",
+        h1s: ["Tarta de manzana fácil"],
+        bodyText:
+          "Pela las manzanas y hornea 40 minutos. Aviso legal. Política de cookies. Pago seguro con Visa y Mastercard. Impuestos incluidos. Tarjeta de crédito.",
+      }),
+    );
+    expect(classification.ymyl).toBe(false);
   });
 
   it("recognises a listicle as a review page", () => {
@@ -146,7 +180,7 @@ describe("evaluatePage", () => {
     const asked = judge.askedRuleIds.flat();
     // One doorway page looks fine on its own; these are answered from the URL
     // inventory instead, so they must not reach a page-level judge.
-    expect(asked).not.toContain("SITE-01");
+    expect(asked).not.toContain("PF-P03");
     expect(asked).not.toContain("SITE-03");
   });
 
@@ -246,13 +280,17 @@ describe("evaluatePage", () => {
     expect(ranks.map(rank)).toEqual(sort(ranks.map(rank), (a, b) => a - b));
   });
 
-  it("fails a page that serves no readable text", async () => {
+  // Google renders every 200 page, so an empty HTML shell is usually a
+  // client-rendered app, not an unindexable page. Rejecting it would fail
+  // every SPA on data the audit does not have.
+  it("leaves a page with no served text unknown rather than failing it", async () => {
     const result = await evaluatePage({
       page: fetchedPage({ wordCount: 0, bodyText: "" }),
     });
     expect(result.findings.find((f) => f.ruleId === "TECH-03")?.status).toBe(
-      "fail",
+      "unknown",
     );
+    expect(result.verdict).not.toBe("reject");
   });
 
   // The evidence-writing pass is the fragile one (rate limits, credit). Its
@@ -343,7 +381,8 @@ describe("evaluatePage", () => {
       page: fetchedPage(),
       decisionJudge: decision,
     });
-    expect(result.verdict).toBe("pass");
+    // Warnings cannot block the page, but they keep it from a clean pass.
+    expect(result.verdict).toBe("pass_with_warnings");
     const judged = result.findings.filter((f) => f.confidence === 0.95);
     expect(judged.length).toBeGreaterThan(0);
     expect(judged.every((f) => f.status === "warn")).toBe(true);
@@ -361,7 +400,7 @@ describe("evaluatePage", () => {
       rules.map((rule) => ({
         ruleId: rule.id,
         status: "fail" as const,
-        evidence: "quote",
+        evidence: "bastante texto útil",
       })),
     );
     const result = await evaluatePage({
@@ -375,6 +414,24 @@ describe("evaluatePage", () => {
     );
   });
 
+  // A failure nobody can check must not reject a page on the model's word.
+  it("records a language-model failure without a quote as a warning", async () => {
+    const language = stubJudge("llm", (rules) =>
+      rules.map((rule) => ({ ruleId: rule.id, status: "fail" as const })),
+    );
+    const result = await evaluatePage({
+      page: fetchedPage(),
+      languageJudge: language,
+    });
+    const judged = new Set(language.askedRuleIds.flat());
+    const statuses = result.findings
+      .filter((f) => judged.has(f.ruleId))
+      .map((f) => f.status);
+    expect(statuses.length).toBeGreaterThan(0);
+    expect(statuses.every((status) => status === "warn")).toBe(true);
+    expect(result.verdict).not.toBe("reject");
+  });
+
   // Only the decision model's own verdicts are downgraded; a language model
   // that judged alone after the decision model failed keeps its failures.
   it("does not soften a language model that judged alone", async () => {
@@ -384,7 +441,11 @@ describe("evaluatePage", () => {
       judge: vi.fn().mockRejectedValue(new Error("down")),
     };
     const language = stubJudge("llm", (rules) =>
-      rules.map((rule) => ({ ruleId: rule.id, status: "fail" as const })),
+      rules.map((rule) => ({
+        ruleId: rule.id,
+        status: "fail" as const,
+        evidence: "bastante texto útil",
+      })),
     );
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = await evaluatePage({

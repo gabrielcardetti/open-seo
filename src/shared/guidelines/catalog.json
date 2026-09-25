@@ -1,8 +1,8 @@
 {
-  "catalog_version": "2026-09-19",
-  "rule_count": 117,
+  "catalog_version": "2026-09-25",
+  "rule_count": 107,
   "verdict_logic": {
-    "reject": ">=1 critical fail",
+    "reject": ">=1 critical fail backed by evidence (deterministic, or quoted by the judge); page-level answers to site-pattern rules cap at revise",
     "revise": ">=1 high fail and 0 critical",
     "pass_with_warnings": "only medium/low fails",
     "pass": "0 fails"
@@ -14,15 +14,15 @@
       "category": "TECH",
       "scope": "page",
       "severity": "critical",
-      "check": "binary",
-      "applies_if": "always",
+      "check": "gsc",
+      "applies_if": "has_gsc",
       "question": "¿Googlebot puede acceder a la URL?",
-      "pass_if": "Pública, sin login, robots.txt/meta/header no bloquean Googlebot.",
-      "fail_if": "Disallow, noindex combinado con bloqueo de crawl, auth wall, IP ban.",
-      "remediation": "Permitir Googlebot. Probar con URL Inspection.",
+      "pass_if": "Pública, sin login; robots.txt, meta y cabeceras no bloquean a Googlebot.",
+      "fail_if": "Disallow en robots.txt, auth wall, o bloqueo por IP/user-agent a Googlebot.",
+      "remediation": "Permitir Googlebot. Probar con URL Inspection (el crawler de la auditoría no se identifica como Googlebot).",
       "source": "SRC-TECH",
-      "source_url": "https://developers.google.com/search/docs/essentials/technical",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/technical#googlebot",
+      "official_quote": "Google only indexes pages on the web that are accessible to the public and which don't block our crawler, Googlebot, from crawling them. If a page is made private, such as requiring a log-in to view it, Googlebot will not crawl it."
     },
     {
       "id": "TECH-02",
@@ -32,13 +32,13 @@
       "severity": "critical",
       "check": "binary",
       "applies_if": "always",
-      "question": "¿La página responde 200?",
-      "pass_if": "HTTP 200 real (no soft 404).",
-      "fail_if": "4xx, 5xx, soft 404.",
-      "remediation": "Corregir status o contenido. Soft 404: o hay MC real o 404 de verdad.",
+      "question": "¿La página responde con un status 2xx?",
+      "pass_if": "HTTP 2xx.",
+      "fail_if": "4xx o 5xx.",
+      "remediation": "Corregir el status. Los soft 404 los cubre IDX-03.",
       "source": "SRC-TECH",
-      "source_url": "https://developers.google.com/search/docs/essentials/technical",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/technical#page-works",
+      "official_quote": "Google only indexes pages that are served with an HTTP 200 (success) status code. Client and server error pages aren't indexed."
     },
     {
       "id": "TECH-03",
@@ -49,12 +49,12 @@
       "check": "binary",
       "applies_if": "always",
       "question": "¿Hay texto en un formato que Google puede indexar?",
-      "pass_if": "Texto HTML visible, file type soportado.",
-      "fail_if": "Solo imagen/PDF no soportado/JS vacío.",
-      "remediation": "Poner el MC en HTML de texto.",
+      "pass_if": "El MC es texto indexable, en el HTML servido o tras renderizar JavaScript (Google renderiza las páginas 200).",
+      "fail_if": "El MC solo existe como imagen o en un formato no soportado, o no aparece ni tras renderizar.",
+      "remediation": "Poner el MC como texto. Si depende de JavaScript, comprobar el HTML renderizado con URL Inspection.",
       "source": "SRC-TECH",
-      "source_url": "https://developers.google.com/search/docs/essentials/technical",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/technical#indexable-content",
+      "official_quote": "Once Googlebot can find and access a working page, Google checks the page for indexable content. Indexable content means: The textual content is in a file type that Google Search supports."
     },
     {
       "id": "TECH-04",
@@ -65,12 +65,12 @@
       "check": "binary",
       "applies_if": "always",
       "question": "Si la URL debe rankear, ¿está permitida la indexación?",
-      "pass_if": "Sin noindex en meta/header (o noindex intencional en URLs que no deben rankear → n/a).",
-      "fail_if": "noindex en URL que se quiere publicar/rankear.",
+      "pass_if": "Ninguna directiva noindex (ni 'none') en meta robots, meta googlebot o X-Robots-Tag; o noindex intencional en una URL que no debe rankear.",
+      "fail_if": "noindex o none en una URL que se quiere publicar y rankear.",
       "remediation": "Quitar noindex o confirmar que la URL no debe rankear.",
-      "source": "SRC-TECH",
-      "source_url": "https://developers.google.com/search/docs/essentials/technical",
-      "official_quote": ""
+      "source": "SRC-ESS",
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/block-indexing#block-search-indexing-with-noindex",
+      "official_quote": "When Googlebot crawls that page and extracts the tag or header, Google will drop that page entirely from Google Search results, regardless of whether other sites link to it."
     },
     {
       "id": "TECH-05",
@@ -82,11 +82,11 @@
       "applies_if": "always",
       "question": "¿El canonical apunta a la versión que debe indexarse?",
       "pass_if": "Self-canonical o canonical a URL equivalente correcta.",
-      "fail_if": "Canonical a otra URL no equivalente / conflicto con hreflang.",
+      "fail_if": "Canonical a una URL no equivalente, conflicto con hreflang, o canonical puesto por JavaScript distinto del del HTML.",
       "remediation": "Unificar duplicados. Canonical = URL canónica real.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls#best-practices",
+      "official_quote": "Do include a rel=\"canonical\" link on the canonical page itself (also known as a self-referential canonical)."
     },
     {
       "id": "TECH-06",
@@ -94,15 +94,15 @@
       "category": "TECH",
       "scope": "page",
       "severity": "high",
-      "check": "binary",
+      "check": "heuristic",
       "applies_if": "always",
       "question": "¿Los enlaces importantes son <a href> reales?",
       "pass_if": "Navegación e internos con href.",
       "fail_if": "Nav solo onClick / JS sin href.",
       "remediation": "Usar <a href> reales.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable#crawlable-links",
+      "official_quote": "Generally, Google can only crawl your link if it's an <a> HTML element (also known as anchor element) with an href attribute. Most links in other formats won't be parsed and extracted by Google's crawlers."
     },
     {
       "id": "TECH-07",
@@ -117,8 +117,8 @@
       "fail_if": "URL solo en sitemap o aislada.",
       "remediation": "Enlazar desde hubs temáticos relevantes.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/essentials",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable#internal-links",
+      "official_quote": "Every page you care about should have a link from at least one other page on your site."
     },
     {
       "id": "TECH-08",
@@ -133,24 +133,24 @@
       "fail_if": "MC crítico solo en JS bloqueado o que Google no renderiza.",
       "remediation": "SSR o HTML inicial con el MC.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics#how-googlebot-processes-javascript",
+      "official_quote": "If it marks the URL as disallowed, then Googlebot skips making an HTTP request to this URL and skips the URL. Google Search won't render JavaScript from blocked files or on blocked pages."
     },
     {
       "id": "IDX-01",
       "name": "Crawled — currently not indexed",
       "category": "IDX",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "gsc",
       "applies_if": "has_gsc",
       "question": "¿Google crawló y decidió no indexar?",
       "pass_if": "No aparece este reason, o hay justificación (dup controlado).",
       "fail_if": "Crawled not indexed en URL que se quiere indexar.",
-      "remediation": "Subir valor único, consolidar duplicados, o noindex si no aporta. No 'esperar'.",
-      "source": "SRC-ESS",
-      "source_url": "https://support.google.com/webmasters/answer/7440203",
-      "official_quote": ""
+      "remediation": "Si la URL importa: subir valor único o consolidar duplicados. Si no aporta: noindex o eliminar.",
+      "source": "SRC-GSC",
+      "source_url": "https://support.google.com/webmasters/answer/7440203#crawled",
+      "official_quote": "The page was crawled by Google but not indexed. It may or may not be indexed in the future; no need to resubmit this URL for crawling."
     },
     {
       "id": "IDX-02",
@@ -164,9 +164,9 @@
       "pass_if": "No, o el sitio no prioriza esa URL a propósito.",
       "fail_if": "Descubierta y nunca crawlada en URLs importantes.",
       "remediation": "Mejorar enlaces internos + sitemap + calidad general del sitio (crawl budget).",
-      "source": "SRC-ESS",
-      "source_url": "https://support.google.com/webmasters/answer/7440203",
-      "official_quote": ""
+      "source": "SRC-GSC",
+      "source_url": "https://support.google.com/webmasters/answer/7440203#discovered__unclear_status",
+      "official_quote": "The page was found by Google, but not crawled yet. Typically, Google wanted to crawl the URL but this was expected to overload the site; therefore Google rescheduled the crawl."
     },
     {
       "id": "IDX-03",
@@ -181,24 +181,24 @@
       "fail_if": "Soft 404 / empty / thin que parece error.",
       "remediation": "MC real o 404/410 verdadero.",
       "source": "SRC-ESS",
-      "source_url": "https://support.google.com/webmasters/answer/7440203",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/troubleshoot-crawling-errors#soft-404-errors",
+      "official_quote": "A soft 404 error is when a URL that returns a page telling the user that the page does not exist and also a 200 (success) status code. In some cases, it might be a page with no main content or empty page."
     },
     {
       "id": "IDX-04",
       "name": "Duplicate, Google chose different canonical",
       "category": "IDX",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "gsc",
       "applies_if": "has_gsc",
       "question": "¿Google eligió otra canonical?",
       "pass_if": "No, o es el cluster intencional.",
       "fail_if": "Canibalización / Google eligió otra URL.",
       "remediation": "Consolidar o diferenciar de verdad el MC.",
-      "source": "SRC-ESS",
-      "source_url": "https://support.google.com/webmasters/answer/7440203",
-      "official_quote": ""
+      "source": "SRC-GSC",
+      "source_url": "https://support.google.com/webmasters/answer/7440203#google_chose_different_canonical_than_user",
+      "official_quote": "This page is marked as canonical for a set of pages, but Google thinks another URL makes a better canonical. Google has indexed the page that we consider canonical rather than this one."
     },
     {
       "id": "IDX-05",
@@ -208,13 +208,13 @@
       "severity": "low",
       "check": "gsc",
       "applies_if": "has_gsc",
-      "question": "¿Es una alternate con canonical correcto (hreflang/params)?",
+      "question": "¿Es una versión alternativa (AMP, móvil/escritorio) con canonical correcto?",
       "pass_if": "Sí y es intencional → pass.",
       "fail_if": "Alternate no intencional.",
       "remediation": "Si es intencional: n/a. Si no: unificar.",
-      "source": "SRC-ESS",
-      "source_url": "https://support.google.com/webmasters/answer/7440203",
-      "official_quote": ""
+      "source": "SRC-GSC",
+      "source_url": "https://support.google.com/webmasters/answer/7440203#duplicate_page_with_proper_canonical_tag",
+      "official_quote": "This page correctly points to the canonical page, which is indexed, so there is nothing you need to do. Alternate language pages are not detected by Search Console."
     },
     {
       "id": "PF-Q01",
@@ -225,11 +225,11 @@
       "check": "llm",
       "applies_if": "always",
       "question": "¿Aporta reporting, research, análisis o datos originales?",
-      "pass_if": "Hay hecho, dato, método o análisis que no está copiado del SERP.",
-      "fail_if": "Solo rehash de lo que ya está en las 10 primeras.",
+      "pass_if": "Hay un hecho, dato, método o análisis propio, no solo lo que ya dice cualquier otra fuente.",
+      "fail_if": "Solo reúne lo que ya dicen otros sitios, sin nada propio.",
       "remediation": "Agregar research propio, datos, o no publicar.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the content provide original information, reporting, research, or analysis?"
     },
     {
@@ -245,7 +245,7 @@
       "fail_if": "Superficial, lista genérica, no cierra el tema.",
       "remediation": "Completar huecos o fusionar con una URL mejor.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the content provide a substantial, complete, or comprehensive description of the topic?"
     },
     {
@@ -261,7 +261,7 @@
       "fail_if": "Solo tips obvios que escribiría cualquier LLM.",
       "remediation": "Aportar el 'por qué nos pasó / lo que medimos / lo que no dicen todos'.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the content provide insightful analysis or interesting information that is beyond the obvious?"
     },
     {
@@ -277,7 +277,7 @@
       "fail_if": "Rewrite / traducción / paráfrasis.",
       "remediation": "Reescribir con valor o citar y no publicar.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "If the content draws on other sources, does it avoid simply copying or rewriting those sources, and instead provide substantial additional value and originality?"
     },
     {
@@ -293,7 +293,7 @@
       "fail_if": "Title vago, keyword-only o desconectado.",
       "remediation": "Reescribir title/H1 descriptivos.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the main heading or page title provide a descriptive, helpful summary of the content?"
     },
     {
@@ -309,7 +309,7 @@
       "fail_if": "Clickbait, shock, 'no vas a creer'.",
       "remediation": "Bajar el tono al contenido real.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the main heading or page title avoid exaggerating or being shocking in nature?"
     },
     {
@@ -325,7 +325,7 @@
       "fail_if": "No hay motivo para volver ni compartir.",
       "remediation": "Subir utilidad práctica o punto de vista.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Is this the sort of page you'd want to bookmark, share with a friend, or recommend?"
     },
     {
@@ -341,7 +341,7 @@
       "fail_if": "Relleno de blog farm.",
       "remediation": "Edición humana real.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Would you expect to see this content in or referenced by a printed magazine, encyclopedia, or book?"
     },
     {
@@ -349,15 +349,15 @@
       "name": "Valor vs SERP",
       "category": "PF-Q",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "llm",
       "applies_if": "always",
       "question": "¿Aporta valor sustancial comparado con otras páginas del resultado?",
-      "pass_if": "Mejor o distinta de forma útil respecto al SERP.",
-      "fail_if": "Peor o igual que un resumen genérico del top 10.",
+      "pass_if": "Aporta algo útil que un resumen genérico del tema no tendría.",
+      "fail_if": "Equivale a un resumen genérico del tema, sin nada que no esté en cualquier otra página.",
       "remediation": "Diferenciarse con first-hand o no competir esa query.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the content provide substantial value when compared to other pages in search results?"
     },
     {
@@ -373,7 +373,7 @@
       "fail_if": "Typos, machine-translation cruda, estilo roto.",
       "remediation": "Corrección editorial.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Does the content have any spelling or stylistic issues?"
     },
     {
@@ -389,7 +389,7 @@
       "fail_if": "Plantilla a medias, headings huérfanos, placeholders.",
       "remediation": "Terminar la página o no publicarla.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
       "official_quote": "Is the content produced well, or does it appear sloppy or hastily produced?"
     },
     {
@@ -405,8 +405,8 @@
       "fail_if": "Salida de fábrica / red de sitios / outsource sin edición.",
       "remediation": "Bajar volumen, subir edición. Site-level si es patrón.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Is the content mass-produced by or outsourced to a large number of creators, or spread across a large network of sites...?"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
+      "official_quote": "Is the content mass-produced by or outsourced to a large number of creators, or spread across a large network of sites, so that individual pages or sites don't get as much attention or care?"
     },
     {
       "id": "PF-E01",
@@ -419,10 +419,10 @@
       "question": "¿Hay fuentes, evidencia de expertise, author page o About?",
       "pass_if": "Se entiende quién respalda lo que se dice.",
       "fail_if": "Anónimo, sin fuentes, sin About.",
-      "remediation": "Byline + fuentes + About.",
+      "remediation": "Mostrar fuentes y quién está detrás (autor o About) y su experiencia, en la medida en que el lector lo esperaría.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Does the content present information in a way that makes you want to trust it..."
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#expertise-questions",
+      "official_quote": "Does the content present information in a way that makes you want to trust it, such as clear sourcing, evidence of the expertise involved, background about the author or the site that publishes it, such as through links to an author page or a site's About page?"
     },
     {
       "id": "PF-E02",
@@ -433,12 +433,12 @@
       "check": "heuristic",
       "applies_if": "always",
       "question": "Si alguien investiga el sitio, ¿parece autoridad en ESTE tema?",
-      "pass_if": "Foco + reputación + archivo temático.",
-      "fail_if": "Sitio genérico que escribe de todo.",
-      "remediation": "Estrechar foco o no cubrir el tema.",
+      "pass_if": "El sitio o sus autores tienen trayectoria o reputación visible en este tema.",
+      "fail_if": "Nada muestra reputación ni trayectoria en este tema.",
+      "remediation": "Construir reputación real en el tema (archivo, autores, menciones) o no cubrirlo.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#expertise-questions",
+      "official_quote": "If someone researched the site producing the content, would they come away with an impression that it is well-trusted or widely-recognized as an authority on its topic?"
     },
     {
       "id": "PF-E03",
@@ -453,8 +453,8 @@
       "fail_if": "Nadie identificable o autor de otro rubro sin ayuda.",
       "remediation": "Asignar autor real o reviewer.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#expertise-questions",
+      "official_quote": "Is this content written or reviewed by an expert or enthusiast who demonstrably knows the topic well?"
     },
     {
       "id": "PF-E04",
@@ -469,7 +469,7 @@
       "fail_if": "Sí (fechas, cifras, nombres, consenso).",
       "remediation": "Fact-check humano. En YMYL → tratar como critical.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#expertise-questions",
       "official_quote": "Does the content have any easily-verified factual errors?"
     },
     {
@@ -485,24 +485,24 @@
       "fail_if": "Solo existe para capturar queries.",
       "remediation": "Matchear con el propósito del negocio o no publicar.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#people-first",
+      "official_quote": "Do you have an existing or intended audience for your business or site that would find the content useful if they came directly to you?"
     },
     {
       "id": "PF-P02",
       "name": "First-hand visible",
       "category": "PF-P",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "llm",
       "applies_if": "always",
       "question": "¿Se ve experiencia de primera mano y profundidad?",
-      "pass_if": "Usó el producto, estuvo ahí, midió, operó.",
-      "fail_if": "Nada que un modelo no podría inventar.",
+      "pass_if": "Se ve experiencia de primera mano (usó el producto, estuvo ahí, midió), o la página no pretende tenerla (listados, documentación, categorías).",
+      "fail_if": "Pretende experiencia (review, guía práctica) y no hay nada que un modelo no podría inventar.",
       "remediation": "Agregar evidencia real o no pretender review/guía experta.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#people-first",
+      "official_quote": "Does your content clearly demonstrate first-hand expertise and a depth of knowledge (for example, expertise that comes from having actually used a product or service, or visiting a place)?"
     },
     {
       "id": "PF-P03",
@@ -517,8 +517,8 @@
       "fail_if": "Granja de temas no relacionados.",
       "remediation": "Recortar temas huérfanos.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#people-first",
+      "official_quote": "Does your site have a primary purpose or focus?"
     },
     {
       "id": "PF-P04",
@@ -533,8 +533,8 @@
       "fail_if": "Deja huecos que obligan a seguir buscando.",
       "remediation": "Completar el job-to-be-done.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#people-first",
+      "official_quote": "After reading your content, will someone leave feeling they've learned enough about a topic to help achieve their goal?"
     },
     {
       "id": "PF-P05",
@@ -549,23 +549,23 @@
       "fail_if": "Frustración, ads, bait, vacío.",
       "remediation": "Limpiar UX y MC.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#people-first",
+      "official_quote": "Will someone reading your content leave feeling like they've had a satisfying experience?"
     },
     {
       "id": "PF-W01",
       "name": "Hecha para buscadores",
       "category": "PF-W",
       "scope": "both",
-      "severity": "critical",
+      "severity": "high",
       "check": "llm",
       "applies_if": "always",
       "question": "¿El contenido se hizo principalmente para atraer visitas de Search?",
-      "pass_if": "El propósito primario es ayudar a una audiencia.",
-      "fail_if": "Sí: existe para rankear.",
+      "pass_if": "El propósito primario es ayudar a una audiencia: sería útil si alguien llegara directo.",
+      "fail_if": "La página misma muestra que existe para captar tráfico de Search (p. ej. cubre un cluster de queries sin ayudar a nadie).",
       "remediation": "Replantear Why o matar la URL.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
       "official_quote": "Is the content primarily made to attract visits from search engines?"
     },
     {
@@ -581,7 +581,7 @@
       "fail_if": "Scatter temático a escala.",
       "remediation": "Cortar temas fuera de foco.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
       "official_quote": "Are you producing lots of content on many different topics in hopes that some of it might perform well in search results?"
     },
     {
@@ -589,7 +589,7 @@
       "name": "Automatización extensiva multi-tema",
       "category": "PF-W",
       "scope": "both",
-      "severity": "critical",
+      "severity": "high",
       "check": "llm",
       "applies_if": "always",
       "question": "¿Usás automatización extensiva para producir contenido en muchos temas?",
@@ -597,7 +597,7 @@
       "fail_if": "Fábrica multi-nicho.",
       "remediation": "Parar la fábrica. QRG 4.6.5.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
       "official_quote": "Are you using extensive automation to produce content on many topics?"
     },
     {
@@ -613,7 +613,7 @@
       "fail_if": "Sí.",
       "remediation": "Reescribir o consolidar.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
       "official_quote": "Are you mainly summarizing what others have to say without adding much value?"
     },
     {
@@ -629,8 +629,8 @@
       "fail_if": "Trend chasing.",
       "remediation": "No publicar.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Are you writing about things simply because they seem trending...?"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Are you writing about things simply because they seem trending and not because you'd write about them otherwise for your existing audience?"
     },
     {
       "id": "PF-W06",
@@ -645,24 +645,24 @@
       "fail_if": "Sí.",
       "remediation": "Completar o no competir esa query.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Does your content leave readers feeling like they need to search again...?"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Does your content leave readers feeling like they need to search again to get better information from other sources?"
     },
     {
       "id": "PF-W07",
       "name": "Word count target",
       "category": "PF-W",
       "scope": "both",
-      "severity": "high",
+      "severity": "medium",
       "check": "llm",
       "applies_if": "always",
       "question": "¿Se escribió a N palabras porque 'Google prefiere X'?",
       "pass_if": "Largo = el que necesita el tema.",
-      "fail_if": "Padding para word count.",
+      "fail_if": "Relleno evidente que alarga el texto sin aportar (padding).",
       "remediation": "Cortar relleno. Google no tiene word count preferido.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Are you writing to a particular word count... ? (No, we don't.)"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Are you writing to a particular word count because you've heard or read that Google has a preferred word count? (No, we don't.)"
     },
     {
       "id": "PF-W08",
@@ -677,8 +677,8 @@
       "fail_if": "Turismo de keywords.",
       "remediation": "No cubrir el tema o traer experto.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Did you decide to enter some niche topic area without any real expertise...?"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Did you decide to enter some niche topic area without any real expertise, but instead mainly because you thought you'd get search traffic?"
     },
     {
       "id": "PF-W09",
@@ -693,8 +693,8 @@
       "fail_if": "Promete lo que no hay.",
       "remediation": "Sacar la promesa o no publicar.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Does your content promise to answer a question that actually has no answer...?"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Does your content promise to answer a question that actually has no answer, such as suggesting there's a release date for a product, movie, or TV show when one isn't confirmed?"
     },
     {
       "id": "PF-W10",
@@ -702,14 +702,14 @@
       "category": "PF-W",
       "scope": "both",
       "severity": "high",
-      "check": "llm",
+      "check": "human",
       "applies_if": "always",
       "question": "¿Se cambió la fecha para parecer fresh sin cambio sustancial?",
       "pass_if": "Fecha = cambio real o no se toca.",
       "fail_if": "Cosmetic date bump.",
       "remediation": "Revertir fecha o hacer update real.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#changing-dates",
       "official_quote": "Are you changing the date of pages to make them seem fresh when the content has not substantially changed?"
     },
     {
@@ -718,54 +718,38 @@
       "category": "PF-W",
       "scope": "both",
       "severity": "high",
-      "check": "llm",
+      "check": "human",
       "applies_if": "always",
       "question": "¿Se agrega o borra masivamente solo para que el sitio 'parezca fresco'?",
       "pass_if": "Cambios editoriales reales.",
       "fail_if": "Churn cosmético.",
       "remediation": "Parar. Google dice que no ayuda rankings.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Are you adding a lot of new content or removing a lot of older content primarily because you believe it will help your search rankings...?"
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Are you adding a lot of new content or removing a lot of older content primarily because you believe it will help your search rankings overall by somehow making your site seem \"fresh?\" (No, it won't)"
     },
     {
       "id": "WHO-01",
       "name": "Autor evidente",
       "category": "WHO",
       "scope": "page",
-      "severity": "high",
-      "check": "binary",
+      "severity": "medium",
+      "check": "heuristic",
       "applies_if": "always",
-      "question": "¿Es evidente quién creó el contenido?",
-      "pass_if": "Identidad clara.",
-      "fail_if": "Anónimo en contenido donde el lector preguntaría quién.",
-      "remediation": "Byline real.",
+      "question": "¿Es evidente quién creó el contenido, donde un lector lo esperaría?",
+      "pass_if": "Identidad clara (byline, autor en schema o firma del equipo), o es un tipo de página donde nadie espera byline (categoría, ficha, herramienta).",
+      "fail_if": "Artículo, noticia, review o contenido YMYL sin ninguna autoría donde el lector preguntaría quién lo escribió.",
+      "remediation": "Agregar byline con autor real donde el lector lo esperaría.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
-    },
-    {
-      "id": "WHO-02",
-      "name": "Byline donde se espera",
-      "category": "WHO",
-      "scope": "page",
-      "severity": "high",
-      "check": "binary",
-      "applies_if": "always",
-      "question": "¿Hay byline donde un lector lo esperaría?",
-      "pass_if": "Sí, o n/a en páginas donde no se espera (p. ej. category pura).",
-      "fail_if": "Artículo/guía/YMYL sin byline.",
-      "remediation": "Agregar byline.",
-      "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#who-created-the-content",
+      "official_quote": "Is it self-evident to your visitors who authored your content?"
     },
     {
       "id": "WHO-03",
       "name": "Byline lleva a bio",
       "category": "WHO",
       "scope": "page",
-      "severity": "medium",
+      "severity": "low",
       "check": "heuristic",
       "applies_if": "always",
       "question": "¿El byline abre background del autor y sus temas?",
@@ -773,40 +757,40 @@
       "fail_if": "Nombre muerto sin contexto.",
       "remediation": "Crear author page honesta.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#who-created-the-content",
+      "official_quote": "Do bylines lead to further information about the author or authors involved, giving background about them and the areas they write about?"
     },
     {
       "id": "HOW-01",
       "name": "Cómo se produjo",
       "category": "HOW",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "llm",
-      "applies_if": "always",
+      "applies_if": "is_review",
       "question": "¿Se entiende cómo se hizo el contenido cuando importa?",
       "pass_if": "Método / evidencia / proceso visible si el lector lo esperaría.",
       "fail_if": "Afirmaciones sin método en reviews o YMYL.",
       "remediation": "Documentar proceso.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#how-the-content-was-created",
+      "official_quote": "It's helpful to readers to know how a piece of content was produced: this is the \"How\" to consider including in your content."
     },
     {
       "id": "HOW-02",
       "name": "Disclosure de IA si aplica",
       "category": "HOW",
       "scope": "page",
-      "severity": "medium",
+      "severity": "low",
       "check": "heuristic",
-      "applies_if": "always",
+      "applies_if": "ai_suspected",
       "question": "Si la automatización genera una parte sustancial, ¿es razonable que el lector lo sepa?",
       "pass_if": "Disclosure u otra forma evidente cuando alguien preguntaría 'how was this created?'.",
-      "fail_if": "IA sustancial escondida en contexto donde importa.",
+      "fail_if": "Una parte sustancial parece generada automáticamente y no hay ninguna explicación de cómo se produjo, en un contexto donde el lector lo preguntaría.",
       "remediation": "Agregar contexto de proceso. No poner a la IA como autor.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#how-the-content-was-created",
+      "official_quote": "Overall, AI or automation disclosures are useful for content where someone might think \"How was this created?\" Consider adding these when it would be reasonably expected."
     },
     {
       "id": "HOW-03",
@@ -818,107 +802,59 @@
       "applies_if": "ai_suspected",
       "question": "¿Se explica por qué la IA fue útil?",
       "pass_if": "Hay razón editorial (estructura, research assist) + edición humana.",
-      "fail_if": "IA como atajo para volumen.",
-      "remediation": "Explicar rol y limitar a asistencia.",
-      "source": "SRC-AI",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
-      "official_quote": ""
-    },
-    {
-      "id": "WHY-01",
-      "name": "Why = ayudar personas",
-      "category": "WHY",
-      "scope": "both",
-      "severity": "critical",
-      "check": "llm",
-      "applies_if": "always",
-      "question": "¿El porqué de esta URL es ayudar a personas?",
-      "pass_if": "Útil si alguien llega directo.",
-      "fail_if": "Why = tráfico / rankings / cubrir un cluster.",
-      "remediation": "No publicar o reconstruir con propósito real.",
+      "fail_if": "Usa IA o automatización de forma sustancial sin explicar su rol, donde el lector lo esperaría.",
+      "remediation": "Explicar qué hizo la automatización y qué hizo una persona.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "If the 'why' is that you're primarily making content to attract search engine visits, that's not aligned with what our systems seek to reward."
-    },
-    {
-      "id": "WHY-02",
-      "name": "IA no para manipular rankings",
-      "category": "WHY",
-      "scope": "page",
-      "severity": "critical",
-      "check": "llm",
-      "applies_if": "always",
-      "question": "¿Se usó IA con el propósito primario de manipular rankings?",
-      "pass_if": "No. IA (si hay) es herramienta para contenido útil.",
-      "fail_if": "Sí.",
-      "remediation": "Spam. Parar. SPAM-11.",
-      "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "If you use automation, including AI-generation, to produce content for the primary purpose of manipulating search rankings, that's a violation of our spam policies."
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#how-the-content-was-created",
+      "official_quote": "Are you explaining why automation or AI was seen as useful to produce content?"
     },
     {
       "id": "EAT-01",
       "name": "Experience",
       "category": "EAT",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "llm",
       "applies_if": "always",
       "question": "¿Hay evidencia de experiencia de primera mano?",
-      "pass_if": "Prueba on-page (fotos propias, mediciones, 'lo usé / estuve').",
-      "fail_if": "Experiencia declarada sin evidencia, o ninguna.",
+      "pass_if": "Hay evidencia de experiencia de primera mano, o el propósito de la página no la requiere.",
+      "fail_if": "Declara experiencia sin ninguna evidencia, o su propósito (review, guía práctica) la requiere y no aparece.",
       "remediation": "Agregar evidencia real o bajar pretensión.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#people-first",
+      "official_quote": "Does your content clearly demonstrate first-hand expertise and a depth of knowledge (for example, expertise that comes from having actually used a product or service, or visiting a place)?"
     },
     {
       "id": "EAT-02",
       "name": "Expertise",
       "category": "EAT",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "llm",
       "applies_if": "always",
       "question": "¿El nivel de conocimiento es el que el tema pide?",
       "pass_if": "Acorde (formal o informal).",
       "fail_if": "Tema experto tratado por amateur sin ayuda.",
-      "remediation": "Reviewer o no cubrir el tema.",
-      "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
-    },
-    {
-      "id": "EAT-03",
-      "name": "Authoritativeness",
-      "category": "EAT",
-      "scope": "both",
-      "severity": "medium",
-      "check": "heuristic",
-      "applies_if": "always",
-      "question": "¿El creator/sitio es una fuente reconocible del tema?",
-      "pass_if": "About + archivo + entidad coherente.",
-      "fail_if": "Sitio descartable sin identidad.",
-      "remediation": "Construir identidad real, no fake badges.",
-      "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "remediation": "Sumar a alguien con conocimiento del tema como autor o revisor, o acotar el alcance.",
+      "source": "SRC-QRG",
+      "source_url": "https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf",
+      "official_quote": "Expertise: Consider the extent to which the content creator has the necessary knowledge or skill for the topic. Different topics require different levels and types of expertise to be trustworthy."
     },
     {
       "id": "EAT-04",
       "name": "Trust (la más importante)",
       "category": "EAT",
-      "scope": "both",
+      "scope": "page",
       "severity": "critical",
       "check": "llm",
       "applies_if": "always",
       "question": "¿Se puede confiar en la página y el sitio?",
-      "pass_if": "Exactitud, transparencia, contacto, sin decepción.",
-      "fail_if": "Errores, clickbait, sources opacas, scam vibes.",
+      "pass_if": "Exacta, transparente sobre quién está detrás, sin engaño.",
+      "fail_if": "Engaño activo: información falsa sobre el negocio, el autor o el contenido, trampas o estafa.",
       "remediation": "Corregir hechos, mostrar quiénes son, sacar trampas.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": "Of these aspects, trust is most important."
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#eat",
+      "official_quote": "Of these aspects, trust is most important. The others contribute to trust, but content doesn't necessarily have to demonstrate all of them."
     },
     {
       "id": "EAT-05",
@@ -933,8 +869,8 @@
       "fail_if": "Byline = ChatGPT / 'AI Writer'.",
       "remediation": "Autor humano. Disclosure de proceso aparte.",
       "source": "SRC-AIFAQ",
-      "source_url": "https://developers.google.com/search/blog/2023/02/google-search-and-ai-content",
-      "official_quote": "Giving AI an author byline is probably not the best way..."
+      "source_url": "https://developers.google.com/search/blog/2023/02/google-search-and-ai-content#can-i-list-ai-as-the-author-of-content",
+      "official_quote": "Giving AI an author byline is probably not the best way to follow our recommendation to make clear to readers when AI is part of the content creation process."
     },
     {
       "id": "EAT-06",
@@ -945,28 +881,12 @@
       "check": "binary",
       "applies_if": "always",
       "question": "¿Se entiende quién opera el sitio?",
-      "pass_if": "About + contacto reales.",
-      "fail_if": "Sitio huérfano.",
+      "pass_if": "Se puede saber quién opera el sitio o cómo contactarlo (About o contacto).",
+      "fail_if": "Ni About ni contacto: no hay forma de saber quién está detrás.",
       "remediation": "Páginas About y contacto honestas.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
-    },
-    {
-      "id": "YMYL-01",
-      "name": "Detectar YMYL",
-      "category": "YMYL",
-      "scope": "page",
-      "severity": "high",
-      "check": "llm",
-      "applies_if": "always",
-      "question": "¿El tema puede impactar salud, dinero, seguridad o civics/government/society?",
-      "pass_if": "Clasificación correcta.",
-      "fail_if": "YMYL tratado como post liviano.",
-      "remediation": "Marcar YMYL y aplicar umbral extra.",
-      "source": "SRC-QRG",
-      "source_url": "https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#expertise-questions",
+      "official_quote": "Does the content present information in a way that makes you want to trust it, such as clear sourcing, evidence of the expertise involved, background about the author or the site that publishes it, such as through links to an author page or a site's About page?"
     },
     {
       "id": "YMYL-02",
@@ -976,13 +896,13 @@
       "severity": "critical",
       "check": "hybrid",
       "applies_if": "ymyl",
-      "question": "Si es YMYL, ¿hay experto/revisor, fuentes primarias y exactitud?",
-      "pass_if": "Review humano calificado + sources + fecha + límites claros.",
-      "fail_if": "Consejo genérico sin calificación.",
-      "remediation": "Reviewer o no publicar.",
+      "question": "Si es YMYL, ¿el nivel de expertise y fuentes es el que el tema exige?",
+      "pass_if": "Expertise visible (autor o revisor calificado, fuentes primarias), o experiencia personal segura y alineada al consenso cuando no pretende dar consejo experto.",
+      "fail_if": "Da consejo experto en un tema YMYL sin ninguna señal de expertise ni fuentes.",
+      "remediation": "Sumar autor o revisor calificado y fuentes primarias, o acotar a experiencia personal.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#eat",
+      "official_quote": "For example, our systems give even more weight to content that aligns with strong E-E-A-T for topics that could significantly impact the health, financial stability, or safety of people, or the welfare or well-being of society."
     },
     {
       "id": "YMYL-03",
@@ -997,8 +917,8 @@
       "fail_if": "Sí, sin evidencia seria.",
       "remediation": "Alinear a fuentes primarias o matar la URL.",
       "source": "SRC-AIFAQ",
-      "source_url": "https://developers.google.com/search/blog/2023/02/google-search-and-ai-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/blog/2023/02/google-search-and-ai-content#how-will-google-address-ai-content-that-potentially-propagates-misinformation-or-contradicts-consensus-on-important-topics",
+      "official_quote": "However content is produced, our systems look to surface high-quality information from reliable sources, and not information that contradicts well-established consensus on important topics."
     },
     {
       "id": "QRG-01",
@@ -1008,45 +928,13 @@
       "severity": "critical",
       "check": "llm",
       "applies_if": "always",
-      "question": "¿El MC tiene esfuerzo, originalidad y valor añadido?",
-      "pass_if": "Hay las tres cosas.",
-      "fail_if": "Almost-all MC copiado / parafraseado / auto o AI generated sin effort/originality/value.",
+      "question": "¿El MC tiene al menos algo de esfuerzo, originalidad o valor añadido?",
+      "pass_if": "Al menos uno de esfuerzo, originalidad o valor añadido está claramente presente.",
+      "fail_if": "Casi todo el MC es copiado, parafraseado o generado automáticamente con poco o ningún esfuerzo, originalidad y valor añadido a la vez.",
       "remediation": "Rehacer con valor o noindex.",
       "source": "SRC-QRG",
       "source_url": "https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf",
-      "official_quote": "The Lowest rating applies if all or almost all of the MC ... is copied, paraphrased, embedded, auto or AI generated ... with little to no effort, little to no originality, and little to no added value."
-    },
-    {
-      "id": "QRG-02",
-      "name": "IA sola no define PQ",
-      "category": "QRG",
-      "scope": "page",
-      "severity": "low",
-      "check": "llm",
-      "applies_if": "always",
-      "question": "¿Se está juzgando mal solo por haber usado IA?",
-      "pass_if": "Se juzga effort/originality/value, no el tool.",
-      "fail_if": "Fail automático 'porque es IA' (error del evaluador).",
-      "remediation": "Re-evaluar con el criterio oficial.",
-      "source": "SRC-QRG",
-      "source_url": "https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf",
-      "official_quote": "The use of Generative AI tools alone does not determine the level of effort or Page Quality rating."
-    },
-    {
-      "id": "QRG-03",
-      "name": "Scaled = Lowest site/page",
-      "category": "QRG",
-      "scope": "both",
-      "severity": "critical",
-      "check": "llm",
-      "applies_if": "always",
-      "question": "¿Hay abundancia de contenido con poco esfuerzo/originalidad y sin curación?",
-      "pass_if": "No.",
-      "fail_if": "Sí, patrón de sitio o esta URL es una de muchas iguales.",
-      "remediation": "Cortar volumen. QRG 4.6.5.",
-      "source": "SRC-QRG",
-      "source_url": "https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf",
-      "official_quote": "Pages and websites made up of content created at scale with no original content or added value for users, should be rated Lowest, no matter how they are created."
+      "official_quote": "The Lowest rating applies if all or almost all of the MC on the page (including text, images, audio, videos, etc) is copied, paraphrased, embedded, auto or AI generated, or reposted from other sources with little to no effort, little to no originality, and little to no added value for visitors to the website."
     },
     {
       "id": "SPAM-01",
@@ -1057,12 +945,12 @@
       "check": "hybrid",
       "applies_if": "always",
       "question": "¿El contenido para Googlebot es el mismo que para el usuario?",
-      "pass_if": "Mismo contenido.",
-      "fail_if": "Cloaking.",
+      "pass_if": "Mismo contenido para Googlebot y para usuarios, o paywall que muestra el contenido completo a Google siguiendo Flexible Sampling.",
+      "fail_if": "Contenido distinto a buscadores y usuarios para manipular rankings.",
       "remediation": "Servir lo mismo.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#cloaking",
+      "official_quote": "Cloaking refers to the practice of presenting different content to users and search engines with the intent to manipulate search rankings and mislead users."
     },
     {
       "id": "SPAM-02",
@@ -1074,11 +962,11 @@
       "applies_if": "always",
       "question": "¿Hay páginas near-duplicate hechas para queries similares que funnel a lo mismo?",
       "pass_if": "No.",
-      "fail_if": "Doorways ciudad/keyword.",
+      "fail_if": "Es una de varias páginas o dominios sustancialmente similares creados para rankear por queries parecidas (p. ej. variantes por ciudad) que llevan a una página intermedia menos útil o funnelean a un mismo destino.",
       "remediation": "Consolidar en una URL útil.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#doorways",
+      "official_quote": "Doorway abuse is when sites or pages are created to rank for specific, similar search queries. They lead users to intermediate pages that aren't as useful as the final destination."
     },
     {
       "id": "SPAM-03",
@@ -1088,13 +976,13 @@
       "severity": "critical",
       "check": "human",
       "applies_if": "always",
-      "question": "¿El dominio expirado se reusa con temática desconectada para rankear?",
+      "question": "¿Se compró un dominio expirado para reutilizarlo sobre todo para manipular rankings?",
       "pass_if": "No.",
-      "fail_if": "Sí.",
+      "fail_if": "Dominio expirado reutilizado principalmente para rankear con contenido de poco o ningún valor (p. ej. afiliados en un ex-sitio de gobierno).",
       "remediation": "No usar el dominio así.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#expired-domains",
+      "official_quote": "Expired domain abuse is where an expired domain name is purchased and repurposed primarily to manipulate search rankings by hosting content that provides little to no value to users."
     },
     {
       "id": "SPAM-04",
@@ -1109,8 +997,8 @@
       "fail_if": "Sí.",
       "remediation": "Limpiar + security.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#hacked-content",
+      "official_quote": "Hacked content is any content placed on a site without permission, due to vulnerabilities in a site's security. Hacked content gives poor search results to our users and can potentially install malicious content on their machines."
     },
     {
       "id": "SPAM-05",
@@ -1118,15 +1006,15 @@
       "category": "SPAM",
       "scope": "page",
       "severity": "critical",
-      "check": "binary",
+      "check": "human",
       "applies_if": "always",
       "question": "¿Hay texto o links escondidos para manipular?",
-      "pass_if": "No.",
-      "fail_if": "Sí.",
+      "pass_if": "No hay texto ni links ocultos para manipular. Acordeones, pestañas, sliders, tooltips y texto solo para lectores de pantalla NO cuentan.",
+      "fail_if": "Texto o links ocultos a los usuarios para manipular rankings (color igual al fondo, off-screen, tamaño 0).",
       "remediation": "Quitar.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#hidden-text-and-links",
+      "official_quote": "Hidden text or link abuse is the practice of placing content on a page in a way solely to manipulate search engines and not to be easily viewable by human visitors."
     },
     {
       "id": "SPAM-06",
@@ -1141,8 +1029,8 @@
       "fail_if": "Stuffing.",
       "remediation": "Reescribir.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#keyword-stuffing",
+      "official_quote": "Keyword stuffing refers to the practice of filling a web page with keywords or numbers in an attempt to manipulate rankings in Google Search results. Often these keywords appear in a list or group, unnaturally, or out of context."
     },
     {
       "id": "SPAM-07",
@@ -1154,11 +1042,11 @@
       "applies_if": "always",
       "question": "¿Hay compra/intercambio/PBN/footer keyword links?",
       "pass_if": "Perfil natural.",
-      "fail_if": "Link spam.",
+      "fail_if": "Compra, venta o intercambio de links para rankear, PBN, links de keyword en footers/plantillas, o links pagados/advertorial sin rel=\"sponsored\" o nofollow.",
       "remediation": "Limpiar / disavow si aplica.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#link-spam",
+      "official_quote": "Link spam is the practice of creating links to or from a site primarily for the purpose of manipulating search rankings."
     },
     {
       "id": "SPAM-08",
@@ -1168,13 +1056,13 @@
       "severity": "critical",
       "check": "human",
       "applies_if": "always",
-      "question": "¿Hay malware, hijack, back-button hijack u otra práctica maliciosa?",
+      "question": "¿Hay malware, software no deseado, back button hijacking u otra práctica maliciosa?",
       "pass_if": "No.",
-      "fail_if": "Sí.",
+      "fail_if": "Malware o software no deseado, o manipulación del historial que impide volver con el botón atrás (back button hijacking, vigente desde el 15-jun-2026).",
       "remediation": "Security audit.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#malicious-practices",
+      "official_quote": "Malicious practices create a mismatch between user expectations and the actual outcome, leading to a negative and deceptive user experience, or compromised user security or privacy."
     },
     {
       "id": "SPAM-09",
@@ -1184,13 +1072,13 @@
       "severity": "critical",
       "check": "heuristic",
       "applies_if": "always",
-      "question": "¿La página hace lo que promete?",
-      "pass_if": "Sí.",
-      "fail_if": "Funcionalidad engañosa.",
+      "question": "¿Dice ofrecer una herramienta o servicio que en realidad no provee?",
+      "pass_if": "Lo que la página dice ofrecer está disponible.",
+      "fail_if": "Promete una herramienta o servicio (generador, conversor, descarga) que no provee y lleva al usuario a ads o contenido engañoso.",
       "remediation": "Alinear promesa y realidad.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#misleading-functionality",
+      "official_quote": "Misleading functionality refers to the practice of intentionally creating sites that trick users into thinking they would be able to access some content or services but in reality can't."
     },
     {
       "id": "SPAM-10",
@@ -1202,11 +1090,11 @@
       "applies_if": "always",
       "question": "¿Republica contenido ajeno sin valor extra?",
       "pass_if": "Original o valor claro + atribución.",
-      "fail_if": "Scrape / synonym swap.",
+      "fail_if": "Copia contenido de otros sitios (literal o con sinónimos/técnicas automáticas) sin valor añadido sustancial.",
       "remediation": "Original o no publicar.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#scraped-content",
+      "official_quote": "Scraping refers to the practice of taking content from other sites, often through automated means, and hosting it with the purpose of manipulating search rankings."
     },
     {
       "id": "SPAM-11",
@@ -1221,24 +1109,24 @@
       "fail_if": "Fábrica de páginas commodity.",
       "remediation": "Parar escala. Reescribir las que merezcan. Noindex/eliminar el resto.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": "Scaled content abuse is when many pages are generated for the primary purpose of manipulating search rankings and not helping users... no matter how it's created."
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#scaled-content",
+      "official_quote": "Scaled content abuse is when many pages are generated for the primary purpose of manipulating search rankings and not helping users. This abusive practice is typically focused on creating large amounts of unoriginal content that provides little to no value to users, no matter how it's created."
     },
     {
       "id": "SPAM-12",
-      "name": "Site reputation abuse",
+      "name": "Site reputation policy",
       "category": "SPAM",
       "scope": "site",
       "severity": "critical",
       "check": "human",
       "applies_if": "always",
-      "question": "¿Hay 3rd party pages parasitando la autoridad del host?",
-      "pass_if": "No, o el 3rd party está editorialmente integrado.",
-      "fail_if": "Parasite SEO / subfolders rentados.",
+      "question": "¿Hay contenido de terceros publicado sobre todo para aprovechar las señales de ranking del host?",
+      "pass_if": "No hay contenido de terceros, o está plenamente integrado: presentación coherente, calidad a la par del sitio, autoría y responsabilidad editorial claras.",
+      "fail_if": "Contenido de terceros (incluido freelance o white-label) publicado principalmente para aprovechar las señales de ranking del host, sin integración real.",
       "remediation": "Noindex/remove o separar.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#site-reputation",
+      "official_quote": "The site reputation policy applies where third-party content is published on a host site mainly because of that host's already-established ranking signals, which it has earned primarily from its first-party content."
     },
     {
       "id": "SPAM-13",
@@ -1246,15 +1134,15 @@
       "category": "SPAM",
       "scope": "page",
       "severity": "critical",
-      "check": "binary",
+      "check": "human",
       "applies_if": "always",
-      "question": "¿Hay redirect engañoso distinto para user vs bot?",
+      "question": "¿Hay redirects que muestran a los usuarios algo distinto de lo que ven los buscadores o de lo que esperaban?",
       "pass_if": "Redirects honestos.",
-      "fail_if": "Sneaky redirect.",
+      "fail_if": "Redirige a usuarios a contenido distinto del que ven los buscadores o del que esperaban (p. ej. usuarios móviles a un dominio spam).",
       "remediation": "Arreglar.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#sneaky-redirects",
+      "official_quote": "Redirecting is the act of sending a visitor to a different URL than the one they initially requested. Sneaky redirecting is the practice of doing this maliciously in order to either show users and search engines different content or show users unexpected content that doesn't fulfill their original needs."
     },
     {
       "id": "SPAM-14",
@@ -1265,12 +1153,12 @@
       "check": "llm",
       "applies_if": "always",
       "question": "¿Es copy de merchant + links de afiliado sin valor?",
-      "pass_if": "Review/comparación propia.",
-      "fail_if": "Thin affiliate.",
+      "pass_if": "Aporta valor propio: reviews originales, testing, ratings, comparación de precios o productos, o navegación útil.",
+      "fail_if": "Copia descripciones del merchant con links de afiliado, sin valor añadido, a veces replicado en una red de sitios.",
       "remediation": "First-hand o noindex.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#thin-affiliate-pages",
+      "official_quote": "Thin affiliation is the practice of publishing content with product affiliate links where the product descriptions and reviews are copied directly from the original merchant without any original content or added value."
     },
     {
       "id": "SPAM-15",
@@ -1281,12 +1169,12 @@
       "check": "heuristic",
       "applies_if": "always",
       "question": "¿Comentarios/foros están moderados?",
-      "pass_if": "Moderación + nofollow donde toque.",
-      "fail_if": "Spam UGC.",
+      "pass_if": "UGC moderado; links de usuarios con rel=\"ugc\" o nofollow.",
+      "fail_if": "Spam visible en comentarios, foros o perfiles.",
       "remediation": "Moderar.",
       "source": "SRC-SPAM",
-      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#user-generated-spam",
+      "official_quote": "User-generated spam is spammy content added to a site by users through a channel intended for user content. Often site owners are unaware of the spammy content."
     },
     {
       "id": "SPAM-16",
@@ -1297,60 +1185,60 @@
       "check": "llm",
       "applies_if": "always",
       "question": "¿El contenido está diseñado para engañar AI Overviews / AI Mode (prompt-injection, fake authority, listicles sesgados para el modelo)?",
-      "pass_if": "Útil para humanos; si sale en IA es consecuencia.",
-      "fail_if": "Escrito para el modelo, no para el lector.",
-      "remediation": "Reescribir people-first. Spam policies may 2026.",
+      "pass_if": "Útil para personas; si aparece en respuestas de IA es consecuencia.",
+      "fail_if": "Técnicas concretas para manipular respuestas de IA: instrucciones ocultas o prompt-injection, contenido servido solo a bots, o citas y autoridad fabricadas.",
+      "remediation": "Quitar la manipulación y escribir para personas.",
       "source": "SRC-SPAM",
       "source_url": "https://developers.google.com/search/docs/essentials/spam-policies",
-      "official_quote": "spam refers to techniques used to ... manipulate generative AI responses in Google Search."
+      "official_quote": "In the context of Google Search, spam refers to techniques used to deceive users or manipulate our Search systems into featuring content prominently, such as attempting to manipulate Search systems into ranking content highly or attempting to manipulate generative AI responses in Google Search."
     },
     {
-      "id": "AI-01",
-      "name": "Cumple Essentials + spam",
-      "category": "AI",
+      "id": "SPAM-17",
+      "name": "Scam and fraud",
+      "category": "SPAM",
       "scope": "page",
       "severity": "critical",
       "check": "llm",
       "applies_if": "always",
-      "question": "¿El trabajo con IA cumple Search Essentials y spam policies?",
-      "pass_if": "Sí.",
-      "fail_if": "No.",
-      "remediation": "Aplicar TECH + SPAM antes de discutir estilo.",
-      "source": "SRC-AI",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
-      "official_quote": ""
+      "question": "¿La página suplanta a un negocio o servicio oficial o muestra información falsa sobre un negocio o servicio?",
+      "pass_if": "Se presenta como quien es; la información del negocio es veraz.",
+      "fail_if": "Suplanta un negocio o servicio oficial, muestra datos falsos del negocio o soporte/contacto falso para atraer usuarios con engaño.",
+      "remediation": "Quitar la suplantación y la información falsa.",
+      "source": "SRC-SPAM",
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#scam-and-fraud",
+      "official_quote": "Scam and fraud come in many forms, including but not limited to impersonating an official business or service through imposter sites, intentionally displaying false information about a business or service, or otherwise attracting users to a site on false pretenses."
     },
     {
-      "id": "AI-02",
-      "name": "No commodity",
-      "category": "AI",
-      "scope": "page",
+      "id": "SPAM-18",
+      "name": "Policy circumvention",
+      "category": "SPAM",
+      "scope": "site",
       "severity": "high",
-      "check": "llm",
+      "check": "human",
       "applies_if": "always",
-      "question": "¿Es contenido non-commodity (POV único) o un '7 tips' genérico?",
-      "pass_if": "Unique POV / first-hand / dato propio.",
-      "fail_if": "Commodity que un LLM saca igual.",
-      "remediation": "Rehacer con experiencia real o no publicar.",
-      "source": "SRC-AIO",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide",
-      "official_quote": "Create valuable, non-commodity content for your audience."
+      "question": "¿El sitio intenta eludir acciones o políticas de Google (p. ej. subdominios o dominios nuevos para seguir con lo sancionado)?",
+      "pass_if": "No.",
+      "fail_if": "Crea sitios, subdominios u otros métodos para seguir distribuyendo contenido que ya violó las políticas.",
+      "remediation": "Corregir la violación original en vez de moverla.",
+      "source": "SRC-SPAM",
+      "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#policy-circumvension",
+      "official_quote": "If a site continues to engage in actions intended to bypass our spam policies or content policies for Google Search, we may take appropriate action which may include restricting or removing eligibility for some of our search features (for example, Top Stories, Discover) and taking broader action in Google Search (for example, removing more sections of a site from Search results)."
     },
     {
       "id": "AI-03",
-      "name": "Capa humana real",
+      "name": "Contenido generado revisado",
       "category": "AI",
       "scope": "page",
-      "severity": "high",
-      "check": "hybrid",
-      "applies_if": "always",
-      "question": "¿Hay fact-check, edición y aporte humano?",
-      "pass_if": "Sí.",
-      "fail_if": "Output crudo.",
-      "remediation": "Editor humano o noindex.",
+      "severity": "medium",
+      "check": "llm",
+      "applies_if": "ai_suspected",
+      "question": "¿El contenido generado automáticamente es exacto, de calidad y relevante?",
+      "pass_if": "No hay errores, incoherencias ni relleno genérico que delaten salida sin revisar.",
+      "fail_if": "Errores factuales, incoherencias o texto genérico típicos de salida automática sin revisar.",
+      "remediation": "Revisar exactitud, calidad y relevancia antes de publicar.",
       "source": "SRC-AI",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content#focus",
+      "official_quote": "When creating content for the web, focus on accuracy, quality, and relevance, especially when automatically generating the content."
     },
     {
       "id": "AI-04",
@@ -1360,13 +1248,13 @@
       "severity": "critical",
       "check": "heuristic",
       "applies_if": "always",
-      "question": "¿Se fabricó una página por cada variación de query?",
-      "pass_if": "No.",
-      "fail_if": "Sí.",
+      "question": "¿Es una de muchas URLs casi idénticas, una por variante de query (fan-out)?",
+      "pass_if": "La URL tiene valor propio; si hay variantes, cada una aporta algo distinto.",
+      "fail_if": "Es una de varias URLs casi idénticas creadas por cada variante de query, sin valor propio, para manipular rankings o respuestas de IA.",
       "remediation": "Consolidar. Es scaled content abuse.",
       "source": "SRC-AIO",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide#create-valuable-content",
+      "official_quote": "While it might be tempting to create separate content for every possible variation of how people might search (for example, by focusing on other queries that people have asked, or fan-out queries), doing so primarily to manipulate rankings or generative AI responses in Google Search violates Google's scaled content abuse spam policy."
     },
     {
       "id": "AI-05",
@@ -1381,8 +1269,8 @@
       "fail_if": "Alucinaciones en metadata.",
       "remediation": "Revisar metadata a mano.",
       "source": "SRC-AI",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content#focus",
+      "official_quote": "This includes metadata like <title> elements, meta description elements, structured data, and alternate texts for images, which can appear in Search results."
     },
     {
       "id": "AI-06",
@@ -1390,15 +1278,15 @@
       "category": "AI",
       "scope": "page",
       "severity": "medium",
-      "check": "binary",
+      "check": "human",
       "applies_if": "ecommerce_ai_images",
       "question": "¿Las imágenes IA tienen IPTC DigitalSourceType=TrainedAlgorithmicMedia?",
       "pass_if": "Sí.",
       "fail_if": "No.",
       "remediation": "Agregar metadato IPTC.",
       "source": "SRC-AI",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content#context",
+      "official_quote": "In particular, AI-generated images must contain metadata using the IPTC DigitalSourceType TrainedAlgorithmicMedia metadata."
     },
     {
       "id": "AI-07",
@@ -1406,31 +1294,15 @@
       "category": "AI",
       "scope": "page",
       "severity": "medium",
-      "check": "binary",
+      "check": "human",
       "applies_if": "ecommerce_ai_copy",
       "question": "¿Títulos/descripciones de producto generados por IA están labeled?",
       "pass_if": "Sí.",
       "fail_if": "No.",
       "remediation": "Label en Merchant Center.",
       "source": "SRC-AI",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
-      "official_quote": ""
-    },
-    {
-      "id": "AIO-01",
-      "name": "No llms.txt especial",
-      "category": "AIO",
-      "scope": "site",
-      "severity": "low",
-      "check": "binary",
-      "applies_if": "always",
-      "question": "¿Se está perdiendo tiempo en llms.txt u markup 'para Google AI'?",
-      "pass_if": "No se depende de eso.",
-      "fail_if": "Estrategia centrada en archivos especiales que Google dijo no usar.",
-      "remediation": "Ignorar el hack. Hacer contenido útil.",
-      "source": "SRC-AIO",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content#context",
+      "official_quote": "AI-generated product data such as title and description attributes must be specified separately and labeled as AI-generated."
     },
     {
       "id": "AIO-02",
@@ -1441,19 +1313,19 @@
       "check": "heuristic",
       "applies_if": "always",
       "question": "¿Se partió el contenido en trozos minúsculos 'para la IA'?",
-      "pass_if": "Estructura para humanos.",
-      "fail_if": "Chunking artificial.",
+      "pass_if": "Estructura pensada para lectores. Partir en secciones no es requisito ni penaliza por sí solo.",
+      "fail_if": "Fragmentación artificial que empeora la lectura, hecha 'para la IA'.",
       "remediation": "Escribir para lectores.",
       "source": "SRC-AIO",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide#mythbusting",
+      "official_quote": "There's no requirement to break your content into tiny pieces for AI to better understand it. Google systems are able to understand the nuance of multiple topics on a page and show the relevant piece to users."
     },
     {
       "id": "AIO-03",
       "name": "No menciones inauténticas",
       "category": "AIO",
       "scope": "site",
-      "severity": "high",
+      "severity": "medium",
       "check": "human",
       "applies_if": "always",
       "question": "¿Se fabricaron mentions para aparecer en AI Overviews?",
@@ -1461,8 +1333,8 @@
       "fail_if": "Sí.",
       "remediation": "Parar. Calidad > mentions falsas.",
       "source": "SRC-AIO",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide#mythbusting",
+      "official_quote": "However, seeking inauthentic \"mentions\" across the web isn't as helpful as it might seem."
     },
     {
       "id": "AIO-04",
@@ -1477,15 +1349,15 @@
       "fail_if": "No indexada / nosnippet.",
       "remediation": "Cumplir TECH + quitar nosnippet si se quiere aparecer.",
       "source": "SRC-AIFEAT",
-      "source_url": "https://developers.google.com/search/docs/appearance/ai-features",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/ai-features#technical-requirements-for-appearing-in-ai-features",
+      "official_quote": "To be eligible to be shown as a supporting link in AI Overviews or AI Mode, a page must be indexed and eligible to be shown in Google Search with a snippet, fulfilling the Search technical requirements."
     },
     {
       "id": "PX-01",
       "name": "HTTPS",
       "category": "PX",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "binary",
       "applies_if": "always",
       "question": "¿Se sirve por HTTPS?",
@@ -1493,15 +1365,15 @@
       "fail_if": "HTTP.",
       "remediation": "Migrar.",
       "source": "SRC-PX",
-      "source_url": "https://developers.google.com/search/docs/appearance/page-experience",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/page-experience#assess",
+      "official_quote": "Are your pages served in a secure fashion?"
     },
     {
       "id": "PX-02",
       "name": "Mobile-friendly",
       "category": "PX",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "heuristic",
       "applies_if": "always",
       "question": "¿Se lee y usa bien en móvil?",
@@ -1509,8 +1381,8 @@
       "fail_if": "Texto corte / tap targets imposibles.",
       "remediation": "Responsive.",
       "source": "SRC-PX",
-      "source_url": "https://developers.google.com/search/docs/appearance/page-experience",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/page-experience#assess",
+      "official_quote": "Does your content display well on mobile devices?"
     },
     {
       "id": "PX-03",
@@ -1521,28 +1393,28 @@
       "check": "gsc",
       "applies_if": "has_cwv",
       "question": "¿LCP en zona good?",
-      "pass_if": "LCP ≤ 2.5s.",
+      "pass_if": "LCP ≤ 2.5 s en datos de campo (p75).",
       "fail_if": "LCP pobre.",
       "remediation": "Optimizar LCP.",
       "source": "SRC-PX",
-      "source_url": "https://developers.google.com/search/docs/appearance/page-experience",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/core-web-vitals#metrics",
+      "official_quote": "To provide a good user experience, strive to have LCP occur within the first 2.5 seconds of the page starting to load."
     },
     {
       "id": "PX-04",
-      "name": "INP < 200ms",
+      "name": "INP ≤ 200 ms",
       "category": "PX",
       "scope": "page",
       "severity": "medium",
       "check": "gsc",
       "applies_if": "has_cwv",
       "question": "¿INP good?",
-      "pass_if": "INP < 200ms.",
+      "pass_if": "INP ≤ 200 ms en datos de campo (p75).",
       "fail_if": "INP pobre.",
       "remediation": "Reducir JS bloqueante.",
       "source": "SRC-PX",
-      "source_url": "https://developers.google.com/search/docs/appearance/page-experience",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/core-web-vitals#metrics",
+      "official_quote": "Measures responsiveness. To provide a good user experience, strive to have an INP of less than 200 milliseconds."
     },
     {
       "id": "PX-05",
@@ -1553,19 +1425,19 @@
       "check": "gsc",
       "applies_if": "has_cwv",
       "question": "¿CLS good?",
-      "pass_if": "CLS < 0.1.",
+      "pass_if": "CLS ≤ 0.1 en datos de campo (p75).",
       "fail_if": "Layout shift.",
       "remediation": "Reservar espacio de media/ads.",
       "source": "SRC-PX",
-      "source_url": "https://developers.google.com/search/docs/appearance/page-experience",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/core-web-vitals#metrics",
+      "official_quote": "Measures visual stability. To provide a good user experience, strive to have a CLS score of less than 0.1."
     },
     {
       "id": "PX-06",
       "name": "MC distinguible, sin interstitial agresivo ni ads que lo tapen",
       "category": "PX",
       "scope": "page",
-      "severity": "high",
+      "severity": "medium",
       "check": "heuristic",
       "applies_if": "always",
       "question": "¿El lector distingue el MC y puede leerlo?",
@@ -1573,8 +1445,8 @@
       "fail_if": "Ads/interstitial tapan el contenido.",
       "remediation": "Limpiar page experience.",
       "source": "SRC-PX",
-      "source_url": "https://developers.google.com/search/docs/appearance/page-experience",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/page-experience#assess",
+      "official_quote": "Does your content avoid using an excessive amount of ads that distract from or interfere with the main content? Do your pages avoid using intrusive interstitials? Is your page designed so visitors can easily distinguish the main content from other content on your page?"
     },
     {
       "id": "REV-01",
@@ -1590,7 +1462,7 @@
       "remediation": "Usar el producto o no hacer review.",
       "source": "SRC-REV",
       "source_url": "https://developers.google.com/search/docs/specialty/ecommerce/write-high-quality-reviews",
-      "official_quote": ""
+      "official_quote": "Provide evidence such as visuals, audio, or other links of your own experience with what you are reviewing, to support your expertise and reinforce the authenticity of your review."
     },
     {
       "id": "REV-02",
@@ -1606,7 +1478,7 @@
       "remediation": "Testear de verdad.",
       "source": "SRC-REV",
       "source_url": "https://developers.google.com/search/docs/specialty/ecommerce/write-high-quality-reviews",
-      "official_quote": ""
+      "official_quote": "Discuss the benefits and drawbacks of something, based on your own original research."
     },
     {
       "id": "REV-03",
@@ -1622,7 +1494,7 @@
       "remediation": "Agregar alternativas reales.",
       "source": "SRC-REV",
       "source_url": "https://developers.google.com/search/docs/specialty/ecommerce/write-high-quality-reviews",
-      "official_quote": ""
+      "official_quote": "Explain what sets something apart from its competitors. Cover comparable things to consider, or explain which might be best for certain uses or circumstances."
     },
     {
       "id": "REV-04",
@@ -1638,7 +1510,7 @@
       "remediation": "Medir.",
       "source": "SRC-REV",
       "source_url": "https://developers.google.com/search/docs/specialty/ecommerce/write-high-quality-reviews",
-      "official_quote": ""
+      "official_quote": "Share quantitative measurements about how something measures up in various categories of performance."
     },
     {
       "id": "REV-05",
@@ -1650,11 +1522,11 @@
       "applies_if": "is_review",
       "question": "Si es un ranking, ¿cada ítem tiene contenido útil suficiente?",
       "pass_if": "Sí.",
-      "fail_if": "Lista thin con links de afiliado.",
+      "fail_if": "Los ítems no tienen contenido útil suficiente para sostenerse solos.",
       "remediation": "Expandir o matar la lista.",
       "source": "SRC-REV",
       "source_url": "https://developers.google.com/search/docs/specialty/ecommerce/write-high-quality-reviews",
-      "official_quote": ""
+      "official_quote": "Ensure there is enough useful content in your ranked lists for them to stand on their own, even if you choose to write separate in-depth single reviews."
     },
     {
       "id": "SD-01",
@@ -1669,24 +1541,24 @@
       "fail_if": "Markup de cosas que el lector no ve.",
       "remediation": "Alinear schema al HTML.",
       "source": "SRC-SD",
-      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies#content",
+      "official_quote": "Don't mark up content that is not visible to readers of the page. For example, if the JSON-LD markup describes a performer, the HTML body must describe that same performer."
     },
     {
       "id": "SD-02",
       "name": "No reviews falsas en schema",
       "category": "SD",
       "scope": "page",
-      "severity": "critical",
-      "check": "binary",
+      "severity": "high",
+      "check": "heuristic",
       "applies_if": "has_schema",
-      "question": "¿Hay review/aggregateRating inventados?",
+      "question": "¿Hay reviews o ratings falsos, o incentivados sin disclosure?",
       "pass_if": "No.",
-      "fail_if": "Sí.",
-      "remediation": "Sacar markup falso.",
+      "fail_if": "Review/aggregateRating sin reviews visibles, o reviews falsas o incentivadas sin disclosure, en la página o en el markup.",
+      "remediation": "Sacar el markup falso y mostrar solo reviews reales, declarando los incentivos.",
       "source": "SRC-SD",
-      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/review-snippet#technical-guidelines",
+      "official_quote": "Don't include fake or undisclosed incentivized reviews on your page or in your structured data markup."
     },
     {
       "id": "SD-03",
@@ -1701,8 +1573,8 @@
       "fail_if": "Article marcado como Product / FAQ inventada / autor falso.",
       "remediation": "Corregir tipo y campos.",
       "source": "SRC-SD",
-      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies#content",
+      "official_quote": "Don't mark up irrelevant or misleading content, such as fake reviews or content unrelated to the focus of a page. Don't use structured data to deceive or mislead users."
     },
     {
       "id": "SD-04",
@@ -1717,8 +1589,8 @@
       "fail_if": "Evento pasado marcado como vigente.",
       "remediation": "Actualizar o sacar.",
       "source": "SRC-SD",
-      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies#content",
+      "official_quote": "Provide up-to-date information. We won't show a rich result for time-sensitive content that is no longer relevant."
     },
     {
       "id": "ON-01",
@@ -1733,24 +1605,24 @@
       "fail_if": "Title repetido en el sitio.",
       "remediation": "Titles únicos.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/essentials",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/title-link#page-titles",
+      "official_quote": "Avoid repeated or boilerplate text in <title> elements. It's important to have distinct text that describes the content of the page in the <title> element for each page on your site."
     },
     {
       "id": "ON-02",
-      "name": "H1 alineado",
+      "name": "H1 claro",
       "category": "ON",
       "scope": "page",
       "severity": "low",
       "check": "heuristic",
       "applies_if": "always",
-      "question": "¿H1 alineado al title y al MC?",
-      "pass_if": "Sí.",
-      "fail_if": "H1 de plantilla.",
+      "question": "¿Hay un título principal claro y coherente con el MC?",
+      "pass_if": "Sí; no hace falta que coincida con el title.",
+      "fail_if": "H1 de plantilla o desconectado del contenido.",
       "remediation": "Alinear.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/essentials",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/title-link#page-titles",
+      "official_quote": "Consider ensuring that your main title is distinctive from other text on a page and stands out as being the most prominent on the page (for example, using a larger font, putting the title text in the first visible <h1> element on the page, etc)."
     },
     {
       "id": "ON-03",
@@ -1765,8 +1637,8 @@
       "fail_if": "alt vacío o stuffing.",
       "remediation": "Alts descriptivos.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/essentials",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/google-images",
+      "official_quote": "When writing alt text, focus on creating useful, information-rich content that uses keywords appropriately and is in context of the content of the page. Avoid filling alt attributes with keywords (also known as keyword stuffing) as it results in a negative user experience and may cause your site to be seen as spam."
     },
     {
       "id": "ON-04",
@@ -1781,40 +1653,8 @@
       "fail_if": "Click here / keyword stuffing.",
       "remediation": "Anclas naturales.",
       "source": "SRC-ESS",
-      "source_url": "https://developers.google.com/search/docs/essentials",
-      "official_quote": ""
-    },
-    {
-      "id": "SITE-01",
-      "name": "Propósito primario",
-      "category": "SITE",
-      "scope": "site",
-      "severity": "high",
-      "check": "heuristic",
-      "applies_if": "always",
-      "question": "¿El dominio tiene un foco claro?",
-      "pass_if": "Sí.",
-      "fail_if": "Content farm multi-nicho.",
-      "remediation": "Recortar.",
-      "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
-    },
-    {
-      "id": "SITE-02",
-      "name": "About + políticas",
-      "category": "SITE",
-      "scope": "site",
-      "severity": "high",
-      "check": "binary",
-      "applies_if": "always",
-      "question": "¿Hay About, contacto y políticas visibles?",
-      "pass_if": "Sí.",
-      "fail_if": "No.",
-      "remediation": "Crearlas con datos reales.",
-      "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable#write-good-anchor-text",
+      "official_quote": "Good anchor text is descriptive, reasonably concise, and relevant to the page that it's on and to the page it links to. It provides context for the link, and sets the expectation for your readers."
     },
     {
       "id": "SITE-03",
@@ -1829,24 +1669,24 @@
       "fail_if": "Sí.",
       "remediation": "Cerrar la red. PF-Q12 + SPAM-11.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#content-and-quality-questions",
+      "official_quote": "Is the content mass-produced by or outsourced to a large number of creators, or spread across a large network of sites, so that individual pages or sites don't get as much attention or care?"
     },
     {
       "id": "SITE-04",
       "name": "Autores reales",
       "category": "SITE",
       "scope": "site",
-      "severity": "medium",
+      "severity": "low",
       "check": "heuristic",
       "applies_if": "always",
-      "question": "¿Hay un roster de autores reales con páginas?",
-      "pass_if": "Sí, cuando el tipo de sitio lo pide.",
+      "question": "¿Los contenidos donde el lector espera autor tienen autores reales?",
+      "pass_if": "Autores reales donde el lector lo esperaría.",
       "fail_if": "Autores fantasma.",
       "remediation": "Identidades reales.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#who-created-the-content",
+      "official_quote": "We strongly encourage adding accurate authorship information, such as bylines to content where readers might expect it."
     },
     {
       "id": "SITE-05",
@@ -1854,22 +1694,22 @@
       "category": "SITE",
       "scope": "site",
       "severity": "high",
-      "check": "heuristic",
+      "check": "human",
       "applies_if": "always",
       "question": "¿La política de fechas del sitio es honesta?",
       "pass_if": "Updates sustanciales.",
       "fail_if": "Date bump masivo.",
       "remediation": "Parar PF-W10/W11.",
       "source": "SRC-PFC",
-      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/fundamentals/creating-helpful-content#avoid",
+      "official_quote": "Are you changing the date of pages to make them seem fresh when the content has not substantially changed?"
     },
     {
       "id": "SITE-06",
       "name": "Thin ratio / crawled-not-indexed",
       "category": "SITE",
       "scope": "site",
-      "severity": "high",
+      "severity": "medium",
       "check": "gsc",
       "applies_if": "has_gsc",
       "question": "¿El sitio tiene un % alto de URLs sin valor o no indexadas por calidad?",
@@ -1877,8 +1717,8 @@
       "fail_if": "Biblioteca thin que ensucia señales de sitio.",
       "remediation": "Poda: noindex, 404, consolidar.",
       "source": "SRC-RANK",
-      "source_url": "https://developers.google.com/search/docs/appearance/ranking-systems-guide",
-      "official_quote": ""
+      "source_url": "https://developers.google.com/search/docs/appearance/core-updates#keep-in-mind",
+      "official_quote": "In fact, if you're considering deleting entire sections of your site, that's likely a sign those sections were created for search engines first, and not people. If that's the case for your site, then deleting the unhelpful content can help the good content on your site perform better."
     }
   ]
 }

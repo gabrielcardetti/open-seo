@@ -78,6 +78,15 @@ export function renderPageState(
   if (businessOverview?.trim()) {
     lines.push(`SITE CONTEXT: ${businessOverview.trim().slice(0, 800)}`);
   }
+  // Scam facts (SPAM-17). A password form's target is not in the text the
+  // judge reads, and the rest is easy to miss in a long page. Labelled as
+  // leads so the judge weighs them against the content, not as a verdict.
+  if (page.spamSignals.scamFacts.length > 0) {
+    lines.push(
+      "SIGNALS (automated checks, leads not proof):",
+      ...page.spamSignals.scamFacts.map((fact) => `- ${fact}`),
+    );
+  }
   lines.push("MAIN CONTENT:", page.bodyText.slice(0, MAX_JUDGE_CONTENT_CHARS));
   return lines.join("\n");
 }
@@ -137,4 +146,70 @@ export function mergeJudgements(
     if (!seen.has(result.ruleId)) merged.push(result);
   }
   return merged;
+}
+
+/** Case, quote marks and whitespace differ between a page and a quote of it. */
+function normalizeForQuote(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[“”«»"'‘’]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether a judge's evidence is really the page's own words.
+ *
+ * Checked against what the page says — URL, title, meta description, H1s,
+ * structured data and main content — and not against the SIGNALS leads the
+ * judge is also shown, which are our words, not the page's. A quote elided
+ * with "..." counts when every piece of it is on the page.
+ */
+export function isGroundedQuote(
+  evidence: string | null | undefined,
+  page: FetchedPage,
+): boolean {
+  const fragments = (evidence ?? "")
+    .split(/\.{3}|…/)
+    .map(normalizeForQuote)
+    .filter(Boolean);
+  if (fragments.length === 0) return false;
+  const shown = normalizeForQuote(
+    [
+      page.finalUrl,
+      page.title,
+      page.metaDescription,
+      ...page.h1s,
+      JSON.stringify(page.structuredData),
+      page.bodyText.slice(0, MAX_JUDGE_CONTENT_CHARS),
+    ].join(" "),
+  );
+  return fragments.every((fragment) => shown.includes(fragment));
+}
+
+/**
+ * A judged failure whose quote is not on the page becomes a warning.
+ *
+ * Every judge is told to quote the page for each failure, and a failure with
+ * no quote, or with a "quote" the page does not contain, is an accusation
+ * rather than a finding: nobody can check it, and on a critical rule it would
+ * reject the page on the model's word alone. MCP callers are untrusted input
+ * besides. Kept as a warning it still surfaces for review. Deterministic
+ * results never pass through here; they carry the crawl data as evidence.
+ */
+export function withoutUngroundedFails<T extends JudgedRule>(
+  result: T,
+  page: FetchedPage,
+): T {
+  if (result.status !== "fail" || isGroundedQuote(result.evidence, page)) {
+    return result;
+  }
+  return {
+    ...result,
+    status: "warn",
+    reason: result.evidence?.trim()
+      ? `The judge's quote is not on the page; confirm before acting. ${result.reason ?? ""}`.trim()
+      : (result.reason ??
+        "Flagged by the judge without a quote from the page; confirm before acting."),
+  };
 }

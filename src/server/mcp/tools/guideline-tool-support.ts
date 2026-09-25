@@ -4,10 +4,6 @@
 import { z } from "zod";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { AppError } from "@/server/lib/errors";
-import { rulesForContext } from "@/shared/guidelines/catalog";
-import { judgeableRules } from "@/shared/guidelines/judge-map";
-import type { GuidelineRule } from "@/shared/guidelines/catalog";
-import type { PageClassification } from "@/server/lib/guidelines/page-evaluator";
 
 export const auditIdSchema = z
   .string()
@@ -31,27 +27,4 @@ export async function resolveAudit(projectId: string, auditId?: string) {
     );
   }
   return audit;
-}
-
-/**
- * The rules a judge may answer for a page, derived from its classification.
- *
- * Both halves of the externalized-judge exchange call this: the batch tool to
- * decide what to ask, and the submit tool to check that what came back was in
- * fact asked. Deriving it in one place is what makes that check meaningful.
- */
-export function applicableRulesFor(
-  classification: PageClassification,
-): GuidelineRule[] {
-  return judgeableRules(
-    rulesForContext(
-      {
-        ymyl: classification.ymyl,
-        isReview: classification.isReview,
-        hasSchema: classification.hasSchema,
-        aiSuspected: classification.aiSuspected,
-      },
-      "page",
-    ),
-  );
 }
