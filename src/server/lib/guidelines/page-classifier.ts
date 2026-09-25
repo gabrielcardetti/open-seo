@@ -15,7 +15,8 @@ export type PageType =
   | "category"
   | "landing"
   | "ugc"
-  | "other";
+  | "other"
+  | "site";
 
 const YMYL_TOPICS = [
   "health_safety",

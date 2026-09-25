@@ -34,6 +34,7 @@ import {
 } from "./judge";
 import type { FetchedPage } from "./page-fetch";
 import { classifyPage, type PageClassification } from "./page-classifier";
+import { applySiteContext, type SiteContext } from "./site-combine";
 import {
   evaluateDeterministic,
   type EvaluationContext,
@@ -66,6 +67,8 @@ export interface EvaluatedRule {
   evidence: string | null;
   reason: string | null;
   remediation: string;
+  /** Site findings: the clusters (C1..) it rests on. Not persisted. */
+  clusters?: string[];
 }
 
 function toRuleContext(classification: PageClassification): RuleContext {
@@ -164,12 +167,14 @@ export interface SubmittedFinding {
  * any other rule is returned in `notAsked` and ignored, so a caller cannot
  * overrule what the page data settled. Silence is the pass signal, as the
  * batch told the caller, and a failure whose quote is not on the page is kept
- * as a warning, exactly as on the audit's own judging path.
+ * as a warning, exactly as on the audit's own judging path. The site pass's
+ * answers are then combined in, as in `evaluatePage`.
  */
 export function outcomesFromSubmission(
   plan: EvaluationPlan,
   page: FetchedPage,
   findings: readonly SubmittedFinding[],
+  siteContext?: SiteContext | null,
 ): { outcomes: JudgedRule[]; notAsked: string[] } {
   const askableIds = new Set(plan.askable.map((rule) => rule.id));
   const outcomes = new Map(plan.settled);
@@ -198,7 +203,10 @@ export function outcomesFromSubmission(
       outcomes.set(rule.id, { ruleId: rule.id, status: "pass" });
     }
   }
-  return { outcomes: Array.from(outcomes.values()), notAsked };
+  return {
+    outcomes: applySiteContext(Array.from(outcomes.values()), siteContext),
+    notAsked,
+  };
 }
 
 interface EvaluatePageOptions {
@@ -209,6 +217,8 @@ interface EvaluatePageOptions {
   decisionJudge?: RuleJudge | null;
   /** Writes evidence and reasoning. Skipped when unavailable. */
   languageJudge?: RuleJudge | null;
+  /** The site pass's pattern answers and this page's place in them. */
+  siteContext?: SiteContext | null;
 }
 
 export async function evaluatePage({
@@ -217,6 +227,7 @@ export async function evaluatePage({
   businessOverview,
   decisionJudge,
   languageJudge,
+  siteContext,
 }: EvaluatePageOptions): Promise<PageEvaluation> {
   const { classification, applicable, settled, askable } = planEvaluation(
     page,
@@ -239,6 +250,7 @@ export async function evaluatePage({
         page,
         rules: askable,
         businessOverview,
+        template: siteContext,
       });
       judgeNames.push(decisionJudge.modelId);
     } catch (error) {
@@ -266,6 +278,7 @@ export async function evaluatePage({
             page,
             rules: needed,
             businessOverview,
+            template: siteContext,
           });
           judged = mergeJudgements(judged, second);
           judgeNames.push(languageJudge.modelId);
@@ -282,6 +295,7 @@ export async function evaluatePage({
           page,
           rules: needed,
           businessOverview,
+          template: siteContext,
         });
         judgeNames.push(languageJudge.modelId);
       }
@@ -329,11 +343,12 @@ export async function evaluatePage({
     }
   }
 
+  // 4. The site pass's view of the pattern rules, which one page cannot see.
   return summarizeEvaluation({
     page,
     classification,
     applicable,
-    outcomes: Array.from(settled.values()),
+    outcomes: applySiteContext(Array.from(settled.values()), siteContext),
     judge: judgeNames.join("+") || "deterministic",
   });
 }
@@ -341,6 +356,9 @@ export async function evaluatePage({
 /**
  * Rolls every rule's outcome into the stored evaluation: the verdict, the
  * counts, and the non-passing rules as findings in severity order.
+ *
+ * `level` is the evaluation's own ("site" for the site row); an outcome the
+ * site pass confirmed carries its own level and weighs at it.
  */
 export function summarizeEvaluation({
   page,
@@ -348,15 +366,23 @@ export function summarizeEvaluation({
   applicable,
   outcomes,
   judge,
+  level = "page",
 }: {
-  page: FetchedPage;
+  /** Only the URL is read, so the site row passes its sentinel. */
+  page: Pick<FetchedPage, "finalUrl">;
   classification: PageClassification;
   applicable: readonly GuidelineRule[];
   outcomes: readonly JudgedRule[];
   judge: string;
+  level?: "page" | "site";
 }): PageEvaluation {
   const summary = computeVerdict(
-    outcomes.map((result) => ({ id: result.ruleId, status: result.status })),
+    outcomes.map((result) => ({
+      id: result.ruleId,
+      status: result.status,
+      level: result.level,
+    })),
+    level,
   );
 
   const findings: EvaluatedRule[] = outcomes
@@ -371,13 +397,14 @@ export function summarizeEvaluation({
       return {
         ruleId: result.ruleId,
         status: result.status,
-        severity: verdictSeverity(rule, "page"),
+        severity: verdictSeverity(rule, result.level ?? level),
         score: result.score ?? null,
         confidence: result.confidence ?? null,
         evidence: result.evidence ?? null,
         reason: result.reason ?? null,
         // Copied from the catalog, never written by a model.
         remediation: rule.remediation,
+        ...(result.clusters?.length ? { clusters: result.clusters } : {}),
       };
     });
 

@@ -10,11 +10,19 @@
  */
 import { and, eq, inArray, isNotNull, isNull, notInArray } from "drizzle-orm";
 import { db } from "@/db";
-import { auditPageEvaluations, auditRuleResults, audits } from "@/db/schema";
+import {
+  auditPageEvaluations,
+  auditPages,
+  auditRuleResults,
+  audits,
+} from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
 import { DECISION_MODEL_IDS } from "@/server/lib/guidelines/decision-transport";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
+
+/** The stored page type of the one row per audit that judges the whole site. */
+const SITE_PAGE_TYPE = "site";
 
 interface StoredEvaluationInput {
   auditId: string;
@@ -124,6 +132,8 @@ async function insertFailedEvaluation(input: {
   pageUrl: string;
   catalogVersion: string;
   errorMessage: string;
+  /** "site" for the whole-site row, so readers still tell it from a page. */
+  pageType?: string | null;
 }) {
   const id = await deterministicAuditRowId(
     input.auditId,
@@ -138,7 +148,7 @@ async function insertFailedEvaluation(input: {
       pageId: input.pageId,
       pageUrl: input.pageUrl,
       catalogVersion: input.catalogVersion,
-      pageType: null,
+      pageType: input.pageType ?? null,
       ymyl: false,
       ymylTopicsJson: null,
       aiSuspected: false,
@@ -224,6 +234,44 @@ async function deleteEvaluationsForAudit(auditId: string) {
     .where(eq(auditPageEvaluations.auditId, auditId));
 }
 
+/**
+ * Every crawled page of an audit, with only the columns the site pass and the
+ * guideline sampler read. The body hash is here and not in
+ * `AuditRepository.getPagesForAudit`: it is what lets the sampler judge one of
+ * several identical pages and the site pass find exact-duplicate clusters.
+ */
+async function getSiteInventory(auditId: string) {
+  return db
+    .select({
+      id: auditPages.id,
+      url: auditPages.url,
+      statusCode: auditPages.statusCode,
+      fetchClass: auditPages.fetchClass,
+      isIndexable: auditPages.isIndexable,
+      title: auditPages.title,
+      wordCount: auditPages.wordCount,
+      contentHash: auditPages.contentHash,
+      crawlDepth: auditPages.crawlDepth,
+    })
+    .from(auditPages)
+    .where(eq(auditPages.auditId, auditId));
+}
+
+/** The whole-site evaluation row, or null when the site was not evaluated. */
+async function getSiteEvaluation(auditId: string) {
+  const [row] = await db
+    .select()
+    .from(auditPageEvaluations)
+    .where(
+      and(
+        eq(auditPageEvaluations.auditId, auditId),
+        eq(auditPageEvaluations.pageType, SITE_PAGE_TYPE),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 /** Findings for specific rules, used by the site-level rollup. */
 async function getResultsForRules(auditId: string, ruleIds: string[]) {
   if (ruleIds.length === 0) return [];
@@ -247,4 +295,6 @@ export const GuidelineEvaluationRepository = {
   getJudgedUrls,
   deleteEvaluationsForAudit,
   getResultsForRules,
+  getSiteInventory,
+  getSiteEvaluation,
 } as const;

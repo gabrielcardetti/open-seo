@@ -103,6 +103,7 @@ export async function runAuditPhases(
     projectId,
     startUrl,
     config,
+    crawlCompleted: crawl.completed,
   });
   await finalizeAudit({
     step,

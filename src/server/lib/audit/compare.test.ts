@@ -14,6 +14,7 @@ describe("compareAudits", () => {
           ["/a", "revise"],
           ["/b", "pass"],
         ]),
+        siteVerdict: null,
       },
       {
         pageUrls: ["/a", "/c"],
@@ -22,6 +23,7 @@ describe("compareAudits", () => {
           { issueType: "title-too-long", pageUrl: "/c" },
         ],
         verdicts: new Map([["/a", "pass"]]),
+        siteVerdict: null,
       },
     );
 

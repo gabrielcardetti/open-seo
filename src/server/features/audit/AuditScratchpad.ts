@@ -100,6 +100,8 @@ const CLEANUP_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
  * budget the crawl continues — the audit just loses link-graph issues.
  */
 const LINK_STORAGE_BUDGET_BYTES = 500 * 1024 * 1024;
+/** Enough for http -> https -> www -> trailing slash, and no redirect loop. */
+const MAX_OUTLINK_REDIRECT_HOPS = 5;
 
 export class AuditScratchpad extends DurableObject {
   constructor(ctx: DurableObjectState, workerEnv: Env) {
@@ -283,6 +285,38 @@ export class AuditScratchpad extends DurableObject {
         : [];
 
     return { brokenLinks, orphanPages };
+  }
+
+  /**
+   * The internal links on one crawled page, for the guideline site pass (a
+   * footer link to /contacto counts as a contact page even when the crawl
+   * stopped before reaching it).
+   *
+   * Follows the page's redirects first: the start URL often redirects (to
+   * https, or to www), and a redirect records no links of its own.
+   */
+  async getOutlinks(sourceUrl: string, limit = 500): Promise<string[]> {
+    let url = sourceUrl;
+    for (let hop = 0; hop < MAX_OUTLINK_REDIRECT_HOPS; hop++) {
+      const targets = this.ctx.storage.sql
+        .exec<{ target: string }>(
+          `SELECT j.value AS target FROM page_links p, json_each(p.targets_json) AS j
+           WHERE p.url = ? LIMIT ?`,
+          url,
+          limit,
+        )
+        .toArray()
+        .map((row) => row.target);
+      if (targets.length > 0) return targets;
+      const [mirror] = this.ctx.storage.sql
+        .exec<{
+          redirect_url: string | null;
+        }>(`SELECT redirect_url FROM page_mirror WHERE url = ?`, url)
+        .toArray();
+      if (!mirror?.redirect_url) return [];
+      url = mirror.redirect_url;
+    }
+    return [];
   }
 
   /** Wipe all state (success path, or explicit audit deletion). */

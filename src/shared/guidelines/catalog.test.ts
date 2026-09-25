@@ -8,6 +8,8 @@ import {
   verdictSeverity,
 } from "./catalog";
 import {
+  SITE_ROW_ONLY_RULES,
+  SITE_PATTERN_RULES,
   gradedRuleIds,
   judgeableRules,
   questionFor,
@@ -150,6 +152,18 @@ describe("computeVerdict", () => {
     ).toBe("reject");
   });
 
+  // The point of the site pass: a page in a cluster the site judge failed
+  // carries that confirmation, and a doorway set rejects page by page.
+  it("rejects on a pattern failure the site pass confirmed", () => {
+    expect(
+      computeVerdict([{ id: "SPAM-02", status: "fail", level: "site" }])
+        .verdict,
+    ).toBe("reject");
+    expect(computeVerdict([{ id: "SPAM-02", status: "fail" }]).verdict).toBe(
+      "revise",
+    );
+  });
+
   it("ignores results for rules the catalog no longer carries", () => {
     const summary = computeVerdict([{ id: "GONE-99", status: "fail" }]);
     expect(summary.verdict).toBe("pass");
@@ -181,6 +195,15 @@ describe("judgeableRules", () => {
       true,
     );
   });
+});
+
+// The pattern sets are our reading keyed by id; a catalog edit that drops an
+// id or moves it off `both` must fail here rather than silently stop the site
+// pass from judging it.
+it("keys the site pattern sets on existing `both` rules", () => {
+  for (const id of [...SITE_PATTERN_RULES, ...SITE_ROW_ONLY_RULES]) {
+    expect(RULES_BY_ID.get(id)?.scope, id).toBe("both");
+  }
 });
 
 describe("statusFromAnswer", () => {

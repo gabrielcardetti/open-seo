@@ -10,6 +10,8 @@ data, or sensitive paths.
 
 ## Open
 
+- [ ] `2026-09-25T12:00:00Z` — `claude` — Under Vitest 4.1, a module mocked with `vi.mock` and loaded by concurrent dynamic `import()`s (one per page step inside `Promise.allSettled`) resolved to the mock only in the first call; the concurrent siblings got the real module, which made network calls that hung the test to its 5s timeout. Preloading the module statically in the test did not help. Workaround in `siteAuditWorkflowGuidelines.test.ts`: the mocked `pgStep` runs step bodies one at a time.
+
 - [ ] `2026-09-18T10:06:56Z` — `codex` — Website browser tests flood Vite output with "Assets in public directory cannot be imported from JavaScript" for MDX library images. Adjust the MDX image handling to retain public image URLs instead of generating imports, so useful test failures remain visible.
 - [ ] `2026-09-03T00:00:00Z` — `claude` — `pnpm ci:check` does not run `pnpm build`, so a route file that pulls `cloudflare:workers` into the client bundle passes every check and still breaks the build (hit on the dynamic-reports branch). Add a build step to `ci:check`, or document that `pnpm build` must be run separately before opening a PR.
 - [ ] `2026-09-11T00:13:05Z` — `codex` — The web-content review skill points to the removed `src/server/features/onboarding/openseo-fact-sheet.md`; the reference now lives at `src/server/features/sam/openseo-fact-sheet.md`. Update the skill's pointer so content reviews reach the current fact sheet.

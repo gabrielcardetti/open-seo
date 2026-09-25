@@ -28,7 +28,9 @@ const resultsInputSchema = {
   verdict: z
     .enum(["pass", "pass_with_warnings", "revise", "reject"])
     .optional()
-    .describe("Only return pages with this verdict."),
+    .describe(
+      "Only return pages with this verdict. The whole-site verdict is always returned.",
+    ),
   limit: z.number().int().min(1).max(500).optional().default(100),
 };
 
@@ -44,10 +46,11 @@ export const getGuidelineResultsTool = {
   config: {
     title: "Get content guideline verdicts",
     description:
-      "Read per-page verdicts from a site audit's content-guideline evaluation: which pages pass Google's official content guidelines, which rules they fail, the evidence, and the remediation for each. Free — reads OpenSEO state. Omit auditId for the most recent audit.",
+      "Read per-page verdicts from a site audit's content-guideline evaluation: which pages pass Google's official content guidelines, which rules they fail, the evidence, and the remediation for each. `site` is the whole-site verdict (doorway and scaled-content patterns, topical focus, trust pages), judged from the crawl inventory; it is not a page and is not counted in `summary`. Free — reads OpenSEO state. Omit auditId for the most recent audit.",
     inputSchema: resultsInputSchema,
     outputSchema: z
       .object({
+        site: looseObjectOutputSchema.nullable().optional(),
         pages: z.array(looseObjectOutputSchema),
         summary: looseObjectOutputSchema,
         ...optionalMetaOutputSchema,
@@ -85,11 +88,7 @@ export const getGuidelineResultsTool = {
       else byEvaluation.set(result.evaluationId, [result]);
     }
 
-    const filtered = args.verdict
-      ? data.evaluations.filter((e) => e.verdict === args.verdict)
-      : data.evaluations;
-
-    const pages = filtered.slice(0, args.limit).map((evaluation) => ({
+    const describe = (evaluation: (typeof data.evaluations)[number]) => ({
       url: evaluation.pageUrl,
       verdict: evaluation.verdict,
       ymyl: evaluation.ymyl,
@@ -108,18 +107,28 @@ export const getGuidelineResultsTool = {
           how_to_fix: result.remediation,
           source: RULES_BY_ID.get(result.ruleId)?.source_url,
         })),
-    }));
+    });
+
+    // The site row's URL is a sentinel (`<origin>/#site`), not a page: it is
+    // reported on its own and kept out of the per-page counts.
+    const siteRow = data.evaluations.find((e) => e.pageType === "site");
+    const pageRows = data.evaluations.filter((e) => e.pageType !== "site");
+    const filtered = args.verdict
+      ? pageRows.filter((e) => e.verdict === args.verdict)
+      : pageRows;
+    const pages = filtered.slice(0, args.limit).map(describe);
 
     const counts = { pass: 0, pass_with_warnings: 0, revise: 0, reject: 0 };
-    for (const evaluation of data.evaluations) {
+    for (const evaluation of pageRows) {
       counts[evaluation.verdict] += 1;
     }
 
     return mcpResponse({
       structuredContent: {
+        site: siteRow ? describe(siteRow) : null,
         pages,
         summary: {
-          evaluated: data.evaluations.length,
+          evaluated: pageRows.length,
           catalog_version: CATALOG_VERSION,
           ...counts,
         },
@@ -130,7 +139,8 @@ export const getGuidelineResultsTool = {
         auditPath(args.projectId, audit.id),
       ),
       text: [
-        `Content guidelines, ${data.evaluations.length} pages evaluated (catalog ${CATALOG_VERSION}):`,
+        ...(siteRow ? [`Whole site: ${siteRow.verdict}`] : []),
+        `Content guidelines, ${pageRows.length} pages evaluated (catalog ${CATALOG_VERSION}):`,
         `- reject: ${counts.reject}`,
         `- revise: ${counts.revise}`,
         `- pass with warnings: ${counts.pass_with_warnings}`,

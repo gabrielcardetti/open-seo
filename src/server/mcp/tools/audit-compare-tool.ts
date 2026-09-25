@@ -26,29 +26,36 @@ const inputSchema = {
 
 type Args = { projectId: string; baseAuditId: string; auditId?: string };
 
-/** The latest successful verdict per URL; a page can be judged more than once. */
-async function verdictsByUrl(auditId: string) {
+/**
+ * The latest successful verdict per page URL (a page can be judged more than
+ * once), and the whole-site verdict apart: its URL is a sentinel, not a page.
+ */
+async function guidelineVerdicts(auditId: string) {
   const rows =
     await GuidelineEvaluationRepository.getEvaluationsForAudit(auditId);
+  const site = rows.find((row) => row.pageType === "site" && !row.errorMessage);
   const latest = new Map<string, { verdict: string; at: string }>();
   for (const row of rows) {
-    if (row.errorMessage || !row.verdict) continue;
+    if (row.errorMessage || !row.verdict || row.pageType === "site") continue;
     const at = String(row.evaluatedAt ?? "");
     const seen = latest.get(row.pageUrl);
     if (!seen || at > seen.at) {
       latest.set(row.pageUrl, { verdict: row.verdict, at });
     }
   }
-  return new Map(Array.from(latest, ([url, v]) => [url, v.verdict]));
+  return {
+    verdicts: new Map(Array.from(latest, ([url, v]) => [url, v.verdict])),
+    siteVerdict: site?.verdict ?? null,
+  };
 }
 
 async function snapshot(auditId: string) {
-  const [pages, issues, verdicts] = await Promise.all([
+  const [pages, issues, guidelines] = await Promise.all([
     AuditRepository.getPagesForAudit(auditId),
     AuditRepository.getIssuesForAudit(auditId, {}),
-    verdictsByUrl(auditId),
+    guidelineVerdicts(auditId),
   ]);
-  return { pageUrls: pages.map((page) => page.url), issues, verdicts };
+  return { pageUrls: pages.map((page) => page.url), issues, ...guidelines };
 }
 
 export const compareAuditsTool = {
@@ -56,7 +63,7 @@ export const compareAuditsTool = {
   config: {
     title: "Compare two site audits",
     description:
-      "Before/after between two audits of the same project: pages added and removed, each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
+      "Before/after between two audits of the same project: pages added and removed, each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
     inputSchema,
     outputSchema: z
       .object({
@@ -102,6 +109,11 @@ export const compareAuditsTool = {
           `- ${t.issueType}: ${t.before} → ${t.after} (resolved ${t.resolved}, new ${t.introduced})`,
       ),
       `Guideline verdicts: ${JSON.stringify(diff.guidelines.before)} → ${JSON.stringify(diff.guidelines.after)}; improved ${diff.guidelines.improved.length}, worsened ${diff.guidelines.worsened.length}.`,
+      ...(diff.guidelines.site.before || diff.guidelines.site.after
+        ? [
+            `Whole-site guideline verdict: ${diff.guidelines.site.before ?? "none"} → ${diff.guidelines.site.after ?? "none"}.`,
+          ]
+        : []),
     ].join("\n");
 
     return mcpResponse({

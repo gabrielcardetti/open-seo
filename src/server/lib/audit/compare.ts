@@ -4,7 +4,8 @@
  *
  * Issues are matched by (issue type, URL), so a fixed title on one page shows
  * as resolved even when the same issue type is still present elsewhere.
- * Guideline verdicts are matched by URL.
+ * Guideline verdicts are matched by URL. The whole-site verdict is not a page,
+ * so it is compared on its own and kept out of the page counts.
  */
 import { sort } from "remeda";
 
@@ -18,7 +19,10 @@ const VERDICT_RANK: Record<string, number> = {
 interface AuditSnapshot {
   pageUrls: readonly string[];
   issues: ReadonlyArray<{ issueType: string; pageUrl: string | null }>;
+  /** Page verdicts by URL. */
   verdicts: ReadonlyMap<string, string>;
+  /** The whole-site verdict, when the audit has one. */
+  siteVerdict: string | null;
 }
 
 interface IssueTypeDelta {
@@ -105,6 +109,7 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
       after: countVerdicts(current.verdicts),
       improved,
       worsened,
+      site: { before: base.siteVerdict, after: current.siteVerdict },
     },
   };
 }

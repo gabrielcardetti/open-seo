@@ -19,7 +19,7 @@
 import { z } from "zod";
 import { RULES_BY_ID, type GuidelineRule } from "@/shared/guidelines/catalog";
 import {
-  renderPageState,
+  renderSubject,
   type JudgeInput,
   type JudgedRule,
   type RuleJudge,
@@ -49,12 +49,31 @@ const SYSTEM_PROMPT = `You evaluate a web page against the official Google Searc
 Return ONLY the rules that do NOT pass. Any rule you do not mention counts as a pass.
 Answer with a JSON object: {"findings":[{"id":"RULE-ID","status":"fail"|"warn"|"unknown","evidence":"short quote","reason":"one sentence"}]}`;
 
+/**
+ * The same conduct for a whole site, judged from its crawl inventory. The
+ * load-bearing additions are the catalog clause (the false positive that
+ * matters on templated sites) and the cluster citation, which the corroboration
+ * guard in site-evaluator.ts checks against the cluster's real shape.
+ */
+const SITE_SYSTEM_PROMPT = `You evaluate a whole website against the official Google Search quality guidelines supplied in the request. You see its crawl inventory, not page text: URL templates, clusters of pages that share a title or URL skeleton or identical text (C1, C2, ...), and a sample of titles.
+
+1. Invent no policies. If a rule is not in the supplied list, it does not exist.
+2. Evidence is the inventory's own words: quote URLs, titles, title patterns or cluster ids exactly, separated by "; ". Cite every cluster a finding rests on in "clusters".
+3. Templated catalogs of genuinely different items — products, listings, recipes, people, places with their own content — are NOT doorways or scaled content. A pattern is a problem when the pages differ only in a swapped word (a city, a keyword variant) and exist to catch each query.
+4. If the inventory cannot show the answer, use status "unknown". Never guess; titles do not show a page's quality.
+5. Using AI is not a violation. Producing many pages with no original value is.
+6. Never recommend llms.txt, content chunking, word-count targets, faking dates, or manufacturing mentions.
+
+Return ONLY the rules that do NOT pass. Any rule you do not mention counts as a pass.
+Answer with a JSON object: {"findings":[{"id":"RULE-ID","status":"fail"|"warn"|"unknown","clusters":["C1"],"evidence":"quoted URLs or titles","reason":"one sentence"}]}`;
+
 const findingSchema = z.object({
   id: z.string(),
   status: z.enum(["fail", "warn", "unknown"]),
   evidence: z.string().optional(),
   reason: z.string().optional(),
   score: z.number().optional(),
+  clusters: z.array(z.string()).optional(),
 });
 
 const responseSchema = z.object({
@@ -119,12 +138,10 @@ export class LlmJudge implements RuleJudge {
     this.modelId = config.model;
   }
 
-  async judge({
-    page,
-    rules,
-    businessOverview,
-  }: JudgeInput): Promise<JudgedRule[]> {
+  async judge(input: JudgeInput): Promise<JudgedRule[]> {
+    const { rules } = input;
     if (rules.length === 0) return [];
+    const isSite = input.kind === "site";
 
     const body = {
       model: this.config.model,
@@ -132,10 +149,13 @@ export class LlmJudge implements RuleJudge {
       max_tokens: this.config.maxOutputTokens ?? 4000,
       response_format: { type: "json_object" as const },
       messages: [
-        { role: "system" as const, content: SYSTEM_PROMPT },
+        {
+          role: "system" as const,
+          content: isSite ? SITE_SYSTEM_PROMPT : SYSTEM_PROMPT,
+        },
         {
           role: "user" as const,
-          content: `=== RULES ===\n${rulesBlock(rules)}\n\n=== PAGE ===\n${renderPageState(page, businessOverview)}`,
+          content: `=== RULES ===\n${rulesBlock(rules)}\n\n=== ${isSite ? "SITE" : "PAGE"} ===\n${renderSubject(input)}`,
         },
       ],
     };
@@ -188,6 +208,7 @@ export class LlmJudge implements RuleJudge {
         confidence: null,
         evidence: finding.evidence?.trim() || null,
         reason: finding.reason?.trim() || null,
+        ...(finding.clusters?.length ? { clusters: finding.clusters } : {}),
       });
     }
 

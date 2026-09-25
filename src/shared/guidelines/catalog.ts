@@ -219,6 +219,12 @@ export function verdictSeverity(
 interface RuleOutcome {
   id: string;
   status: RuleStatus;
+  /**
+   * The level this one answer was confirmed at, when it differs from the
+   * call's. A page that belongs to a cluster the site pass failed carries the
+   * site's confirmation, so its pattern-rule failure weighs as the site's does.
+   */
+  level?: "page" | "site";
 }
 
 interface VerdictSummary {
@@ -233,7 +239,8 @@ interface VerdictSummary {
 /**
  * Rolls per-rule outcomes into one verdict, using the catalog's own
  * `verdict_logic`: any critical failure rejects (see `verdictSeverity` for
- * pattern rules judged from one page), any high failure sends the page back
+ * pattern rules judged from one page, and `RuleOutcome.level` for the ones
+ * the site pass confirmed), any high failure sends the page back
  * for revision, and medium/low failures are warnings you can publish
  * with. Only `fail` can block a page. A `warn` — a detector hit, a judge's
  * unquoted or unconfirmed failure — cannot, but it keeps the page from reading
@@ -254,7 +261,7 @@ export function computeVerdict(
     if (outcome.status === "warn") warnings += 1;
     if (outcome.status !== "fail") continue;
     const rule = RULES_BY_ID.get(outcome.id);
-    switch (rule && verdictSeverity(rule, level)) {
+    switch (rule && verdictSeverity(rule, outcome.level ?? level)) {
       case "critical":
         criticalFails += 1;
         break;

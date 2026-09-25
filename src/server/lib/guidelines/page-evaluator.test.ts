@@ -268,8 +268,7 @@ describe("evaluatePage", () => {
     const result = await evaluatePage({
       page: fetchedPage({ robotsMeta: "noindex" }),
     });
-    const finding = result.findings.find((f) => f.ruleId === "TECH-04");
-    expect(finding?.remediation).toBeTruthy();
+    expect(result.findings[0]?.remediation).toBeTruthy();
   });
 
   it("orders findings by severity", async () => {

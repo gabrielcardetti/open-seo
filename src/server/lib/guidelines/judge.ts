@@ -17,6 +17,8 @@
  */
 import type { GuidelineRule, RuleStatus } from "@/shared/guidelines/catalog";
 import type { FetchedPage } from "./page-fetch";
+import { clustersReachingPage } from "./site-combine";
+import type { PatternCluster, SiteExample, SiteFacts } from "./site-facts";
 
 export type JudgeName = "jev" | "llm" | "mcp";
 
@@ -30,14 +32,66 @@ export interface JudgedRule {
   /** Short quote from the page. Decision models cannot produce this. */
   evidence?: string | null;
   reason?: string | null;
+  /** Site findings: the pattern clusters (C1..) the judge cites. */
+  clusters?: string[] | null;
+  /**
+   * "site" when the site pass confirmed this answer (the page belongs to a
+   * cluster the site judge failed), so it weighs as a site-level finding.
+   */
+  level?: "page" | "site";
 }
 
-export interface JudgeInput {
-  page: FetchedPage;
+interface JudgeRequest {
   rules: readonly GuidelineRule[];
   /** Business context, so "who is this for?" is answerable. */
   businessOverview?: string | null;
 }
+
+/** Where a page sits in the site's URL inventory, from the site pass. */
+export interface PageTemplateNote {
+  template: string | null;
+  templateSize: number;
+  memberOf: readonly string[];
+  /** The site pass's answers to the pattern rules, by rule id. */
+  answers: Readonly<
+    Record<string, { status: RuleStatus; clusters: readonly string[] }>
+  >;
+}
+
+/**
+ * The TEMPLATE line, only when the site pass flagged a cluster this page is
+ * in. On a legitimate catalog the template alone would read as a hint that
+ * the page is one of many and prime a scaled-content failure.
+ */
+function templateLine(note: PageTemplateNote): string | null {
+  const flagged = Object.entries(note.answers).flatMap(([ruleId, answer]) => {
+    const clusters = clustersReachingPage(ruleId, answer, note.memberOf);
+    return clusters.length
+      ? [
+          `site-level ${ruleId}: ${answer.status} on cluster ${clusters.join(", ")}`,
+        ]
+      : [];
+  });
+  if (flagged.length === 0) return null;
+  const shape = note.template
+    ? `${note.template} (${note.templateSize} pages)`
+    : "no shared URL template";
+  return `TEMPLATE: ${shape}; ${flagged.join("; ")}`;
+}
+
+interface PageJudgeInput extends JudgeRequest {
+  kind?: "page";
+  page: FetchedPage;
+  template?: PageTemplateNote | null;
+}
+
+/** The whole site, judged from its crawl inventory instead of a page. */
+interface SiteJudgeInput extends JudgeRequest {
+  kind: "site";
+  site: SiteFacts;
+}
+
+export type JudgeInput = PageJudgeInput | SiteJudgeInput;
 
 export interface RuleJudge {
   readonly name: JudgeName;
@@ -60,16 +114,21 @@ const MAX_JUDGE_CONTENT_CHARS = 12_000;
 export function renderPageState(
   page: FetchedPage,
   businessOverview?: string | null,
+  template?: PageTemplateNote | null,
 ): string {
-  const lines = [
-    `URL: ${page.finalUrl}`,
+  const lines = [`URL: ${page.finalUrl}`];
+  // The one site fact a page judge gets: that the site pass flagged the
+  // pattern this page is part of, which one page cannot show.
+  const flagged = template ? templateLine(template) : null;
+  if (flagged) lines.push(flagged);
+  lines.push(
     `TITLE: ${page.title || "(none)"}`,
     `META DESCRIPTION: ${page.metaDescription || "(none)"}`,
     `H1: ${page.h1s.join(" | ") || "(none)"}`,
     `WORD COUNT: ${page.wordCount}`,
     `IMAGES: ${page.imagesTotal} (${page.imagesMissingAlt} without alt text)`,
     `LINKS: ${page.internalLinks} internal, ${page.externalLinks} external`,
-  ];
+  );
   if (page.structuredData.length > 0) {
     lines.push(
       `STRUCTURED DATA: ${JSON.stringify(page.structuredData).slice(0, 1500)}`,
@@ -89,6 +148,84 @@ export function renderPageState(
   }
   lines.push("MAIN CONTENT:", page.bodyText.slice(0, MAX_JUDGE_CONTENT_CHARS));
   return lines.join("\n");
+}
+
+/** Characters of site inventory handed to a judge. */
+const MAX_SITE_STATE_CHARS = 12_000;
+
+function pathOf(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
+const exampleLine = (example: SiteExample): string =>
+  `${pathOf(example.url)} "${example.title ?? ""}"`;
+
+const clusterLine = (cluster: PatternCluster): string =>
+  `${cluster.id} ${cluster.kind} ${cluster.template} — ${cluster.size} pages "${cluster.key}", words ${cluster.wordRange[0]}–${cluster.wordRange[1]} (median ${cluster.medianWords}, cv ${cluster.wordCv.toFixed(2)})`;
+
+/**
+ * The site as a judge sees it: the crawl inventory, not page text.
+ *
+ * Flat text for the same reason as `renderPageState`. Paths rather than full
+ * URLs, because the origin is on the first line and the budget is better spent
+ * on titles. Titles go last so the character cap trims the sample, never the
+ * clusters the pattern rules are answered from.
+ */
+export function renderSiteState(
+  facts: SiteFacts,
+  businessOverview?: string | null,
+): string {
+  const lines = [
+    `SITE: ${facts.origin}   CRAWLED: ${facts.pagesCrawled} pages (${facts.indexablePages} indexable)   CRAWL COMPLETE: ${facts.crawlCompleted ? "yes" : "no (stopped at the page limit)"}`,
+  ];
+  if (businessOverview?.trim()) {
+    lines.push(`SITE CONTEXT: ${businessOverview.trim().slice(0, 800)}`);
+  }
+  if (facts.homepage) lines.push(`HOMEPAGE: ${exampleLine(facts.homepage)}`);
+  const { trust } = facts;
+  const found = (url: string | null) => (url ? pathOf(url) : "(none found)");
+  lines.push(
+    `TRUST PAGES: about=${found(trust.about)} contact=${found(trust.contact)} privacy=${found(trust.privacy)} terms=${found(trust.terms)} authors=${trust.authorTemplate ? `${trust.authorTemplate.template} (${trust.authorTemplate.count})` : "(none found)"}`,
+    "TEMPLATES (by size):",
+  );
+  for (const group of facts.templates) {
+    const skeleton = group.titleSkeleton
+      ? `, title pattern "${group.titleSkeleton.pattern}" ${Math.round(group.titleSkeleton.coverage * 100)}%`
+      : "";
+    const dups = group.exactDupPages
+      ? `, ${group.exactDupPages} with identical text`
+      : "";
+    lines.push(
+      `  ${group.template} — ${group.count} pages, median ${group.medianWords} words (cv ${group.wordCv.toFixed(2)})${skeleton}${dups}`,
+    );
+  }
+  lines.push(
+    facts.clusters.length ? "PATTERN CLUSTERS:" : "PATTERN CLUSTERS: none",
+  );
+  for (const cluster of facts.clusters) {
+    lines.push(
+      `  ${clusterLine(cluster)}`,
+      `     e.g. ${cluster.examples.map(exampleLine).join("; ")}`,
+    );
+  }
+  lines.push(
+    `UGC SURFACES: ${facts.ugcSurfaces.join(", ") || "none"}`,
+    "TITLES (sample across sections):",
+    ...facts.titleSample.map((title) => `  ${title}`),
+  );
+  return lines.join("\n").slice(0, MAX_SITE_STATE_CHARS);
+}
+
+/** What a judge reads for its input: a page, or the site's inventory. */
+export function renderSubject(input: JudgeInput): string {
+  return input.kind === "site"
+    ? renderSiteState(input.site, input.businessOverview)
+    : renderPageState(input.page, input.businessOverview, input.template);
 }
 
 /**
@@ -211,5 +348,90 @@ export function withoutUngroundedFails<T extends JudgedRule>(
       ? `The judge's quote is not on the page; confirm before acting. ${result.reason ?? ""}`.trim()
       : (result.reason ??
         "Flagged by the judge without a quote from the page; confirm before acting."),
+  };
+}
+
+/**
+ * The site's own words: every URL, title and pattern the inventory shows,
+ * each cluster's line as `renderSiteState` renders it, and the clusters'
+ * member URLs (a judge may name a member the sample did not show). Not the
+ * business overview, which is the project's words, not the site's.
+ */
+function siteEvidenceText(facts: SiteFacts): string {
+  const examples = (list: readonly SiteExample[]) =>
+    list.flatMap((example) => [
+      example.url,
+      pathOf(example.url),
+      example.title,
+    ]);
+  return [
+    facts.origin,
+    ...(facts.homepage ? examples([facts.homepage]) : []),
+    ...[
+      facts.trust.about,
+      facts.trust.contact,
+      facts.trust.privacy,
+      facts.trust.terms,
+    ]
+      .filter((url) => url !== null)
+      .flatMap((url) => [url, pathOf(url)]),
+    facts.trust.authorTemplate?.template,
+    ...facts.templates.flatMap((group) => [
+      group.template,
+      group.titleSkeleton?.pattern,
+      ...examples(group.examples),
+    ]),
+    ...facts.clusters.flatMap((cluster) => [
+      clusterLine(cluster),
+      ...examples(cluster.examples),
+      ...cluster.memberUrls.flatMap((url) => [url, pathOf(url)]),
+    ]),
+    ...facts.ugcSurfaces,
+    ...facts.titleSample,
+  ]
+    .filter(Boolean)
+    .join(" \n ");
+}
+
+/**
+ * Whether a site finding points at something the inventory really shows.
+ *
+ * A finding that cites at least one cluster, all of them real, rests on the
+ * clusters and needs no quote: the cluster ids are the inventory's own
+ * record. Otherwise (no cluster cited, or one the facts never had) the
+ * evidence must be the inventory's words. The site judge quotes URLs, titles
+ * and cluster lines rather than prose, often several at once, so the evidence
+ * is split on list separators as well as elisions and every piece must be
+ * there.
+ */
+function isGroundedSiteEvidence(
+  result: Pick<JudgedRule, "evidence" | "clusters">,
+  facts: SiteFacts,
+): boolean {
+  const known = new Set(facts.clusters.map((cluster) => cluster.id));
+  const cited = result.clusters ?? [];
+  if (cited.length > 0 && cited.every((id) => known.has(id))) return true;
+  const fragments = (result.evidence ?? "")
+    .split(/\.{3}|…|[;,|\n]/)
+    .map(normalizeForQuote)
+    .filter(Boolean);
+  if (fragments.length === 0) return false;
+  const shown = normalizeForQuote(siteEvidenceText(facts));
+  return fragments.every((fragment) => shown.includes(fragment));
+}
+
+/** `withoutUngroundedFails` for a site finding. */
+export function withoutUngroundedSiteFails<T extends JudgedRule>(
+  result: T,
+  facts: SiteFacts,
+): T {
+  if (result.status !== "fail" || isGroundedSiteEvidence(result, facts)) {
+    return result;
+  }
+  return {
+    ...result,
+    status: "warn",
+    reason:
+      `The judge's evidence is not in the site's crawl inventory; confirm before acting. ${result.reason ?? ""}`.trim(),
   };
 }

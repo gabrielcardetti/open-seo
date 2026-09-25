@@ -16,7 +16,7 @@
 import { statusFromAnswer } from "@/shared/guidelines/judge-map";
 import type { DecisionTransport } from "./decision-transport";
 import {
-  renderPageState,
+  renderSubject,
   type JudgeInput,
   type JudgedRule,
   type RuleJudge,
@@ -30,16 +30,11 @@ export class JevJudge implements RuleJudge {
     this.modelId = transport.modelId;
   }
 
-  async judge({
-    page,
-    rules,
-    businessOverview,
-  }: JudgeInput): Promise<JudgedRule[]> {
+  /** Pages only in practice: the site pass never asks Jev (see `evaluateSite`). */
+  async judge(input: JudgeInput): Promise<JudgedRule[]> {
+    const { rules } = input;
     if (rules.length === 0) return [];
-    const answers = await this.transport.ask(
-      renderPageState(page, businessOverview),
-      rules,
-    );
+    const answers = await this.transport.ask(renderSubject(input), rules);
 
     return rules.map((rule) => {
       const answer = answers.get(rule.id);

@@ -41,6 +41,37 @@ const NEEDS_RENDERING = new Set([
   "TECH-08", // content only available after JavaScript
 ]);
 
+/**
+ * `both` rules the site pass judges from the crawl inventory, because what
+ * they ask about is a pattern across pages: doorway sets, one URL per query
+ * variant, a scatter of unrelated topics, a factory of commodity pages. The
+ * other `both` rules are page questions in practice; a site answer to them
+ * would only be a vote over the page verdicts, counted twice.
+ */
+export const SITE_PATTERN_RULES: ReadonlySet<string> = new Set([
+  "SPAM-02", // doorways
+  "AI-04", // one URL per query fan-out
+  "PF-W02", // many topics hoping one ranks
+  "PF-W03", // multi-topic automation
+  "SPAM-11", // scaled content abuse
+]);
+
+/**
+ * Pattern rules whose site answer stays on the site row. They are about a
+ * scatter of topics across the site, not a template, so no page is "one of"
+ * what they describe (see `combineWithSite`).
+ */
+export const SITE_ROW_ONLY_RULES: ReadonlySet<string> = new Set([
+  "PF-W02",
+  "PF-W03",
+]);
+
+/**
+ * Site rules settled from the page results rather than asked. Whether a site
+ * "calls for" authors depends on its page types, which the page pass decides.
+ */
+const SETTLED_FROM_PAGES = new Set(["SITE-04"]);
+
 type JudgeQuestion =
   | { kind: "binary"; labels: [string, string] }
   | { kind: "score"; levels: string[] }
@@ -118,8 +149,23 @@ export function judgeableRules(
   );
 }
 
+/**
+ * The rules the site judge is asked, out of the site rule set: the judgeable
+ * ones minus those the page results settle.
+ */
+export function siteJudgeableRules(
+  rules: readonly GuidelineRule[],
+): GuidelineRule[] {
+  return judgeableRules(rules).filter(
+    (rule) => !SETTLED_FROM_PAGES.has(rule.id),
+  );
+}
+
 /** Why a rule was not judged, for the `unknown` result it produces instead. */
 export function unjudgeableReason(rule: GuidelineRule): string | null {
+  if (SETTLED_FROM_PAGES.has(rule.id)) {
+    return "Settled from the evaluated pages' bylines.";
+  }
   if (NEVER_AUTO_CLOSE.has(rule.id)) {
     return "Needs evidence the page cannot show; a reviewer has to decide.";
   }

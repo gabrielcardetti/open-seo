@@ -13,16 +13,19 @@
  */
 import type { RuleStatus } from "@/shared/guidelines/catalog";
 import type { FetchedPage } from "./page-fetch";
+import type { SiteFacts, SiteTripwire } from "./site-facts";
 
 export interface EvaluationContext {
   page: FetchedPage;
   /** Whether any internal link was seen pointing at this URL during the crawl. */
   hasInboundInternalLinks?: boolean;
   /** Site-level facts gathered once per audit. */
-  site?: {
-    hasAboutPage?: boolean;
-    hasContactPage?: boolean;
-  };
+  site?: { facts?: SiteFacts };
+}
+
+/** The site pass has facts and no page; site rules read nothing else. */
+export interface SiteEvaluationContext {
+  site: { facts: SiteFacts };
 }
 
 interface DeterministicResult {
@@ -189,21 +192,89 @@ function namedAuthor(page: FetchedPage): string | null {
 const MACHINE_AUTHOR =
   /^(?:(?:the\s+)?(?:ai|a\.i\.|artificial intelligence|chatgpt|gpt(?:-?\d[\w.]*)?|claude|gemini|copilot|bot|robot)(?:\s+(?:writer|author|assistant|bot|team))?|(?:written|generated|created) by (?:ai|chatgpt|gpt[\w.-]*|claude|gemini)|ia|redactor ia|inteligencia artificial)$/i;
 
-/** About/contact presence: who runs the site and how to reach them. */
-const evaluateAboutAndContact: Evaluator = (ctx) => {
-  const site = ctx.site;
-  if (
-    !site ||
-    (site.hasAboutPage === undefined && site.hasContactPage === undefined)
-  ) {
+/** Site rules read only the site facts; undefined when none were gathered. */
+type SiteEvaluator = (
+  facts: SiteFacts | undefined,
+) => DeterministicResult | null;
+
+/**
+ * About/contact presence: who runs the site and how to reach them. A crawl cut
+ * short at its page limit may simply not have reached them, so absence only
+ * fails on a complete crawl.
+ */
+const evaluateAboutAndContact: SiteEvaluator = (facts) => {
+  if (!facts)
     return { status: "unknown", reason: "Site pages were not inspected." };
+  const { about, contact } = facts.trust;
+  if (about || contact) {
+    return {
+      status: "pass",
+      evidence: [about, contact].filter(Boolean).join(" | "),
+    };
   }
-  return site.hasAboutPage || site.hasContactPage
-    ? { status: "pass" }
-    : {
+  return facts.crawlCompleted
+    ? {
         status: "fail",
         reason: "No about or contact page was found on the site.",
+      }
+    : {
+        status: "unknown",
+        reason:
+          "No about or contact page among the crawled pages, but the crawl stopped at its page limit.",
       };
+};
+
+/**
+ * A crawl tripwire as a warning, with the page that set it off. Never a pass
+ * without one: a title lexicon cannot clear a site of hacked or parasite
+ * content, so the rule is then left to its reviewer.
+ */
+function tripwireWarning(
+  facts: SiteFacts | undefined,
+  ruleId: SiteTripwire["ruleId"],
+  reason: string,
+): DeterministicResult | null {
+  const hits = facts?.tripwires.filter((hit) => hit.ruleId === ruleId) ?? [];
+  if (hits.length === 0) return null;
+  return {
+    status: "warn",
+    evidence: hits
+      .map((hit) => `${hit.url} "${hit.title ?? ""}" (${hit.why})`)
+      .join(" | ")
+      .slice(0, 1000),
+    reason,
+  };
+}
+
+const siteEvaluators: Record<string, SiteEvaluator> = {
+  // Trust signals a reader expects to be able to find.
+  "EAT-06": evaluateAboutAndContact,
+
+  // UGC spam needs somewhere users can post. Where there is one, whether it
+  // is moderated is not something titles and URLs show.
+  "SPAM-15": (facts) => {
+    if (!facts) return null;
+    if (facts.ugcSurfaces.length === 0) return { status: "n/a" };
+    return {
+      status: "unknown",
+      evidence: facts.ugcSurfaces.join(", "),
+      reason:
+        "The site has user-content pages; whether they are moderated needs a look at them.",
+    };
+  },
+
+  "SPAM-04": (facts) =>
+    tripwireWarning(
+      facts,
+      "SPAM-04",
+      "Titles or URLs look like injected spam; check the site has not been hacked.",
+    ),
+  "SPAM-12": (facts) =>
+    tripwireWarning(
+      facts,
+      "SPAM-12",
+      "A section looks like third-party content outside the site's business; check it is editorially integrated.",
+    ),
 };
 
 /**
@@ -318,9 +389,6 @@ const evaluators: Record<string, Evaluator> = {
       "The page sends visitors to another site instantly or depending on who they are.",
     ),
 
-  // Trust signals a reader expects to be able to find.
-  "EAT-06": evaluateAboutAndContact,
-
   // Structured data must describe what the page actually shows.
   "SD-01": ({ page }) => {
     const types = schemaTypes(page);
@@ -389,11 +457,13 @@ const evaluators: Record<string, Evaluator> = {
  */
 export function evaluateDeterministic(
   ruleId: string,
-  ctx: EvaluationContext,
+  ctx: EvaluationContext | SiteEvaluationContext,
 ): DeterministicResult | null {
+  const siteEvaluator = siteEvaluators[ruleId];
   const evaluator = evaluators[ruleId];
-  if (!evaluator) return null;
   try {
+    if (siteEvaluator) return siteEvaluator(ctx.site?.facts);
+    if (!evaluator || !("page" in ctx)) return null;
     return evaluator(ctx);
   } catch (error) {
     return {
