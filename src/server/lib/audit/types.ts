@@ -20,6 +20,8 @@ export interface AuditConfig {
   maxPages: number;
   lighthouseStrategy: LighthouseStrategy;
   guidelinesStrategy: GuidelinesStrategy;
+  /** Path prefixes the crawl leaves out, e.g. "/archive" (see crawl-scope.ts). */
+  excludedPaths: string[];
 }
 
 // Read-side only (writes stringify a typed AuditConfig). Stored rows may hold
@@ -47,6 +49,8 @@ const auditConfigSchema = z.object({
   maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
   lighthouseStrategy: lighthouseStrategySchema,
   guidelinesStrategy: guidelinesStrategySchema.default("none"),
+  // Audits predating path exclusion have no such key: they crawled everything.
+  excludedPaths: z.array(z.string()).catch([]).default([]),
 });
 
 const auditConfigCodec = jsonCodec(auditConfigSchema);

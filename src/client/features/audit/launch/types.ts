@@ -16,11 +16,22 @@ export type LaunchFormValues = {
   maxPagesInput: string;
   runLighthouse: boolean;
   evaluateContent: boolean;
+  /** Sections to leave out, one path per line or separated by commas. */
+  excludedPathsInput: string;
 };
+
+/** The launch form's excluded-paths text as the list the server takes. */
+export function parseExcludedPathsInput(input: string): string[] {
+  return input
+    .split(/[\n,]/)
+    .map((path) => path.trim())
+    .filter(Boolean);
+}
 
 export const DEFAULT_LAUNCH_FORM_VALUES: LaunchFormValues = {
   url: "",
   maxPagesInput: String(DEFAULT_AUDIT_PAGES),
   runLighthouse: false,
   evaluateContent: false,
+  excludedPathsInput: "",
 };

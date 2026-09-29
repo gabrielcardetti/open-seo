@@ -67,6 +67,13 @@ const runInputSchema = {
     .describe(
       "Also judge a sample of pages against Google's official content guidelines (people-first, E-E-A-T, spam policies, AI guidance) and give each a verdict (default false). Read the result with get_guideline_results. To judge with your own model instead, leave this off and use get_guidelines_evaluation_batch.",
     ),
+  excludePaths: z
+    .array(z.string().max(2048))
+    .max(20)
+    .optional()
+    .describe(
+      'Sections of the site to leave out of the crawl, as path prefixes such as "/archive" (a full URL works too). Matched on whole path segments: "/archive" excludes /archive, /archive/2024/x and /archive?page=2, not /archives. Excluded pages are neither seeded from sitemaps nor followed from links, so they spend no page budget and add no findings. Use it for large generated sections the user wants audited separately or not at all.',
+    ),
 } as const;
 
 type RunArgs = z.infer<z.ZodObject<typeof runInputSchema>>;
@@ -110,6 +117,7 @@ export const runSiteAuditTool = {
         maxPages: args.maxPages,
         lighthouseStrategy,
         guidelinesStrategy,
+        excludedPaths: args.excludePaths,
         limitTier,
       }));
     } catch (error) {

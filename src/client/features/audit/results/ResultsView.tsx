@@ -95,6 +95,18 @@ export function ResultsView({
         </CrawlWarning>
       )}
 
+      {audit.config.excludedPaths.length > 0 && (
+        <p className="text-sm text-base-content/60">
+          Left out of this crawl:{" "}
+          {audit.config.excludedPaths.map((path, index) => (
+            <span key={path}>
+              {index > 0 && ", "}
+              <code className="font-mono text-base-content/80">{path}</code>
+            </span>
+          ))}
+        </p>
+      )}
+
       <StatsStrip
         pagesCrawled={audit.pagesCrawled}
         issues={issues}

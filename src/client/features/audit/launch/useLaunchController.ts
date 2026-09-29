@@ -10,6 +10,7 @@ import {
   DEFAULT_LAUNCH_FORM_VALUES,
   getMaxPagesLimit,
   MIN_PAGES,
+  parseExcludedPathsInput,
   type LaunchFormValues,
 } from "@/client/features/audit/launch/types";
 import {
@@ -86,6 +87,7 @@ export function useLaunchController({
           maxPages: effectiveMaxPages,
           lighthouseStrategy: value.runLighthouse ? "auto" : "none",
           guidelinesStrategy: value.evaluateContent ? "sample" : "none",
+          excludedPaths: parseExcludedPathsInput(value.excludedPathsInput),
         });
         toast.success("Audit started!");
         onAuditStarted(result.auditId);
@@ -122,6 +124,7 @@ function useLaunchMutations({
       maxPages: number;
       lighthouseStrategy: "auto" | "none";
       guidelinesStrategy: "none" | "sample" | "all";
+      excludedPaths: string[];
     }) => startAudit({ data }),
   });
 

@@ -27,7 +27,7 @@ Lo que es propio de cada sitio (dominios, secciones, migraciones, fuentes de dat
 
 ## Fase 1 — Crawl técnico completo
 
-- `run_site_audit` con `maxPages` por encima del total del inventario (tope 10.000), `evaluateContent: false`, y `runLighthouse: true` solo si interesa rendimiento (muestra de 10). El crawl arranca desde robots + sitemaps y es gratis; lo único que cuesta es tiempo (~1 min cada 50 páginas con pacing).
+- `run_site_audit` con `maxPages` por encima del total del inventario (tope 10.000), `evaluateContent: false`, y `runLighthouse: true` solo si interesa rendimiento (muestra de 10). Las secciones que quedan fuera del alcance (anotadas en `audit-scope`) van en `excludePaths` (p. ej. `["/archivo"]`): no se crawlean, no gastan presupuesto de páginas y no suman hallazgos. El crawl arranca desde robots + sitemaps y es gratis; lo único que cuesta es tiempo (~1 min cada 50 páginas con pacing).
 - `get_audit_status` espaciado (cada varios minutos), no en loop.
 - Al terminar: `get_audit_issues` y conteos por `issue_type` × sección (D1). **Agrupá por plantilla de URL**, no por página: 100 títulos largos que salen de la misma plantilla son un solo arreglo.
 - Contrastá: páginas del sitemap que el crawl no alcanzó, páginas crawleadas que no están en el sitemap, noindex inesperados, canonicals que apuntan a otro dominio.

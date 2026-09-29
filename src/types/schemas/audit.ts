@@ -24,6 +24,8 @@ export const startAuditSchema = z.object({
     .enum(["none", "sample", "all"])
     .optional()
     .default("none"),
+  // Sections the crawl leaves out, as path prefixes ("/archive").
+  excludedPaths: z.array(z.string().max(2048)).max(20).optional().default([]),
 });
 
 export const getGuidelineResultsSchema = z.object({

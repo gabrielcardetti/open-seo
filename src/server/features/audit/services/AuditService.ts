@@ -1,3 +1,4 @@
+import { normalizeExcludedPaths } from "@/server/lib/audit/crawl-scope";
 import { env } from "cloudflare:workers";
 import {
   customerHasManagedAccess,
@@ -56,6 +57,7 @@ async function startAudit(input: {
   maxPages?: number;
   lighthouseStrategy?: LighthouseStrategy;
   guidelinesStrategy?: GuidelinesStrategy;
+  excludedPaths?: string[];
   limitTier: AuditLimitTier;
 }) {
   const limits = AUDIT_LIMITS[input.limitTier];
@@ -74,10 +76,21 @@ async function startAudit(input: {
   });
 
   const auditId = crypto.randomUUID();
+  const excludedPaths = normalizeExcludedPaths(input.excludedPaths ?? []);
+  if (
+    excludedPaths.length <
+    (input.excludedPaths ?? []).filter((p) => p.trim()).length
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      'Excluded paths must be sections of the site, such as "/archive"; the whole site ("/") cannot be excluded.',
+    );
+  }
   const config: AuditConfig = {
     maxPages,
     lighthouseStrategy,
     guidelinesStrategy,
+    excludedPaths,
   };
   // Anchor the audit to the site's real origin: a start domain that 301s
   // elsewhere (…net -> …com, apex -> www) would otherwise dead-end after

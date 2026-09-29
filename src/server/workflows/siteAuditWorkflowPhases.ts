@@ -13,6 +13,7 @@ import {
   normalizeUrl,
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
+import { scopeRobots } from "@/server/lib/audit/crawl-scope";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
@@ -73,11 +74,16 @@ export async function runAuditPhases(
     origin,
     startUrl,
     maxPages,
+    excludedPaths: config.excludedPaths,
   });
   // Parsed outside the step from checkpointed text, so replays see the exact
   // robots rules the original run used (a live re-fetch could differ and
-  // desync the frontier from already-persisted crawl batches).
-  const robots = parseRobotsTxt(origin, discovery.robotsText);
+  // desync the frontier from already-persisted crawl batches). The audit's
+  // excluded paths ride on the same gate, so links into them are not followed.
+  const robots = scopeRobots(
+    parseRobotsTxt(origin, discovery.robotsText),
+    config.excludedPaths,
+  );
   const crawl = await runCrawlPhase(step, {
     auditId,
     workflowInstanceId,
@@ -125,6 +131,7 @@ async function runDiscoveryPhase(
     origin: string;
     startUrl: string;
     maxPages: number;
+    excludedPaths: readonly string[];
   },
 ) {
   const { auditId, workflowInstanceId, origin, startUrl, maxPages } = input;
@@ -134,7 +141,10 @@ async function runDiscoveryPhase(
   // shape would leave the scratchpad empty and finalize a zero-page audit.
   return pgStep(step, "discover-urls-v2", DISCOVERY_STEP, async () => {
     const result = await discoverUrls(origin, maxPages);
-    const robots = parseRobotsTxt(origin, result.robotsText);
+    const robots = scopeRobots(
+      parseRobotsTxt(origin, result.robotsText),
+      input.excludedPaths,
+    );
     const scratchpad = getAuditScratchpad(auditId);
 
     // Seeds go straight into the scratchpad frontier — nothing large is

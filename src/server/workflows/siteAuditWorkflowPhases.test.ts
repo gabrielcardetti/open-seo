@@ -72,6 +72,7 @@ const PHASE_PARAMS = {
     maxPages: 50,
     lighthouseStrategy: "auto" as const,
     guidelinesStrategy: "none" as const,
+    excludedPaths: [],
   },
 };
 

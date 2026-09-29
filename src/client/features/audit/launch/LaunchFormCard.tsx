@@ -78,6 +78,7 @@ export function LaunchFormCard({
             />
             <LighthouseOptions launchForm={launchForm} />
             <ContentGuidelinesOption launchForm={launchForm} />
+            <ExcludedPathsOption launchForm={launchForm} />
           </div>
         </form>
 
@@ -206,6 +207,40 @@ function LaunchErrors({ launchForm }: Pick<Props, "launchForm">) {
           ) : null;
         }}
       </launchForm.Subscribe>
+    </div>
+  );
+}
+
+function ExcludedPathsOption({ launchForm }: Pick<Props, "launchForm">) {
+  return (
+    <div className="rounded-lg border border-base-300 bg-base-200/20 p-3 space-y-2">
+      <label
+        htmlFor="audit-excluded-paths"
+        className="text-xs font-medium uppercase tracking-wide text-base-content/60"
+      >
+        Leave out sections
+      </label>
+      <launchForm.Field name="excludedPathsInput">
+        {(field) => (
+          <textarea
+            id="audit-excluded-paths"
+            rows={2}
+            placeholder={"/archive\n/tag"}
+            className="textarea textarea-bordered textarea-sm w-full font-mono"
+            value={field.state.value}
+            onChange={(event) => {
+              field.handleChange(event.target.value);
+              if (launchForm.state.errorMap.onSubmit) {
+                launchForm.setErrorMap({ onSubmit: undefined });
+              }
+            }}
+          />
+        )}
+      </launchForm.Field>
+      <p className="text-xs text-base-content/50">
+        One path per line. Pages under these paths are not crawled, so they use
+        none of the page limit and add no findings.
+      </p>
     </div>
   );
 }
