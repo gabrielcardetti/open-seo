@@ -14,6 +14,8 @@ import { resolveAudit } from "@/server/mcp/tools/guideline-tool-support";
 
 /** URL lists are capped in the response; counts are always exact. */
 const MAX_LISTED = 50;
+/** Template rows in the text answer; the full list is in structuredContent. */
+const MAX_TEMPLATE_LINES = 20;
 
 const inputSchema = {
   projectId: projectIdSchema,
@@ -63,7 +65,7 @@ export const compareAuditsTool = {
   config: {
     title: "Compare two site audits",
     description:
-      "Before/after between two audits of the same project: pages added and removed, each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
+      "Before/after between two audits of the same project: pages added and removed, each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after. issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
     inputSchema,
     outputSchema: z
       .object({
@@ -108,6 +110,19 @@ export const compareAuditsTool = {
         (t) =>
           `- ${t.issueType}: ${t.before} → ${t.after} (resolved ${t.resolved}, new ${t.introduced})`,
       ),
+      `On the ${diff.issues.common.urls} URLs both audits crawled: ${diff.issues.common.before} → ${diff.issues.common.after} issues.`,
+      ...diff.issues.common.byType.map(
+        (t) =>
+          `- ${t.issueType}: ${t.before} → ${t.after} (resolved ${t.resolved}, new ${t.introduced})`,
+      ),
+      "By URL template, same URLs (most changed first):",
+      ...diff.issues.common.byTemplate
+        .filter((t) => t.resolved + t.introduced > 0)
+        .slice(0, MAX_TEMPLATE_LINES)
+        .map(
+          (t) =>
+            `- ${t.issueType} on ${t.template}: ${t.before} → ${t.after} (resolved ${t.resolved}, new ${t.introduced})`,
+        ),
       `Guideline verdicts: ${JSON.stringify(diff.guidelines.before)} → ${JSON.stringify(diff.guidelines.after)}; improved ${diff.guidelines.improved.length}, worsened ${diff.guidelines.worsened.length}.`,
       ...(diff.guidelines.site.before || diff.guidelines.site.after
         ? [
@@ -128,7 +143,14 @@ export const compareAuditsTool = {
           addedCount: diff.pages.added.length,
           removedCount: diff.pages.removed.length,
         },
-        issues: diff.issues,
+        issues: {
+          ...diff.issues,
+          common: {
+            ...diff.issues.common,
+            byTemplate: diff.issues.common.byTemplate.slice(0, MAX_LISTED),
+            byTemplateCount: diff.issues.common.byTemplate.length,
+          },
+        },
         guidelines: {
           ...diff.guidelines,
           improved: diff.guidelines.improved.slice(0, MAX_LISTED),

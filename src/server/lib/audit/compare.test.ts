@@ -39,6 +39,17 @@ describe("compareAudits", () => {
         introduced: 1,
       },
     ]);
+    // On the URLs both audits crawled, nothing changed: /b left the sample
+    // and /c entered it, neither was fixed or broken.
+    expect(diff.issues.common.byType).toEqual([
+      {
+        issueType: "title-too-long",
+        before: 1,
+        after: 1,
+        resolved: 0,
+        introduced: 0,
+      },
+    ]);
     expect(diff.guidelines.improved).toEqual([
       { url: "/a", before: "revise", after: "pass" },
     ]);
