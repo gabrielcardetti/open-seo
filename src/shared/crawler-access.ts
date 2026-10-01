@@ -1,14 +1,20 @@
 /**
- * Shopify crawler access.
+ * Crawler access: credentials a site owner gives the audit crawler so it gets
+ * through their own protection, replayed as static headers on every request
+ * to the one host they were saved for.
  *
- * Shopify storefronts rate-limit (429) and sometimes block crawlers they
- * haven't authorized. The merchant mints a domain-scoped signature in Shopify
- * admin (Online Store -> Preferences -> Crawler access) and the crawler
- * replays it as three static headers on every request to that domain.
+ * - Shopify storefronts rate-limit (429) and sometimes block crawlers they
+ *   haven't authorized. The merchant mints a domain-scoped signature in
+ *   Shopify admin (Online Store -> Preferences -> Crawler access).
+ * - Sites behind Cloudflare Access (previews, staging) redirect every
+ *   unauthenticated request to a login page. A service token, allowed by a
+ *   "Service Auth" policy, lets a non-browser client through.
  *
  * These helpers are pure so both the crawler and the input validation can use
  * them.
  */
+
+export type CrawlerAccessProvider = "shopify" | "cloudflare_access";
 
 /** Constant Shopify expects, quotes included. We supply it; users never see it. */
 export const SHOPIFY_SIGNATURE_AGENT = '"https://shopify.com"';
@@ -18,9 +24,13 @@ export const SHOPIFY_CRAWLER_ACCESS_DOC_URL =
 
 export const MAX_SIGNATURE_VALUE_LENGTH = 4096;
 
+/** Every service token Client ID ends in `.access`. */
+export const CLOUDFLARE_CLIENT_ID_SUFFIX_MESSAGE =
+  "Copy the whole Client ID, including the part ending in .access.";
+
 /**
  * Credential headers bound to the host they were issued for. The binding is
- * the security boundary: these values are bot-protection credentials and must
+ * the security boundary: these values are access credentials and must
  * never be sent to another site, including across a redirect hop.
  */
 export interface CrawlerAccess {
@@ -38,6 +48,16 @@ export function shopifyCrawlerHeaders(
     "Signature-Input": signatureInput,
     Signature: signature,
     "Signature-Agent": SHOPIFY_SIGNATURE_AGENT,
+  };
+}
+
+export function cloudflareAccessHeaders(
+  clientId: string,
+  clientSecret: string,
+): Record<string, string> {
+  return {
+    "CF-Access-Client-Id": clientId,
+    "CF-Access-Client-Secret": clientSecret,
   };
 }
 
@@ -63,10 +83,11 @@ export function normalizeCrawlerHost(input: string): string | null {
 
 /**
  * Headers to send with a request to `url`, or `{}` when it isn't the host the
- * signature was created for, over https, before its expiry. The host match is
+ * credential was saved for, over https, before its expiry. The host match is
  * exact: Shopify scopes a signature to one domain, so `www.store.com` and
- * `store.com` need their own. A redirect to plain http must not replay the
- * signature in cleartext.
+ * `store.com` need their own, and an Access token must not leak to a sibling
+ * subdomain. A redirect to plain http must not replay the credential in
+ * cleartext.
  */
 export function crawlerHeadersFor(
   url: string,

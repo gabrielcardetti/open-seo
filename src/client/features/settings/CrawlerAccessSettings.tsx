@@ -25,10 +25,16 @@ import { SectionHeader } from "@/client/components/PageHeader";
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString();
 
+const providerLabels = {
+  shopify: "Shopify signature",
+  cloudflare_access: "Cloudflare Access token",
+} as const;
+
 /**
- * Shopify crawler-access signatures saved on this project. The audit crawler
- * replays them per host, and other projects in the organization that audit
- * the same host pick them up too.
+ * Crawler-access credentials saved on this project: Shopify signatures and
+ * Cloudflare Access service tokens. The audit crawler replays them per host,
+ * and other projects in the organization that audit the same host pick them
+ * up too.
  */
 export function CrawlerAccessSettings({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -57,11 +63,14 @@ export function CrawlerAccessSettings({ projectId }: { projectId: string }) {
       <SectionHeader title="Crawler access" />
       <div className="flex items-start justify-between gap-6">
         <div>
-          <p className="text-sm">Let the audit crawler through Shopify</p>
+          <p className="text-sm">
+            Let the audit crawler through Shopify or Cloudflare Access
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Paste the signature you created in Shopify admin under Online Store
-            &rarr; Preferences &rarr; Crawler access. Every audit of that domain
-            in your organization sends it with each request.
+            Paste a Shopify crawler signature (Online Store &rarr; Preferences
+            &rarr; Crawler access) or a Cloudflare Access service token. Every
+            audit of that domain in your organization sends it with each
+            request.
           </p>
         </div>
         <Button
@@ -69,7 +78,7 @@ export function CrawlerAccessSettings({ projectId }: { projectId: string }) {
           size="sm"
           onClick={() => setIsAdding((value) => !value)}
         >
-          {isAdding ? "Cancel" : "Add signature"}
+          {isAdding ? "Cancel" : "Add credential"}
         </Button>
       </div>
 
@@ -104,7 +113,7 @@ export function CrawlerAccessSettings({ projectId }: { projectId: string }) {
                 <TableRow key={credential.id}>
                   <TableCell className="font-mono">{credential.host}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    Shopify signature
+                    {providerLabels[credential.provider]}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(credential.createdAt)}
@@ -112,7 +121,9 @@ export function CrawlerAccessSettings({ projectId }: { projectId: string }) {
                   <TableCell className="text-muted-foreground">
                     {credential.expiresAt
                       ? formatDate(credential.expiresAt)
-                      : "Unknown"}
+                      : credential.provider === "cloudflare_access"
+                        ? "—"
+                        : "Unknown"}
                     {isCrawlerAccessExpired(credential.expiresAt) && (
                       <span className="ml-2 text-destructive">Expired</span>
                     )}

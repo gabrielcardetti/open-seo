@@ -1,30 +1,47 @@
 import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { CrawlerCredentialRepository } from "@/server/features/audit/repositories/CrawlerCredentialRepository";
 import {
+  checkCloudflareAccessToken,
+  type CloudflareAccessProblem,
+} from "@/server/features/audit/services/cloudflareAccessToken";
+import {
   checkShopifySignature,
   type ShopifySignatureProblem,
 } from "@/server/features/audit/services/shopifySignature";
 import { AppError } from "@/server/lib/errors";
 import { getOptionalEnvValue } from "@/server/lib/runtime-env";
 import {
+  cloudflareAccessHeaders,
   isCrawlerAccessExpired,
   parseSignatureExpiry,
   shopifyCrawlerHeaders,
   type CrawlerAccess,
+  type CrawlerAccessProvider,
 } from "@/shared/crawler-access";
 import { MIN_BETTER_AUTH_SECRET_LENGTH } from "@/shared/selfhost-checks";
 
 /**
  * A credential as it exists at rest: in the database and in the audit
- * workflow's persisted params. The signature values are ciphertext until
- * `openCrawlerAccess` decrypts them in memory for a crawl.
+ * workflow's persisted params. The two values are ciphertext until
+ * `openCrawlerAccess` decrypts them in memory for a crawl. For Cloudflare
+ * Access they hold the service token's Client ID and Client Secret.
  */
 export interface SealedCrawlerAccess {
   host: string;
+  provider: CrawlerAccessProvider;
   signatureInput: string;
   signature: string;
   expiresAt: string | null;
 }
+
+/** The plaintext values a user saves, as the client sends them. */
+type CrawlerCredentialValues =
+  | { provider: "shopify"; signatureInput: string; signature: string }
+  | { provider: "cloudflare_access"; clientId: string; clientSecret: string };
+
+type CrawlerCredentialProblem =
+  | ShopifySignatureProblem
+  | CloudflareAccessProblem;
 
 // Same key as the stored Google OAuth tokens, so self-hosters have one secret
 // to set and hosted mode always has it.
@@ -33,14 +50,14 @@ async function getEncryptionKey(): Promise<string> {
   if (!secret || secret.length < MIN_BETTER_AUTH_SECRET_LENGTH) {
     throw new AppError(
       "AUTH_CONFIG_MISSING",
-      `Set BETTER_AUTH_SECRET to at least ${MIN_BETTER_AUTH_SECRET_LENGTH} characters to store crawler access signatures. It encrypts them.`,
+      `Set BETTER_AUTH_SECRET to at least ${MIN_BETTER_AUTH_SECRET_LENGTH} characters to store crawler access credentials. It encrypts them.`,
     );
   }
   return secret;
 }
 
 /**
- * What the client is allowed to see. The signature values are bot-protection
+ * What the client is allowed to see. The stored values are access
  * credentials: they never leave the server, in responses, errors, logs, or
  * analytics properties.
  */
@@ -48,7 +65,7 @@ interface CrawlerCredentialSummary {
   id: string;
   projectId: string;
   host: string;
-  provider: "shopify";
+  provider: CrawlerAccessProvider;
   createdAt: string;
   expiresAt: string | null;
 }
@@ -77,36 +94,56 @@ async function listCrawlerCredentials(
 }
 
 /**
- * A signature Shopify would ignore on this host comes back as a problem to
- * show next to the form, instead of being stored and failing as 429s.
+ * A credential the site would ignore on this host (a Shopify signature for
+ * another domain, an Access token its policy doesn't let through) comes back
+ * as a problem to show next to the form, instead of being stored and failing
+ * the crawl.
  */
 async function saveCrawlerCredential(input: {
   organizationId: string;
   projectId: string;
   userId: string;
   host: string;
-  signatureInput: string;
-  signature: string;
+  values: CrawlerCredentialValues;
 }): Promise<
   | { credential: CrawlerCredentialSummary }
-  | { problem: ShopifySignatureProblem }
+  | { problem: CrawlerCredentialProblem }
 > {
   const key = await getEncryptionKey();
-  const problem = await checkShopifySignature({
-    host: input.host,
-    signatureInput: input.signatureInput,
-    signature: input.signature,
-  });
-  if (problem) return { problem };
+  const { values } = input;
+  const stored =
+    values.provider === "shopify"
+      ? {
+          first: values.signatureInput,
+          second: values.signature,
+          expiresAt: parseSignatureExpiry(values.signatureInput),
+          problem: await checkShopifySignature({
+            host: input.host,
+            signatureInput: values.signatureInput,
+            signature: values.signature,
+          }),
+        }
+      : {
+          first: values.clientId,
+          second: values.clientSecret,
+          // Access doesn't tell the client when a service token expires.
+          expiresAt: null,
+          problem: await checkCloudflareAccessToken({
+            host: input.host,
+            clientId: values.clientId,
+            clientSecret: values.clientSecret,
+          }),
+        };
+  if (stored.problem) return { problem: stored.problem };
 
   await CrawlerCredentialRepository.upsert({
     id: crypto.randomUUID(),
     projectId: input.projectId,
     host: input.host,
-    provider: "shopify",
-    signatureInput: await symmetricEncrypt({ key, data: input.signatureInput }),
-    signature: await symmetricEncrypt({ key, data: input.signature }),
-    expiresAt: parseSignatureExpiry(input.signatureInput),
+    provider: values.provider,
+    signatureInput: await symmetricEncrypt({ key, data: stored.first }),
+    signature: await symmetricEncrypt({ key, data: stored.second }),
+    expiresAt: stored.expiresAt,
     createdByUserId: input.userId,
   });
 
@@ -127,6 +164,7 @@ async function deleteCrawlerCredential(input: {
 /**
  * The credential the audit crawler should replay for this host, if any. An
  * expired one is skipped: Shopify rejects it, and the report names the expiry.
+ * Access service tokens have no known expiry, so they are always replayed.
  */
 async function resolveCrawlerAccess(
   organizationId: string,
@@ -147,6 +185,7 @@ async function resolveCrawlerAccess(
     id: row.id,
     sealed: {
       host: row.host,
+      provider: row.provider,
       signatureInput: row.signatureInput,
       signature: row.signature,
       expiresAt: row.expiresAt,
@@ -161,17 +200,21 @@ async function openCrawlerAccess(
   if (!sealed) return null;
   try {
     const key = await getEncryptionKey();
+    const first = await symmetricDecrypt({ key, data: sealed.signatureInput });
+    const second = await symmetricDecrypt({ key, data: sealed.signature });
     return {
       host: sealed.host,
       expiresAt: sealed.expiresAt,
-      headers: shopifyCrawlerHeaders(
-        await symmetricDecrypt({ key, data: sealed.signatureInput }),
-        await symmetricDecrypt({ key, data: sealed.signature }),
-      ),
+      // Workflow params persisted before Access tokens existed carry no
+      // provider; those are Shopify signatures.
+      headers:
+        sealed.provider === "cloudflare_access"
+          ? cloudflareAccessHeaders(first, second)
+          : shopifyCrawlerHeaders(first, second),
     };
   } catch {
-    // A rotated BETTER_AUTH_SECRET makes stored signatures unreadable. Crawl
-    // unsigned rather than fail the audit; the report asks for a new one.
+    // A rotated BETTER_AUTH_SECRET makes stored credentials unreadable. Crawl
+    // without them rather than fail the audit; the report asks for new ones.
     console.warn(`Could not decrypt crawler access for ${sealed.host}`);
     return null;
   }

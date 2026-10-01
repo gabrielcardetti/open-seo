@@ -10,7 +10,7 @@ import {
   saveCrawlerCredentialSchema,
 } from "@/types/schemas/crawlerAccess";
 
-// Crawler-access signatures are saved on a project but read across the
+// Crawler-access credentials are saved on a project but read across the
 // organization, so they get the same gate as the other third-party
 // connections (GSC/GA4).
 export const listCrawlerCredentials = createServerFn({ method: "GET" })
@@ -29,8 +29,7 @@ export const saveCrawlerCredential = createServerFn({ method: "POST" })
       projectId: context.projectId,
       userId: context.userId,
       host: data.host,
-      signatureInput: data.signatureInput,
-      signature: data.signature,
+      values: data,
     });
   });
 

@@ -2,6 +2,7 @@ import { and, asc, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
 import { sortBy } from "remeda";
 import { db } from "@/db";
 import { crawlerCredentials, projects } from "@/db/schema";
+import type { CrawlerAccessProvider } from "@/shared/crawler-access";
 
 // Credentials live on a project, and the organization owns the projects.
 // Archived projects are hidden everywhere, so their credentials are too.
@@ -14,7 +15,7 @@ function inOrganization(organizationId: string) {
 
 /**
  * Looks across every project in the organization, so a store audited from a
- * second project still finds the signature saved on the first. The host match
+ * second project still finds the credential saved on the first. The host match
  * is exact, because Shopify scopes a signature to one domain. Returns every
  * match, the audited project's own row first, so the caller can skip an
  * expired row in favour of a live one on another project.
@@ -48,7 +49,7 @@ async function upsert(input: {
   id: string;
   projectId: string;
   host: string;
-  provider: "shopify";
+  provider: CrawlerAccessProvider;
   signatureInput: string;
   signature: string;
   expiresAt: string | null;

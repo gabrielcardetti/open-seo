@@ -78,6 +78,32 @@ save it, and sends it only to the domain it was created for. If you self-host,
 set `BETTER_AUTH_SECRET` (at least 32 characters) before saving a signature,
 because that secret is the encryption key.
 
+## Auditing a preview behind Cloudflare Access
+
+A preview or staging site protected by Cloudflare Access sends every visitor
+without a login to a sign-in page, so an audit would only see that page. To let
+OpenSEO through, give it a Cloudflare Access service token:
+
+1. In Cloudflare Zero Trust, go to **Access controls → Service credentials →
+   Service Tokens** and create a token. Copy the Client ID and Client Secret;
+   the secret is shown only once.
+2. In the Access application that protects the preview, add a policy with the
+   **Service Auth** action that includes the token. A policy with the Allow
+   action still sends the token to the sign-in page.
+3. In OpenSEO, under **Project settings → Integrations → Crawler access**,
+   choose **Cloudflare Access service token**, enter the preview's domain, and
+   paste both values.
+
+Copy the whole Client ID, including the part that ends in `.access`. When you
+save, OpenSEO makes one request to the domain with the token, and tells you if
+Cloudflare Access still sends it to the sign-in page. Like a Shopify signature,
+the token is encrypted, never shown again, and sent only to the exact domain you
+entered, over HTTPS. OpenSEO doesn't know when a service token expires; if you
+let it expire or revoke it, create a new one and paste it in the same place.
+
+Performance (Lighthouse) checks run from an outside service that doesn't carry
+the token, so they can't measure a protected preview.
+
 ## Use it with OpenSEO MCP
 
 Set up [OpenSEO MCP](/docs/mcp) so your agent can run the audit and read backlink data, traffic estimates, and keyword ideas. The site audit is included on every plan (up to 50 pages on the free plan); backlink, domain, ranking, live-search, and keyword lookups spend credits. The skill expands research when it can change the diagnosis or priority, reuses relevant evidence, and respects explicit budgets. Cost varies with the investigation rather than a fixed lookup allowance.

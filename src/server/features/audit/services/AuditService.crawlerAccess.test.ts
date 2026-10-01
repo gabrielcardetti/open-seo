@@ -61,20 +61,21 @@ async function credentialRow(expiresAt: string | null) {
   return {
     id: "cred-1",
     host: "store.example.com",
+    provider: "shopify",
     signatureInput: await symmetricEncrypt({ key: SECRET, data: "sig1=(...)" }),
     signature: await symmetricEncrypt({ key: SECRET, data: "sig1=:abc:" }),
     expiresAt,
   };
 }
 
-function probeSignature() {
+function probeHeaders() {
   const probe = vi
     .mocked(fetch)
     .mock.calls.find(
       (call) =>
         typeof call[0] === "string" && call[0].startsWith("https://store."),
     );
-  return new Headers(probe?.[1]?.headers).get("signature");
+  return new Headers(probe?.[1]?.headers);
 }
 
 const input = {
@@ -117,7 +118,7 @@ describe("startAudit crawler access", () => {
   it("records the Shopify platform and keeps the signature encrypted at rest", async () => {
     await AuditService.startAudit(input);
 
-    expect(probeSignature()).toBe("sig1=:abc:");
+    expect(probeHeaders().get("signature")).toBe("sig1=:abc:");
     const config = createAuditMock.mock.calls[0][0].config;
     expect(config.sitePlatform).toBe("shopify");
     expect(config.crawlerCredentialId).toBe("cred-1");
@@ -135,10 +136,31 @@ describe("startAudit crawler access", () => {
 
     await AuditService.startAudit(input);
 
-    expect(probeSignature()).toBeNull();
+    expect(probeHeaders().get("signature")).toBeNull();
     expect(
       createAuditMock.mock.calls[0][0].config.crawlerCredentialId,
     ).toBeUndefined();
     expect(workflowCreateMock.mock.calls[0][0].params.access).toBeUndefined();
+  });
+
+  it("replays a Cloudflare Access service token as CF-Access headers", async () => {
+    findCredentialMock.mockResolvedValue([
+      {
+        ...(await credentialRow(null)),
+        provider: "cloudflare_access",
+        signatureInput: await symmetricEncrypt({
+          key: SECRET,
+          data: "client.access",
+        }),
+        signature: await symmetricEncrypt({ key: SECRET, data: "secret" }),
+      },
+    ]);
+
+    await AuditService.startAudit(input);
+
+    const headers = probeHeaders();
+    expect(headers.get("cf-access-client-id")).toBe("client.access");
+    expect(headers.get("cf-access-client-secret")).toBe("secret");
+    expect(headers.get("signature")).toBeNull();
   });
 });

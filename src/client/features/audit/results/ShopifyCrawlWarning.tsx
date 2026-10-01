@@ -43,6 +43,9 @@ export function ShopifyCrawlWarning({
   const credentialsQuery = useQuery({
     queryKey: crawlerCredentialsQueryKey,
     queryFn: () => listCrawlerCredentials(),
+    // Only a Shopify signature answers Shopify's rate limiting; a Cloudflare
+    // Access token saved for the same host says nothing about it.
+    select: (rows) => rows.filter((row) => row.provider === "shopify"),
   });
   // A recorded credential id names the signature this crawl used, whatever
   // else is stored for the host on another project. If that one has expired
@@ -182,6 +185,7 @@ export function ShopifyCrawlWarning({
           projectId={projectId}
           initialHost={host}
           lockHost
+          provider="shopify"
         />
 
         <div className="flex flex-wrap items-center gap-4">

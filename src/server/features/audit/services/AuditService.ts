@@ -118,6 +118,14 @@ async function startAudit(input: {
   );
   const startUrl = probe.url;
   const startHost = new URL(startUrl).hostname;
+  // A site behind Cloudflare Access sends a request without an accepted
+  // service token to its login page; auditing that page tells nothing.
+  if (startHost.endsWith(".cloudflareaccess.com")) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `${new URL(requestedUrl).hostname} is behind Cloudflare Access and redirected the crawler to its login page. Save a Cloudflare Access service token for this host in the project settings under Integrations → Crawler access (its Access policy needs the Service Auth action), then start the audit again.`,
+    );
+  }
   if (startHost !== new URL(requestedUrl).hostname) {
     credential = await CrawlerCredentialService.resolveCrawlerAccess(
       organizationId,

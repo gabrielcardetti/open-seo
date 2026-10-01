@@ -448,11 +448,15 @@ export const crawlerCredentials = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     // Normalized lowercase hostname, e.g. "www.store.com".
     host: text("host").notNull(),
-    provider: text("provider", { enum: ["shopify"] }).notNull(),
+    provider: text("provider", {
+      enum: ["shopify", "cloudflare_access"],
+    }).notNull(),
+    // Encrypted. Shopify: Signature-Input and Signature. Cloudflare Access:
+    // the service token's Client ID and Client Secret.
     signatureInput: text("signature_input").notNull(),
     signature: text("signature").notNull(),
     // Parsed from the RFC 9421 `expires=` parameter when present; null when
-    // the signature input carries no expiry.
+    // the signature input carries no expiry, and for Access service tokens.
     expiresAt: timestampColumn("expires_at"),
     createdByUserId: text("created_by_user_id"),
     createdAt: timestampColumn("created_at").notNull().default(isoNow),

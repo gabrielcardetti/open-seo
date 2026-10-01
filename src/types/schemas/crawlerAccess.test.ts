@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { saveCrawlerCredentialSchema } from "@/types/schemas/crawlerAccess";
 
 const valid = {
+  provider: "shopify" as const,
   projectId: "project-1",
   host: "https://store.example.com/collections/all",
   signatureInput: "sig1=(...);expires=4102444800",

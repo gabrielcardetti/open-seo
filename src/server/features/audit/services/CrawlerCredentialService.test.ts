@@ -53,7 +53,7 @@ function save(values: { signatureInput: string; signature: string }) {
     projectId: "project-1",
     userId: "user-1",
     host: "store.example.com",
-    ...values,
+    values: { provider: "shopify", ...values },
   });
 }
 
@@ -120,5 +120,51 @@ describe("saveCrawlerCredential", () => {
     );
 
     expect(result).toMatchObject({ credential: { host: "store.example.com" } });
+  });
+});
+
+describe("saveCrawlerCredential for Cloudflare Access", () => {
+  function saveToken() {
+    return CrawlerCredentialService.saveCrawlerCredential({
+      organizationId: "org-1",
+      projectId: "project-1",
+      userId: "user-1",
+      host: "preview.example.com",
+      values: {
+        provider: "cloudflare_access",
+        clientId: "client.access",
+        clientSecret: "secret",
+      },
+    });
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(
+          url.includes("dns-query")
+            ? Response.json({ Status: 0, Answer: [] })
+            : new Response(null, {
+                status: 302,
+                headers: {
+                  location:
+                    "https://team.cloudflareaccess.com/cdn-cgi/access/login/preview.example.com",
+                },
+              }),
+        ),
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects a token Access still sends to its login page", async () => {
+    expect(await saveToken()).toEqual({
+      problem: { reason: "access_denied", host: "preview.example.com" },
+    });
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 });
