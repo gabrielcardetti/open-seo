@@ -14,7 +14,11 @@ import {
   normalizeUrl,
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
-import { scopeRobots } from "@/server/lib/audit/crawl-scope";
+import {
+  isScopedCrawl,
+  scopeRobots,
+  type CrawlScope,
+} from "@/server/lib/audit/crawl-scope";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
@@ -78,16 +82,16 @@ export async function runAuditPhases(
     origin,
     startUrl,
     maxPages,
-    excludedPaths: config.excludedPaths,
+    scope: config,
     access,
   });
   // Parsed outside the step from checkpointed text, so replays see the exact
   // robots rules the original run used (a live re-fetch could differ and
   // desync the frontier from already-persisted crawl batches). The audit's
-  // excluded paths ride on the same gate, so links into them are not followed.
+  // path scope rides on the same gate, so links out of it are not followed.
   const robots = scopeRobots(
     parseRobotsTxt(origin, discovery.robotsText),
-    config.excludedPaths,
+    config,
   );
   const crawl = await runCrawlPhase(step, {
     auditId,
@@ -137,7 +141,7 @@ async function runDiscoveryPhase(
     origin: string;
     startUrl: string;
     maxPages: number;
-    excludedPaths: readonly string[];
+    scope: CrawlScope;
     access?: CrawlerAccess | null;
   },
 ) {
@@ -151,7 +155,7 @@ async function runDiscoveryPhase(
     const result = await discoverUrls(origin, maxPages, access);
     const robots = scopeRobots(
       parseRobotsTxt(origin, result.robotsText),
-      input.excludedPaths,
+      input.scope,
     );
     const scratchpad = getAuditScratchpad(auditId);
 
@@ -387,7 +391,12 @@ async function finalizeAudit(args: {
       issueCount: issues.length,
     });
     const linksStartedAt = Date.now();
-    const linkIssues = await runScratchpadLinkChecks(auditId, startUrl, crawl);
+    const linkIssues = await runScratchpadLinkChecks(
+      auditId,
+      startUrl,
+      crawl,
+      isScopedCrawl(config),
+    );
     console.info("Audit link checks completed", {
       auditId,
       durationMs: Date.now() - linksStartedAt,
@@ -453,14 +462,17 @@ async function runScratchpadLinkChecks(
   auditId: string,
   startUrl: string,
   crawl: CrawlPhaseResult,
+  scoped: boolean,
 ): Promise<DetectedIssue[]> {
   const scratchpad = getAuditScratchpad(auditId);
   const { brokenLinks, orphanPages } = await scratchpad.runFinalizeChecks({
     // Page rows store normalized URLs; normalize the start URL the same way
     // so the orphan exclusion matches.
     startUrl: normalizeUrl(startUrl) ?? startUrl,
-    // Orphan detection only makes sense when the crawl wasn't truncated.
-    crawlCompleted: crawl.completed,
+    // Orphan detection only makes sense on the whole site's link graph: a
+    // truncated crawl, or one kept to some sections, never saw the pages
+    // outside it that may link in.
+    crawlCompleted: crawl.completed && !scoped,
   });
 
   return [

@@ -1,4 +1,7 @@
-import { normalizeExcludedPaths } from "@/server/lib/audit/crawl-scope";
+import {
+  isUnderPaths,
+  normalizeScopePaths,
+} from "@/server/lib/audit/crawl-scope";
 import { env } from "cloudflare:workers";
 import {
   customerHasManagedAccess,
@@ -50,6 +53,24 @@ async function resolveAuditLimitTier(
   return hasPaidPlan ? "paid" : "free";
 }
 
+function parseScopePaths(
+  raw: readonly string[] | undefined,
+  label: "Included" | "Excluded",
+): string[] {
+  // Checked one entry at a time: the normalized list is deduplicated, so its
+  // length says nothing about whether an entry was rejected.
+  const invalid = (raw ?? []).find(
+    (path) => path.trim() && normalizeScopePaths([path]).length === 0,
+  );
+  if (invalid !== undefined) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `${label} paths must be sections of the site, such as "/archive"; "${invalid}" is not one.`,
+    );
+  }
+  return normalizeScopePaths(raw ?? []);
+}
+
 async function startAudit(input: {
   actorUserId: string;
   billingCustomer: BillingCustomerContext;
@@ -58,6 +79,7 @@ async function startAudit(input: {
   maxPages?: number;
   lighthouseStrategy?: LighthouseStrategy;
   guidelinesStrategy?: GuidelinesStrategy;
+  includedPaths?: string[];
   excludedPaths?: string[];
   limitTier: AuditLimitTier;
 }) {
@@ -77,16 +99,8 @@ async function startAudit(input: {
   });
 
   const auditId = crypto.randomUUID();
-  const excludedPaths = normalizeExcludedPaths(input.excludedPaths ?? []);
-  if (
-    excludedPaths.length <
-    (input.excludedPaths ?? []).filter((p) => p.trim()).length
-  ) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      'Excluded paths must be sections of the site, such as "/archive"; the whole site ("/") cannot be excluded.',
-    );
-  }
+  const includedPaths = parseScopePaths(input.includedPaths, "Included");
+  const excludedPaths = parseScopePaths(input.excludedPaths, "Excluded");
   const organizationId = input.billingCustomer.organizationId;
   const requestedUrl = await normalizeAndValidateStartUrl(input.startUrl);
   // The probe itself can be rate limited, so it carries the credential too.
@@ -112,10 +126,20 @@ async function startAudit(input: {
     );
   }
 
+  // The start URL seeds the crawl; outside the included sections it would be
+  // dropped, and a site without a sitemap would crawl nothing at all.
+  if (includedPaths.length > 0 && !isUnderPaths(startUrl, includedPaths)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `The start URL ${startUrl} is outside the included paths (${includedPaths.join(", ")}). Start the audit inside one of them.`,
+    );
+  }
+
   const config: AuditConfig = {
     maxPages,
     lighthouseStrategy,
     guidelinesStrategy,
+    includedPaths,
     excludedPaths,
     // Shopify storefronts answer with `powered-by: Shopify`; knowing this is
     // what lets the report explain a throttled crawl instead of shrugging.

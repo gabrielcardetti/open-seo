@@ -136,6 +136,7 @@ const PARAMS = {
     maxPages: 50,
     lighthouseStrategy: "none" as const,
     guidelinesStrategy: "all" as GuidelinesStrategy,
+    includedPaths: [],
     excludedPaths: [],
   },
   crawlCompleted: true,

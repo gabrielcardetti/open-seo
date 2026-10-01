@@ -67,6 +67,13 @@ const runInputSchema = {
     .describe(
       "Also judge a sample of pages against Google's official content guidelines (people-first, E-E-A-T, spam policies, AI guidance) and give each a verdict (default false). Read the result with get_guideline_results. To judge with your own model instead, leave this off and use get_guidelines_evaluation_batch.",
     ),
+  includePaths: z
+    .array(z.string().max(2048))
+    .max(20)
+    .optional()
+    .describe(
+      'Keep the crawl inside these sections of the site, as path prefixes such as "/bopv" (a full URL works too), matched on whole path segments like excludePaths. Only pages under them are seeded from sitemaps or followed from links, so the page budget goes to that section alone. The start URL must be inside one of them. Orphan pages are not reported for a crawl kept to some sections: links into them from the rest of the site were never seen.',
+    ),
   excludePaths: z
     .array(z.string().max(2048))
     .max(20)
@@ -117,6 +124,7 @@ export const runSiteAuditTool = {
         maxPages: args.maxPages,
         lighthouseStrategy,
         guidelinesStrategy,
+        includedPaths: args.includePaths,
         excludedPaths: args.excludePaths,
         limitTier,
       }));

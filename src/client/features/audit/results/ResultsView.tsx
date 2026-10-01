@@ -127,6 +127,18 @@ export function ResultsView({
         </Alert>
       )}
 
+      {audit.config.includedPaths.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Crawl kept to:{" "}
+          {audit.config.includedPaths.map((path, index) => (
+            <span key={path}>
+              {index > 0 && ", "}
+              <code className="font-mono text-foreground">{path}</code>
+            </span>
+          ))}
+        </p>
+      )}
+
       {audit.config.excludedPaths.length > 0 && (
         <p className="text-sm text-muted-foreground">
           Left out of this crawl:{" "}

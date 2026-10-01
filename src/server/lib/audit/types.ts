@@ -20,6 +20,8 @@ export interface AuditConfig {
   maxPages: number;
   lighthouseStrategy: LighthouseStrategy;
   guidelinesStrategy: GuidelinesStrategy;
+  /** When non-empty, the only path prefixes the crawl covers (see crawl-scope.ts). */
+  includedPaths: string[];
   /** Path prefixes the crawl leaves out, e.g. "/archive" (see crawl-scope.ts). */
   excludedPaths: string[];
   /** Detected from the start URL's `powered-by` response header. */
@@ -53,7 +55,8 @@ const auditConfigSchema = z.object({
   maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
   lighthouseStrategy: lighthouseStrategySchema,
   guidelinesStrategy: guidelinesStrategySchema.default("none"),
-  // Audits predating path exclusion have no such key: they crawled everything.
+  // Audits predating path scoping have no such keys: they crawled everything.
+  includedPaths: z.array(z.string()).catch([]).default([]),
   excludedPaths: z.array(z.string()).catch([]).default([]),
   // Absent on every audit stored before crawler access shipped, and a future
   // platform value must not make an old report unviewable.
