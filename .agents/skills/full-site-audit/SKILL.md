@@ -27,9 +27,9 @@ Lo que es propio de cada sitio (dominios, secciones, migraciones, fuentes de dat
 
 ## Fase 1 — Crawl técnico completo
 
-- `run_site_audit` con `maxPages` por encima del total del inventario (tope 10.000), `evaluateContent: false`, y `runLighthouse: true` solo si interesa rendimiento (muestra de 10). Las secciones que quedan fuera del alcance (anotadas en `audit-scope`) van en `excludePaths` (p. ej. `["/archivo"]`): no se crawlean, no gastan presupuesto de páginas y no suman hallazgos. El crawl arranca desde robots + sitemaps y es gratis; lo único que cuesta es tiempo (~1 min cada 50 páginas con pacing).
-- `get_audit_status` espaciado (cada varios minutos), no en loop.
-- Al terminar: `get_audit_issues` y conteos por `issue_type` × sección (D1). **Agrupá por plantilla de URL**, no por página: 100 títulos largos que salen de la misma plantilla son un solo arreglo.
+- `run_site_audit` con `maxPages` por encima del total del inventario (tope 10.000), `evaluateContent: false`, y `runLighthouse: true` solo si interesa rendimiento (muestra de 10). Las secciones que quedan fuera del alcance (anotadas en `audit-scope`) van en `excludePaths` (p. ej. `["/archivo"]`): no se crawlean, no gastan presupuesto de páginas y no suman hallazgos. Para auditar una sola sección, `includePaths` (p. ej. `["/bopv"]`) con la URL de inicio dentro de ella; en ese caso no se informan páginas huérfanas. El crawl arranca desde robots + sitemaps y es gratis; lo único que cuesta es tiempo (~1 min cada 50 páginas con pacing).
+- `get_audit_status` con `waitSeconds: 50`, repitiendo hasta que termine.
+- Al terminar: `get_audit_issues` con `groupBy: "template"` (una fila por tipo × plantilla de URL, con recuento y ejemplos). **Agrupá por plantilla**, no por página: 100 títulos largos que salen de la misma plantilla son un solo arreglo. Las páginas noindex no suman issues de longitud de título ni de meta description.
 - Contrastá: páginas del sitemap que el crawl no alcanzó, páginas crawleadas que no están en el sitemap, noindex inesperados, canonicals que apuntan a otro dominio.
 - Verificá cada hallazgo que vayas a reportar contra el HTML vivo (`curl`), como exige `seo-audit`.
 
@@ -65,7 +65,7 @@ Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivi
 
 ## Repetir y medir
 
-- Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log, o `list_site_audits`) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron. Agent readiness guarda su propio historial en `get_agent_readiness`.
+- Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log, o `list_site_audits`) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron. Si los dos crawls no cubrieron las mismas URLs, mirá `issues.common` (solo URLs presentes en ambas, también por plantilla): lo demás mezcla arreglos con cambios de muestra. Agent readiness guarda su propio historial en `get_agent_readiness`.
 - Anotá el resultado de cada ronda en el research log, para que la evolución quede en un solo lugar.
 
 ## Guardrails
