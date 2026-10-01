@@ -115,6 +115,13 @@ describe("runPageReporters", () => {
     ],
     [{ crawlDepth: null }, "deep-page"],
     [{ links: [], isIndexable: false }, "no-outgoing-links"],
+    // Snippet checks: a noindex page never shows a title or description in
+    // search results.
+    [{ title: "x".repeat(90), isIndexable: false }, "title-too-long"],
+    [
+      { metaDescription: undefined, isIndexable: false },
+      "missing-meta-description",
+    ],
   ])("does not flag %o as %s", (overrides, issueType) => {
     expect(issueTypes(makePage(overrides))).not.toContain(issueType);
   });

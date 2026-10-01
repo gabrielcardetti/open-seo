@@ -81,26 +81,29 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
     return issues;
   }
 
-  // Titles
+  // Titles and meta descriptions shape the search snippet, which a noindex
+  // page never gets, so only a missing title (still shown in the browser tab)
+  // is reported for one.
   if (!page.title) {
     report("missing-title");
-  } else if (page.title.length > TITLE_MAX_CHARS) {
+  } else if (page.isIndexable && page.title.length > TITLE_MAX_CHARS) {
     report("title-too-long", { length: page.title.length });
-  } else if (page.title.length < TITLE_MIN_CHARS) {
+  } else if (page.isIndexable && page.title.length < TITLE_MIN_CHARS) {
     report("title-too-short", { length: page.title.length });
   }
 
-  // Meta description
-  if (!page.metaDescription) {
-    report("missing-meta-description");
-  } else if (page.metaDescription.length > META_DESCRIPTION_MAX_CHARS) {
-    report("meta-description-too-long", {
-      length: page.metaDescription.length,
-    });
-  } else if (page.metaDescription.length < META_DESCRIPTION_MIN_CHARS) {
-    report("meta-description-too-short", {
-      length: page.metaDescription.length,
-    });
+  if (page.isIndexable) {
+    if (!page.metaDescription) {
+      report("missing-meta-description");
+    } else if (page.metaDescription.length > META_DESCRIPTION_MAX_CHARS) {
+      report("meta-description-too-long", {
+        length: page.metaDescription.length,
+      });
+    } else if (page.metaDescription.length < META_DESCRIPTION_MIN_CHARS) {
+      report("meta-description-too-short", {
+        length: page.metaDescription.length,
+      });
+    }
   }
 
   // Headings
