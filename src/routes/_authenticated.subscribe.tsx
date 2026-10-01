@@ -1,29 +1,31 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useState } from "react";
-import { ArrowRight, Settings, User } from "lucide-react";
-import { ThemePreferenceMenuItems } from "@/client/components/ThemePreferenceMenuItems";
+import { ArrowRight } from "lucide-react";
+import { QueryError } from "@/client/components/QueryState";
+import { StatusScreen } from "@/client/components/StatusScreen";
+import { PlanPageAccountMenu } from "@/client/features/billing/PlanPageAccountMenu";
+import { PlanOfferCard } from "@/client/features/billing/PlanOfferCard";
+import {
+  BASE_PLAN_OFFER,
+  monthlyCreditsFeature,
+} from "@/client/features/billing/plan-offers";
 import { captureClientEvent } from "@/client/lib/posthog";
-import { signOutAndRedirect, useSession } from "@/lib/auth-client";
-import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { useSession } from "@/lib/auth-client";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
 import { getSubscribeRouteState } from "@/client/features/billing/route-state";
 import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
 import { normalizeAuthRedirect } from "@/lib/auth-redirect";
 import { useCanManageBilling } from "@/client/features/team/organizationQueries";
-import {
-  AUTUMN_CHECKOUT_SESSION_PARAMS,
-  AUTUMN_MANAGED_ACCESS_FEATURE_ID,
-  AUTUMN_PAID_PLAN_ID,
-} from "@/shared/billing";
-
-const SUPPORT_EMAIL = "ben@openseo.so";
+import { AUTUMN_MANAGED_ACCESS_FEATURE_ID } from "@/shared/billing";
+import { SUPPORT_EMAIL } from "@/client/lib/support";
+import { Button } from "@/client/components/ui/button";
 
 const PLAN_FEATURES = [
   "Keyword research, backlinks, rank tracking, and site audits",
   "MCP server and agent skills for Claude, Cursor, and ChatGPT",
   "Google Search Console Integration",
-  "Includes $10.00 of Usage Credits each month",
+  monthlyCreditsFeature(BASE_PLAN_OFFER),
 ];
 
 // How long the post-checkout "finalizing" screen polls Autumn before giving
@@ -66,18 +68,17 @@ function SubscribePage() {
   const canManageBilling = useCanManageBilling();
 
   // Read managed access from the already-loaded Autumn customer (local, no API
-  // call) instead of a separate server round-trip. Self-hosted has no Autumn
-  // customer, so mirror the server's "always granted" behavior there.
-  const hasManagedAccess = isHostedClientAuthMode()
-    ? customerQuery.check({ featureId: AUTUMN_MANAGED_ACCESS_FEATURE_ID })
-        .allowed
-    : true;
+  // call) instead of a separate server round-trip.
+  const hasManagedAccess = customerQuery.check({
+    featureId: AUTUMN_MANAGED_ACCESS_FEATURE_ID,
+  }).allowed;
 
   const planStatus = getCustomerPlanStatus(customerQuery.data);
   const subscribeRouteState = getSubscribeRouteState({
     hasSession,
     isCustomerLoading: customerQuery.isLoading,
     isCustomerError: customerQuery.isError,
+    hasCustomerData: customerQuery.data != null,
     hasManagedAccess,
     planStatus,
     isUpgradeFlow: isUpgradeFlow === true,
@@ -98,8 +99,8 @@ function SubscribePage() {
   }, [refetchCustomer, isFinalizing]);
 
   // Armed once on landing with checkout=success (not on the finalizing state,
-  // which a transient poll error can leave and re-enter) so the deadline is a
-  // hard bound from arrival.
+  // which a refetch with no cached data can leave for "loading" and re-enter)
+  // so the deadline is a hard bound from arrival.
   useEffect(() => {
     if (!checkoutCompleted || finalizingTimedOut) return;
     const timeout = setTimeout(
@@ -128,64 +129,43 @@ function SubscribePage() {
     subscribeRouteState === "loading" ||
     subscribeRouteState === "redirectToApp"
   ) {
-    return null;
+    return <StatusScreen pending />;
   }
 
   if (subscribeRouteState === "finalizing") {
     return (
-      <div className="w-full max-w-xs space-y-4 text-center">
-        <img
-          src="/transparent-logo.png"
-          alt="OpenSEO"
-          className="mx-auto size-10 rounded-lg"
-        />
-        <h1 className="text-xl font-semibold">
-          Finalizing your subscription&hellip;
-        </h1>
-        <span className="loading loading-spinner loading-md" />
-        <p className="text-sm text-base-content/60">
-          This usually takes a few seconds.
-        </p>
-        <p className="text-xs text-base-content/50">
-          Taking longer?{" "}
-          <a className="link" href={`mailto:${SUPPORT_EMAIL}`}>
-            Email {SUPPORT_EMAIL}
-          </a>
-          .
-        </p>
-      </div>
+      <StatusScreen
+        logo
+        size="sm"
+        title="Finalizing your subscription…"
+        pending
+        description="This usually takes a few seconds."
+        footer={
+          <>
+            Taking longer?{" "}
+            <a
+              className="underline underline-offset-2 hover:text-foreground"
+              href={`mailto:${SUPPORT_EMAIL}`}
+            >
+              Email {SUPPORT_EMAIL}
+            </a>
+            .
+          </>
+        }
+      />
     );
   }
 
   if (subscribeRouteState === "error") {
     return (
-      <div className="w-full max-w-xs space-y-4">
-        <div className="text-center space-y-3">
-          <img
-            src="/transparent-logo.png"
-            alt="OpenSEO"
-            className="mx-auto size-10 rounded-lg"
-          />
-          <h1 className="text-xl font-semibold">Billing unavailable</h1>
-        </div>
-
-        <p className="text-sm text-center text-base-content/70">
-          {getStandardErrorMessage(
-            customerQuery.error,
-            "We couldn't verify your billing status right now. Please try again.",
-          )}
-        </p>
-
-        <button
-          type="button"
-          className="btn btn-soft w-full"
-          onClick={() => {
-            void customerQuery.refetch();
-          }}
-        >
-          Try again
-        </button>
-      </div>
+      <StatusScreen logo title="Billing unavailable" size="sm">
+        <QueryError
+          error={customerQuery.error}
+          fallback="We couldn't verify your billing status right now. Please try again."
+          onRetry={() => void customerQuery.refetch()}
+          isRetrying={customerQuery.isFetching}
+        />
+      </StatusScreen>
     );
   }
 
@@ -198,10 +178,10 @@ function SubscribePage() {
       const successUrl = new URL(window.location.href);
       successUrl.searchParams.set("checkout", "success");
       await customerQuery.attach({
-        planId: AUTUMN_PAID_PLAN_ID,
+        planId: BASE_PLAN_OFFER.planId,
         redirectMode: "always",
         successUrl: successUrl.toString(),
-        checkoutSessionParams: AUTUMN_CHECKOUT_SESSION_PARAMS,
+        checkoutSessionParams: BASE_PLAN_OFFER.checkoutSessionParams,
       });
     } catch (err) {
       setError(
@@ -218,9 +198,9 @@ function SubscribePage() {
 
   return (
     <div className="w-full max-w-sm space-y-6">
-      <SubscribePageAccountMenu email={session?.user?.email} />
+      <PlanPageAccountMenu email={session?.user?.email} />
 
-      <div className="text-center space-y-3">
+      <div className="space-y-3 text-center">
         <img
           src="/transparent-logo.png"
           alt="OpenSEO"
@@ -233,33 +213,19 @@ function SubscribePage() {
               ? `Welcome to OpenSEO, ${firstName}!`
               : "Welcome to OpenSEO!"}
         </h1>
-        <p className="text-sm text-base-content/60">
+        <p className="text-sm text-muted-foreground">
           SEO on your terms. All your SEO tools in one place at a fair price.
         </p>
       </div>
 
-      <div className="rounded-lg border border-base-300 p-5 space-y-4">
-        <div className="flex items-baseline justify-between gap-4">
-          <span className="font-semibold">Base Plan</span>
-          <span className="text-lg font-semibold tabular-nums">$10/month</span>
-        </div>
-
-        <ul className="space-y-2">
-          {PLAN_FEATURES.map((item) => (
-            <li
-              key={item}
-              className="flex gap-2.5 text-sm text-base-content/70"
-            >
-              <span className="text-base-content/40 mt-[2px] shrink-0">
-                &mdash;
-              </span>
-              {item}
-            </li>
-          ))}
-          {/* Sub-bullet of the Usage Credits line above. */}
+      <PlanOfferCard
+        offer={BASE_PLAN_OFFER}
+        features={PLAN_FEATURES}
+        afterFeatures={
+          /* Sub-bullet of the Usage Credits line above. */
           <li className="-mt-1 pl-6 text-xs">
             <a
-              className="text-base-content/60 underline decoration-base-content/40 decoration-dotted underline-offset-4 transition-colors hover:text-base-content"
+              className="text-muted-foreground underline decoration-muted-foreground/40 decoration-dotted underline-offset-4 transition-colors hover:text-foreground"
               href="https://openseo.so/pricing"
               target="_blank"
               rel="noreferrer"
@@ -271,99 +237,52 @@ function SubscribePage() {
               <span aria-hidden="true">&#8599;</span>
             </a>
           </li>
-        </ul>
-
-        {error ? <p className="text-sm text-error">{error}</p> : null}
+        }
+      >
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
 
         {canManageBilling ? (
-          <button
-            className="btn btn-soft w-full"
-            disabled={isAttaching}
+          <Button
+            className="w-full"
+            variant="secondary"
+            pending={isAttaching}
             onClick={() => void handleSubscribe()}
           >
             {isAttaching ? "Redirecting..." : "Subscribe"}
-          </button>
+          </Button>
         ) : (
-          <p className="text-sm text-base-content/60">
+          <p className="text-sm text-muted-foreground">
             Only the organization owner can subscribe. Ask them to upgrade this
             organization.
           </p>
         )}
-
-        <p className="text-center text-xs text-base-content/50">
-          <span
-            className="tooltip before:max-w-60 before:whitespace-normal"
-            data-tip={`Not for you yet? Email ${SUPPORT_EMAIL} within 30 days of your charge and we'll refund your subscription.`}
-          >
-            <span className="cursor-help underline decoration-dotted">
-              30-day money-back guarantee
-            </span>
-          </span>
-          . Cancel anytime. Powered by Stripe.
-        </p>
-      </div>
+      </PlanOfferCard>
 
       <div className="text-center space-y-2">
-        <p className="text-sm text-base-content/60">
-          Questions? Email {SUPPORT_EMAIL}.
+        <p className="text-sm text-muted-foreground">
+          Questions? Email{" "}
+          <a
+            className="underline underline-offset-2 hover:text-foreground"
+            href={`mailto:${SUPPORT_EMAIL}`}
+          >
+            {SUPPORT_EMAIL}
+          </a>
+          .
         </p>
         {isUpgradeFlow ? (
-          <button
+          <Button
             type="button"
-            className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-base-content/70 hover:text-base-content transition-colors"
+            variant="ghost"
             onClick={() => void navigate({ to: "/", replace: true })}
           >
             <ArrowRight className="size-3.5 rotate-180" />
             Back to app
-          </button>
+          </Button>
         ) : null}
-      </div>
-    </div>
-  );
-}
-
-function SubscribePageAccountMenu({ email }: { email: string | undefined }) {
-  if (!email) return null;
-
-  const handleSignOut = () => signOutAndRedirect();
-
-  return (
-    <div className="fixed top-4 right-4">
-      <div className="dropdown dropdown-end">
-        <button
-          type="button"
-          tabIndex={0}
-          className="btn btn-ghost btn-circle"
-          aria-label="Open account menu"
-        >
-          <User className="h-5 w-5" />
-        </button>
-        <ul
-          tabIndex={0}
-          className="dropdown-content z-20 menu mt-3 min-w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
-        >
-          <li className="menu-title max-w-full">
-            <span className="truncate text-base-content" data-ph-mask>
-              {email}
-            </span>
-          </li>
-          <li>
-            <Link to="/settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </li>
-          <ThemePreferenceMenuItems />
-          <li>
-            <button
-              type="button"
-              className="text-error"
-              onClick={handleSignOut}
-            >
-              Sign out
-            </button>
-          </li>
-        </ul>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { DashboardService } from "@/server/features/dashboard/services/Dashboard
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   dashboardProjectInputSchema,
+  dashboardStepClickSchema,
   dashboardStepDismissalSchema,
 } from "@/types/schemas/dashboard";
 
@@ -45,13 +46,11 @@ export const refreshDashboardBacklinkSnapshot = createServerFn({
     }),
   );
 
-export const markDashboardCompetitorClicked = createServerFn({
-  method: "POST",
-})
+export const markDashboardStepClicked = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .validator(dashboardProjectInputSchema)
-  .handler(async ({ context }) => {
-    await ActivationRepository.markCompetitorStepClicked(context.projectId);
+  .validator(dashboardStepClickSchema)
+  .handler(async ({ context, data }) => {
+    await ActivationRepository.markStepClicked(context.projectId, data.step);
     return { ok: true as const };
   });
 

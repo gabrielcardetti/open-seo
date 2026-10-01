@@ -1,18 +1,22 @@
 import { useMemo, type MutableRefObject } from "react";
-import { ArrowUp, ArrowDown } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { makeSelectionColumn } from "@/client/components/table/AppDataTable";
+import { makeSelectionColumn } from "@/client/components/table/DataTable";
+import { ScoreBadge } from "@/client/components/table/ScoreBadge";
+import { Badge } from "@/client/components/ui/badge";
+import { SortableHeader } from "@/client/components/table/SortableHeader";
 import type { RankTrackingRow } from "@/types/schemas/rank-tracking";
 import { formatLocationLabel } from "@/shared/keyword-locations";
 import {
   CpcCell,
   DeviceRankCell,
   DeviceUrlCell,
-  DifficultyCell,
   SerpFeatureTags,
   VolumeCell,
 } from "./RankTrackingTableParts";
 import type { SelectionAnchor } from "@/client/components/table/tableSelection";
+
+export const RANK_TRACKING_HEADER_CLASS =
+  "text-xs uppercase tracking-wide text-muted-foreground";
 
 const HEADER_TOOLTIPS: Record<string, string> = {
   keyword: "The search term being tracked in Google",
@@ -27,40 +31,6 @@ const HEADER_TOOLTIPS: Record<string, string> = {
   serp: "Special result features appearing on the search results page (e.g. AI Overview, People Also Ask)",
 };
 
-export function SortableHeader({
-  column,
-  label,
-  id,
-  tooltip,
-}: {
-  column: {
-    getIsSorted: () => false | "asc" | "desc";
-    getToggleSortingHandler: () => ((event: unknown) => void) | undefined;
-  };
-  label: string;
-  id: string;
-  tooltip?: string;
-}) {
-  const sorted = column.getIsSorted();
-  return (
-    <button
-      type="button"
-      className="inline-flex items-center gap-1 text-xs uppercase tracking-wide font-medium text-base-content/60 transition-colors hover:text-base-content"
-      onClick={column.getToggleSortingHandler()}
-      title={tooltip ?? HEADER_TOOLTIPS[id]}
-      aria-label={`Sort by ${label}`}
-      aria-pressed={!!sorted}
-    >
-      {label}
-      {sorted === "asc" ? (
-        <ArrowUp className="size-3 shrink-0" />
-      ) : sorted === "desc" ? (
-        <ArrowDown className="size-3 shrink-0" />
-      ) : null}
-    </button>
-  );
-}
-
 // Local configs fetch volume scoped to the tracked city, so the header must
 // say which number the user is looking at — national volume can overstate
 // local demand by orders of magnitude.
@@ -72,12 +42,12 @@ function makeVolumeColumn(locationLabel?: string): ColumnDef<RankTrackingRow> {
       <SortableHeader
         column={column}
         label={locationLabel ? "Local volume" : "Volume"}
-        id="volume"
-        tooltip={
+        title={
           locationLabel
             ? `Estimated monthly searches in ${locationLabel} from Google Ads`
-            : undefined
+            : HEADER_TOOLTIPS.volume
         }
+        className={RANK_TRACKING_HEADER_CLASS}
       />
     ),
     size: 90,
@@ -91,10 +61,17 @@ function makeVolumeColumn(locationLabel?: string): ColumnDef<RankTrackingRow> {
 const kdColumn: ColumnDef<RankTrackingRow> = {
   id: "kd",
   accessorFn: (row) => row.keywordDifficulty ?? undefined,
-  header: ({ column }) => <SortableHeader column={column} label="KD" id="kd" />,
+  header: ({ column }) => (
+    <SortableHeader
+      column={column}
+      label="KD"
+      title={HEADER_TOOLTIPS.kd}
+      className={RANK_TRACKING_HEADER_CLASS}
+    />
+  ),
   size: 70,
   cell: ({ getValue }) => (
-    <DifficultyCell value={getValue<number | undefined>() ?? null} />
+    <ScoreBadge value={getValue<number | undefined>() ?? null} />
   ),
   sortUndefined: "last",
 };
@@ -103,7 +80,12 @@ const cpcColumn: ColumnDef<RankTrackingRow> = {
   id: "cpc",
   accessorFn: (row) => row.cpc ?? undefined,
   header: ({ column }) => (
-    <SortableHeader column={column} label="CPC" id="cpc" />
+    <SortableHeader
+      column={column}
+      label="CPC"
+      title={HEADER_TOOLTIPS.cpc}
+      className={RANK_TRACKING_HEADER_CLASS}
+    />
   ),
   size: 80,
   cell: ({ getValue }) => (
@@ -119,25 +101,32 @@ function makeKeywordColumn(
     id: "keyword",
     accessorKey: "keyword",
     header: ({ column }) => (
-      <SortableHeader column={column} label="Keyword" id="keyword" />
+      <SortableHeader
+        column={column}
+        label="Keyword"
+        title={HEADER_TOOLTIPS.keyword}
+        className={RANK_TRACKING_HEADER_CLASS}
+      />
     ),
     cell: ({ row }) => (
       <div className="flex items-center gap-1.5">
         <button
           type="button"
-          className="font-medium text-left link link-hover decoration-dotted underline-offset-2"
+          className="text-left font-medium decoration-dotted underline-offset-2 hover:underline"
           onClick={() => onKeywordClick(row.original)}
           title="View position history"
         >
           {row.original.keyword}
         </button>
         {row.original.matchCase && (
-          <span
-            className="badge badge-xs cursor-help bg-base-300 border-0 text-base-content/70"
+          <Badge
+            variant="secondary"
+            size="sm"
+            className="cursor-help"
             title="Tracked exactly as typed, not lowercased"
           >
             Aa
-          </span>
+          </Badge>
         )}
       </div>
     ),
@@ -153,7 +142,12 @@ function makeDeviceColumn(
     id,
     accessorFn: (row) => row[device].position ?? undefined,
     header: ({ column }) => (
-      <SortableHeader column={column} label="Position" id={id} />
+      <SortableHeader
+        column={column}
+        label="Position"
+        title={HEADER_TOOLTIPS[id]}
+        className={RANK_TRACKING_HEADER_CLASS}
+      />
     ),
     size: 120,
     maxSize: 140,
@@ -171,7 +165,7 @@ function makeUrlColumn(
     enableSorting: false,
     header: () => (
       <span
-        className="text-xs uppercase tracking-wide font-medium text-base-content/60 cursor-help"
+        className="cursor-help text-xs font-medium tracking-wide uppercase text-muted-foreground"
         title={HEADER_TOOLTIPS.url}
       >
         URL
@@ -192,7 +186,7 @@ function makeSerpColumn(
     enableSorting: false,
     header: () => (
       <span
-        className="text-xs uppercase tracking-wide font-medium text-base-content/60 cursor-help"
+        className="cursor-help text-xs font-medium tracking-wide uppercase text-muted-foreground"
         title={HEADER_TOOLTIPS.serp}
       >
         SERP Features

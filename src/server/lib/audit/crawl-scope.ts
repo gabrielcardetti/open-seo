@@ -10,7 +10,7 @@
  */
 import type { RobotsResult } from "./discovery";
 
-export const MAX_EXCLUDED_PATHS = 20;
+const MAX_EXCLUDED_PATHS = 20;
 const MAX_PATH_LENGTH = 200;
 
 /**
@@ -18,7 +18,7 @@ const MAX_PATH_LENGTH = 200;
  * no query or fragment. Accepts a full URL too, since that is what people
  * paste. Returns null for the root, which would exclude the whole site.
  */
-export function normalizeExcludedPath(raw: string): string | null {
+function normalizeExcludedPath(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed || trimmed.length > MAX_PATH_LENGTH) return null;
   let path = trimmed;

@@ -62,7 +62,6 @@ export type OnboardingAnswers = {
   clientWebsiteCount: string;
   source: string;
   sourceOther: string;
-  mcpSetupIntent?: "yes" | "no" | "";
 };
 
 /** Answers as persisted in the DB (read back via getOnboardingAnswers). */
@@ -71,7 +70,6 @@ type SavedOnboardingAnswers = {
   workFor: string | null;
   clientWebsiteCount: string | null;
   foundVia: string | null;
-  mcpSetupIntent: string | null;
 };
 
 export const onboardingAnswersQueryOptions = () =>
@@ -112,10 +110,6 @@ export function restoreOnboardingAnswers(
       work.value === CLIENT_WORK_FOR ? (saved.clientWebsiteCount ?? "") : "",
     source: found.value,
     sourceOther: found.other,
-    mcpSetupIntent:
-      saved.mcpSetupIntent === "yes" || saved.mcpSetupIntent === "no"
-        ? saved.mcpSetupIntent
-        : "",
   };
 }
 
@@ -126,7 +120,7 @@ export function restoreOnboardingAnswers(
 export function buildOnboardingPayload(
   answers: OnboardingAnswers,
   step: number,
-  extra: { completed?: boolean; mcpSetupIntent?: "yes" | "no" } = {},
+  extra: { completed?: boolean } = {},
 ) {
   const interestedFeatures = answers.selectedInterests.map((value) =>
     value === "Other" && answers.interestOther.trim()
@@ -150,9 +144,6 @@ export function buildOnboardingPayload(
     ...(step >= 0 ? { interestedFeatures } : {}),
     ...(step >= 1 ? { workFor, clientWebsiteCount } : {}),
     ...(step >= 2 ? { foundVia } : {}),
-    ...(step >= ONBOARDING_LAST_STEP && answers.mcpSetupIntent
-      ? { mcpSetupIntent: answers.mcpSetupIntent }
-      : {}),
     ...extra,
   };
 }

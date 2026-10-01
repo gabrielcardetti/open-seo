@@ -1,4 +1,4 @@
-import { getAuth } from "@/lib/auth";
+import { getGoogleAccessToken } from "@/server/features/google/googleOAuth";
 import type { SamChatAgent } from "@/server/features/sam/SamChatAgent";
 import { captureServerError } from "@/server/lib/posthog";
 import {
@@ -139,22 +139,18 @@ async function revokeGoogleAccount(
   userId: string,
   account: GdprStorageErasurePayload["googleAccounts"][number],
 ): Promise<GoogleRevocationResult> {
-  let accessToken: string | undefined;
+  let accessToken: string;
   try {
-    const result = await getAuth().api.getAccessToken({
-      body: {
-        userId,
-        providerId: account.providerId,
-        accountId: account.accountId,
-      },
+    accessToken = await getGoogleAccessToken({
+      userId,
+      providerId: account.providerId,
+      accountId: account.accountId,
     });
-    accessToken = result?.accessToken;
   } catch {
-    // If Better Auth cannot mint a token, the locally stored grant is no longer
-    // usable. The Postgres transaction still removes its encrypted token row.
+    // If no token can be minted, the locally stored grant is no longer usable.
+    // The Postgres transaction still removes its encrypted token row.
     return { ...account, status: "token_unavailable" };
   }
-  if (!accessToken) return { ...account, status: "token_unavailable" };
 
   const response = await fetch(GOOGLE_REVOKE_URL, {
     method: "POST",

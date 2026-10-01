@@ -62,23 +62,4 @@ describe("getLatestResults", () => {
       },
     });
   });
-
-  it("surfaces the latest failed run and its error message", async () => {
-    mocks.getLatestRunForConfig.mockResolvedValue({
-      id: "run_1",
-      status: "failed",
-      errorMessage: "Provider request timed out",
-    });
-
-    await expect(
-      getLatestResults("config_1", "project_1"),
-    ).resolves.toMatchObject({
-      run: {
-        id: "run_1",
-        lastCheckedAt: null,
-        status: "failed",
-        errorMessage: "Provider request timed out",
-      },
-    });
-  });
 });

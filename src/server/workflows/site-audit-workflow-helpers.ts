@@ -3,6 +3,7 @@ import type { PageFetchClass } from "@/shared/audit-fetch-class";
 import { sha256Hex } from "@/server/lib/audit/ids";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
 import type { CrawlThrottle } from "@/server/lib/audit/crawl-throttle";
+import { crawlerHeadersFor, type CrawlerAccess } from "@/shared/crawler-access";
 
 const CRAWL_USER_AGENT = "OpenSEO-Audit/1.0";
 const MAX_HTML_BYTES = 1024 * 1024;
@@ -61,7 +62,11 @@ function parseLinkHeaderCanonical(
  * (see crawl-throttle.ts). `responseTimeMs` is measured from the last attempt
  * so backoff waiting never looks like a slow server.
  */
-async function fetchPage(url: string, throttle: CrawlThrottle) {
+async function fetchPage(
+  url: string,
+  throttle: CrawlThrottle,
+  access: CrawlerAccess | null | undefined,
+) {
   for (let attempt = 1; ; attempt++) {
     if (!(await throttle.ready())) return null;
     const startedAt = Date.now();
@@ -75,6 +80,7 @@ async function fetchPage(url: string, throttle: CrawlThrottle) {
       headers: {
         "User-Agent": CRAWL_USER_AGENT,
         Accept: "text/html,application/xhtml+xml",
+        ...crawlerHeadersFor(url, access),
       },
       redirect: "manual",
       signal: AbortSignal.timeout(15_000),
@@ -107,11 +113,12 @@ export async function crawlPage(
   crawlDepth: number | null,
   inSitemap: boolean,
   throttle: CrawlThrottle,
+  access?: CrawlerAccess | null,
 ): Promise<CrawledPageResult | null> {
   const startTime = Date.now();
 
   try {
-    const fetched = await fetchPage(url, throttle);
+    const fetched = await fetchPage(url, throttle, access);
     if (!fetched) return null;
     const { response, responseTimeMs, rateLimited } = fetched;
     const statusCode = response.status;

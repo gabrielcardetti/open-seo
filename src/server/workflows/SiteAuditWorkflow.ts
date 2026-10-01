@@ -12,6 +12,10 @@ import {
 import { withPgClient } from "@/db";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import {
+  CrawlerCredentialService,
+  type SealedCrawlerAccess,
+} from "@/server/features/audit/services/CrawlerCredentialService";
 import { classifyAuditError } from "@/server/lib/audit/audit-errors";
 import type { AuditConfig } from "@/server/lib/audit/types";
 import { captureServerError, captureServerEvent } from "@/server/lib/posthog";
@@ -25,6 +29,14 @@ interface AuditParams {
   projectId: string;
   startUrl: string;
   config: AuditConfig;
+  /**
+   * Crawler-access credential (Shopify signature) for the audited host.
+   * Carried in workflow params, never in `config`: config is persisted on the
+   * audit row and returned to the client. Params are persisted by the workflow
+   * engine too, so the values stay encrypted here and are decrypted in memory
+   * below, outside any step whose result would be checkpointed.
+   */
+  access?: SealedCrawlerAccess | null;
 }
 
 export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
@@ -39,7 +51,7 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
     event: WorkflowEvent<AuditParams>,
     step: WorkflowStep,
   ) {
-    const { auditId, billingCustomer, projectId, startUrl, config } =
+    const { auditId, billingCustomer, projectId, startUrl, config, access } =
       event.payload;
 
     try {
@@ -68,6 +80,7 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
         projectId,
         startUrl,
         config,
+        access: await CrawlerCredentialService.openCrawlerAccess(access),
       });
     } catch (error) {
       console.error(`Audit ${auditId} failed:`, error);

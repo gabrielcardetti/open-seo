@@ -78,7 +78,6 @@ const PHASE_PARAMS = {
 
 describe("runLighthousePhase", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     getPagesForAuditMock.mockResolvedValue([
       {
         id: "page-1",

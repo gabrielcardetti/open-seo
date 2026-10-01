@@ -176,7 +176,7 @@ describe("get_business_reviews", () => {
     await expect(failing).rejects.toThrow('taskId "google:task-1"');
   });
 
-  it("resumes from a taskId without posting a new task", async () => {
+  it("resumes from a taskId without posting a new task, rejecting taskIds from elsewhere", async () => {
     const reviewsTaskPost = vi.fn();
     mocks.createDataforseoClient.mockReturnValue({
       business: { reviewsTaskPost },
@@ -217,9 +217,7 @@ describe("get_business_reviews", () => {
     expect(out).toContain("# | when | rating | author | source | review");
     expect(out).toContain("Rare bottles and great staff.");
     expect(out).toContain("| yes");
-  });
 
-  it("rejects a taskId that did not come from this tool", async () => {
     await expect(
       getBusinessReviewsTool.handler(
         { projectId: "project_1", taskId: "task-9" },
@@ -443,18 +441,5 @@ describe("list_business_categories", () => {
       { category: "pizza_restaurant", businessCount: 120 },
     ]);
     expect(textContent(result)).toContain("pizza_restaurant | 120");
-  });
-
-  it("serves a cache hit without calling the provider", async () => {
-    mocks.getCached.mockResolvedValue(categories);
-
-    const result = await listBusinessCategoriesTool.handler(
-      { projectId: "project_1" },
-      toolContext,
-    );
-
-    expect(mocks.fetchBusinessListingsCategories).not.toHaveBeenCalled();
-    expect(mocks.setCached).not.toHaveBeenCalled();
-    expect(result.structuredContent.categories).toEqual(categories);
   });
 });

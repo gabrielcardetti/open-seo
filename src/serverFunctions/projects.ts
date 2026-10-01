@@ -9,7 +9,6 @@ import {
   archiveProjectSchema,
   createProjectSchema,
   restoreProjectSchema,
-  setProjectWebsiteSchema,
   updateProjectSchema,
 } from "@/types/schemas/projects";
 import { z } from "zod";
@@ -68,10 +67,3 @@ export const getProjectAccess = createServerFn({ method: "POST" })
       data.projectId,
     );
   });
-
-export const setProjectWebsite = createServerFn({ method: "POST" })
-  .middleware(requireProjectContext)
-  .validator(setProjectWebsiteSchema)
-  .handler(({ data, context }) =>
-    ProjectService.setProjectWebsite(context.organizationId, data),
-  );

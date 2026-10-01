@@ -25,6 +25,7 @@ import {
   type CrawlThrottleState,
 } from "@/server/lib/audit/crawl-throttle";
 import { crawlPage } from "@/server/workflows/site-audit-workflow-helpers";
+import type { CrawlerAccess } from "@/shared/crawler-access";
 import { pgStep } from "@/server/workflows/pgStep";
 import { CRAWL_CHUNK_STEP } from "@/server/workflows/auditStepConfigs";
 
@@ -91,6 +92,8 @@ type CrawlPhaseParams = {
   robots: RobotsResult;
   /** Frontier size after discovery seeding (from the discover-urls step). */
   seededCount: number;
+  /** Crawler-access headers for the audited host, when the org has one. */
+  access?: CrawlerAccess | null;
 };
 
 export type CrawlPhaseResult = {
@@ -281,7 +284,13 @@ async function runCrawlChunk(
   };
 
   const launch = (entry: ClaimedUrl) => {
-    const promise = crawlPage(entry.url, entry.depth, entry.inSitemap, throttle)
+    const promise = crawlPage(
+      entry.url,
+      entry.depth,
+      entry.inSitemap,
+      throttle,
+      input.access,
+    )
       .then((page) => {
         if (!page) {
           deferred.push(entry.url);

@@ -1,4 +1,13 @@
-import { Info } from "lucide-react";
+import { Info, TriangleAlert } from "lucide-react";
+import { Alert, AlertTitle } from "@/client/components/ui/alert";
+import { Badge } from "@/client/components/ui/badge";
+import { Card } from "@/client/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import { DomainLevelBadge } from "@/client/features/ai-search/components/DomainLevelBadge";
 import { BrandLookupMentionTrendCard } from "@/client/features/ai-search/components/BrandLookupMentionTrendCard";
 import { BrandLookupShareOfVoice } from "@/client/features/ai-search/components/BrandLookupShareOfVoice";
 import { CitationTabsCard } from "@/client/features/ai-search/components/BrandLookupCitationsCard";
@@ -21,21 +30,6 @@ type MetricKey = "mentions" | "aiSearchVolume";
 const DOMAIN_LEVEL_TIP =
   "AI search providers report mentions per domain, not per page. This number covers the whole domain — the cited pages below are limited to your scope.";
 
-/**
- * Marks a metric that could not be narrowed to a URL scope, so a page-scoped
- * lookup never reads as if the number belonged to that page.
- */
-function DomainLevelBadge() {
-  return (
-    <span
-      className="tooltip badge badge-ghost badge-sm shrink-0 normal-case"
-      data-tip={DOMAIN_LEVEL_TIP}
-    >
-      Domain-level
-    </span>
-  );
-}
-
 export function BrandLookupResults({ result, projectId }: Props) {
   if (!result.hasData) {
     const erroredPlatforms = result.perPlatform.filter(
@@ -47,19 +41,25 @@ export function BrandLookupResults({ result, projectId }: Props) {
 
     if (allPlatformsErrored) {
       return (
-        <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm">
-          AI mention data is temporarily unavailable for{" "}
-          <strong>{result.resolvedTarget}</strong>. Please try again shortly.
-        </div>
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden />
+          <AlertTitle className="font-normal">
+            AI mention data is temporarily unavailable for{" "}
+            <strong>{result.resolvedTarget}</strong>. Please try again shortly.
+          </AlertTitle>
+        </Alert>
       );
     }
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-info/30 bg-info/10 p-4 text-sm">
-          No AI mentions found for <strong>{result.resolvedTarget}</strong>.
-        </div>
+        <Alert variant="info">
+          <Info aria-hidden />
+          <AlertTitle className="font-normal">
+            No AI mentions found for <strong>{result.resolvedTarget}</strong>.
+          </AlertTitle>
+        </Alert>
         {erroredPlatforms.length > 0 ? (
-          <p className="text-xs text-base-content/60">
+          <p className="text-xs text-muted-foreground">
             Note:{" "}
             {erroredPlatforms
               .map((p) => formatPlatformLabel(p.platform))
@@ -76,16 +76,19 @@ export function BrandLookupResults({ result, projectId }: Props) {
   const sov = result.shareOfVoice;
 
   return (
-    <div className="space-y-4">
+    <Card className="gap-0 py-0">
       <BrandHeader result={result} />
 
-      {/* One shared grid so the cards align by construction: stats left, trend
-          right, Share of Voice flowing into the next free half-width cell —
-          whichever of trend/SoV is absent, the rest stay column-aligned. A
-          lone stats card keeps full width instead of half a grid. */}
+      {/* One shared grid so the panels align by construction: stats left,
+          trend right, Share of Voice flowing into the next free half-width
+          cell — whichever of trend/SoV is absent, the rest stay
+          column-aligned. A lone stats panel keeps full width instead of half a
+          grid. */}
       <div
         className={
-          hasTrendData || sov ? "grid gap-4 lg:grid-cols-2" : undefined
+          hasTrendData || sov
+            ? "grid gap-3 px-4 pb-4 lg:grid-cols-2"
+            : "px-4 pb-4"
         }
       >
         <StatsCard result={result} />
@@ -98,28 +101,26 @@ export function BrandLookupResults({ result, projectId }: Props) {
         ) : null}
       </div>
 
-      <CitationTabsCard result={result} projectId={projectId} />
-    </div>
+      <div className="px-4 pb-4">
+        <CitationTabsCard result={result} projectId={projectId} />
+      </div>
+    </Card>
   );
 }
 
 function BrandHeader({ result }: { result: BrandLookupResult }) {
   return (
-    <section className="flex flex-wrap items-baseline justify-between gap-2">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h2 className="text-3xl font-semibold tracking-tight">
+    <section className="px-4 pt-4 pb-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold break-all">
           {result.resolvedTarget}
         </h2>
-        <span className="badge badge-ghost badge-sm">
-          {result.detectedTargetType}
-        </span>
+        <Badge variant="secondary">{result.detectedTargetType}</Badge>
         {result.scope ? (
-          <span className="badge badge-ghost badge-sm">
-            {RESEARCH_SCOPE_LABELS[result.scope]}
-          </span>
+          <Badge variant="outline">{RESEARCH_SCOPE_LABELS[result.scope]}</Badge>
         ) : null}
       </div>
-      <p className="text-xs text-base-content/50">
+      <p className="text-xs text-muted-foreground">
         Updated {formatRelative(result.fetchedAt)}
       </p>
     </section>
@@ -128,8 +129,8 @@ function BrandHeader({ result }: { result: BrandLookupResult }) {
 
 function StatsCard({ result }: { result: BrandLookupResult }) {
   return (
-    <section className="rounded-xl border border-base-300 bg-base-100">
-      <div className="flex h-full flex-col divide-y divide-base-200">
+    <div className="rounded-lg border border-border">
+      <div className="flex h-full flex-col divide-y divide-border">
         <StatBlock
           label="Mentions"
           tooltip="Estimated count of AI answers where the searched brand or domain appeared in the answer text or cited sources."
@@ -147,7 +148,7 @@ function StatsCard({ result }: { result: BrandLookupResult }) {
           isDomainLevel={result.aggregatesAreDomainLevel}
         />
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -168,17 +169,15 @@ function StatBlock({
 }) {
   return (
     <div className="flex flex-1 flex-col justify-center p-4">
-      <p className="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-base-content/50">
+      <div className="inline-flex items-center gap-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
         {label}
-        <span className="tooltip inline-flex normal-case" data-tip={tooltip}>
-          <Info className="size-3 text-base-content/40" />
-        </span>
-        {isDomainLevel ? <DomainLevelBadge /> : null}
-      </p>
+        <InfoTooltip text={tooltip} />
+        {isDomainLevel ? <DomainLevelBadge tooltip={DOMAIN_LEVEL_TIP} /> : null}
+      </div>
       <p className="mt-1 text-3xl font-semibold tabular-nums">
         {formatCount(value)}
       </p>
-      <div className="mt-3 space-y-1 border-t border-base-200 pt-2.5">
+      <div className="mt-3 space-y-1 border-t border-border pt-2.5">
         {perPlatform.map((row) => (
           <PlatformStatRow key={row.platform} row={row} metric={metric} />
         ))}
@@ -198,24 +197,19 @@ function PlatformStatRow({
 
   return (
     <div className="flex items-center justify-between text-xs">
-      <span className="inline-flex items-center gap-1.5 text-base-content/70">
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
         <span
           className={`size-1.5 rounded-full ${PLATFORM_DOT_CLASS[row.platform]}`}
         />
         {formatPlatformLabel(row.platform)}
         {row.platform === "chat_gpt" ? (
-          <span
-            className="tooltip z-20 inline-flex"
-            data-tip="DataForSEO indexes ChatGPT mentions for US English only — country selection is not available for this platform."
-          >
-            <Info className="size-3 text-base-content/40" />
-          </span>
+          <InfoTooltip text="DataForSEO indexes ChatGPT mentions for US English only — country selection is not available for this platform." />
         ) : null}
         {row.status === "error" ? (
-          <span className="text-error">unavailable</span>
+          <span className="text-destructive">unavailable</span>
         ) : null}
       </span>
-      <span className="font-medium tabular-nums text-base-content/90">
+      <span className="font-medium text-foreground tabular-nums">
         {formatCount(value)}
       </span>
     </div>
@@ -224,17 +218,34 @@ function PlatformStatRow({
 
 function MentionTrendCard({ result }: { result: BrandLookupResult }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-base-300 bg-base-100">
-      <div className="flex items-center justify-between gap-2 border-b border-base-300 px-4 py-3">
-        <h3 className="text-sm font-semibold">
-          Mention trend (last 12 months)
-        </h3>
-        {result.aggregatesAreDomainLevel ? <DomainLevelBadge /> : null}
+    <div className="rounded-lg border border-border">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <h3 className="text-sm font-medium">Mention trend (last 12 months)</h3>
+        {result.aggregatesAreDomainLevel ? (
+          <DomainLevelBadge tooltip={DOMAIN_LEVEL_TIP} />
+        ) : null}
       </div>
       <div className="p-4">
         <BrandLookupMentionTrendCard result={result} />
       </div>
-    </section>
+    </div>
+  );
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        delay={150}
+        aria-label="More info"
+        className="inline-flex rounded-sm text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <Info className="size-3" />
+      </TooltipTrigger>
+      <TooltipContent className="normal-case tracking-normal font-normal">
+        {text}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

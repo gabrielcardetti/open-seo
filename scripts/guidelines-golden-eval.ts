@@ -28,7 +28,7 @@ import { loadLocalEnv, parseArgs } from "./cli-utils";
  *   pnpm tsx scripts/guidelines-golden-eval.ts [--runs 3] [--case legit-] [--json] [--dry-run]
  *
  * Exits 1 when a gate fails or an evaluation errors. See
- * maintainer-docs/guidelines-evals.md.
+ * docs/maintainers/guidelines-evals.md.
  */
 
 /** A legit page must never be rejected. */

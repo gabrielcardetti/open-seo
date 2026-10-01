@@ -47,7 +47,7 @@ export async function resolveAudit(projectId: string, auditId?: string) {
 // ─── The whole-site item ────────────────────────────────────────────────────
 
 /** A site finding as an external judge submits it: a page finding plus the clusters it cites. */
-export interface SubmittedSiteFinding extends SubmittedFinding {
+interface SubmittedSiteFinding extends SubmittedFinding {
   clusters?: string[];
 }
 

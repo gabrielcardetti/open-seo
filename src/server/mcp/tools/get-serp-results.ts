@@ -8,6 +8,8 @@ import { buildProjectMeta } from "@/server/mcp/context";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { resolveMarket } from "@/shared/keyword-locations";
+import { assertLocalResearchLocation } from "@/server/features/keywords/services/research/local-volume";
+import { toolErrorMessage } from "@/server/mcp/tool-error-message";
 import { formatMcpTable, type McpTableColumn } from "@/server/mcp/table";
 import {
   languageCodeSchema,
@@ -35,6 +37,13 @@ const querySchema = z.object({
   keyword: z.string().min(1).describe("Search query to fetch the SERP for."),
   locationCode: locationCodeSchema.optional(),
   languageCode: languageCodeSchema.optional(),
+  locationName: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Optional city, county, or region inside the query's country, for a local SERP. Call search_serp_locations first and pass its locationName verbatim. Same price as a national SERP.",
+    ),
 });
 
 const inputSchema = {
@@ -111,9 +120,17 @@ export const getSerpResultsTool = {
     const results = await Promise.all(
       args.queries.map(async (q) => {
         try {
+          const market = resolveMarket(q, context.project);
+          if (q.locationName) {
+            await assertLocalResearchLocation(
+              market.locationCode,
+              q.locationName,
+            );
+          }
           const items = await client.serp.live({
             keyword: q.keyword,
-            ...resolveMarket(q, context.project),
+            ...market,
+            locationName: q.locationName,
             depth,
           });
           // Trim noise — return only essentials per item.
@@ -130,7 +147,7 @@ export const getSerpResultsTool = {
           return {
             keyword: q.keyword,
             ok: false as const,
-            error: error instanceof Error ? error.message : String(error),
+            error: toolErrorMessage(error),
           };
         }
       }),

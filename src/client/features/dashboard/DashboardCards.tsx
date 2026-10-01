@@ -1,7 +1,9 @@
+import { CardShell } from "@/client/components/CardShell";
+import { Button } from "@/client/components/ui/button";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
-import { SearchConsoleConnectionCard } from "@/client/features/gsc/SearchConsoleConnectionCard";
+import { GoogleConnectionCard } from "@/client/features/integrations/GoogleConnectionCard";
 import { AUDIT_ISSUE_TYPES } from "@/shared/audit-issues";
 
 import {
@@ -11,14 +13,13 @@ import {
 } from "@/client/features/search-performance/SearchPerformanceColumns";
 import { getSearchPerformanceReport } from "@/serverFunctions/searchPerformance";
 import {
-  CardShell,
   EmptyCardBody,
   formatDay,
   moreDetailsClass,
   newLost,
-  PercentDelta,
-  Stat,
+  StatGridSkeleton,
 } from "@/client/features/dashboard/cardParts";
+import { StatTile } from "@/client/components/StatTile";
 import type {
   DashboardAuditSummary,
   DashboardBacklinkSummary,
@@ -45,18 +46,17 @@ export function GscCard({
       }),
     enabled: connected,
   });
+  const report = reportQuery.data;
 
   // Not connected (or a dead grant discovered by the report call): the
   // connection card sells and runs the whole flow itself.
-  if (!connected || (reportQuery.data && !reportQuery.data.connected)) {
+  if (!connected || (report && !report.connected)) {
     return (
       <div id="connect-gsc">
-        <SearchConsoleConnectionCard projectId={projectId} />
+        <GoogleConnectionCard provider="gsc" projectId={projectId} prominent />
       </div>
     );
   }
-
-  const report = reportQuery.data;
 
   return (
     <CardShell
@@ -72,45 +72,37 @@ export function GscCard({
         </Link>
       }
     >
-      {reportQuery.isPending ? (
-        <div className="grid grid-cols-2 gap-3" aria-busy>
-          {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="skeleton h-20" />
-          ))}
-        </div>
-      ) : reportQuery.isError ? (
-        <p className="text-sm text-base-content/60">
+      {reportQuery.isError ? (
+        <p className="text-sm text-muted-foreground">
           Couldn&rsquo;t load Search Console data. Try again shortly.
         </p>
-      ) : report?.connected ? (
+      ) : !report ? (
+        <StatGridSkeleton />
+      ) : (
         <div className="grid grid-cols-2 gap-3">
-          <Stat
+          <StatTile
             label="Clicks"
             value={formatCount(report.totals.clicks)}
-            sub={
-              <PercentDelta
-                current={report.totals.clicks}
-                previous={report.prevTotals.clicks}
-              />
-            }
+            delta={{
+              current: report.totals.clicks,
+              previous: report.prevTotals.clicks,
+            }}
           />
-          <Stat
+          <StatTile
             label="Impressions"
             value={formatCount(report.totals.impressions)}
-            sub={
-              <PercentDelta
-                current={report.totals.impressions}
-                previous={report.prevTotals.impressions}
-              />
-            }
+            delta={{
+              current: report.totals.impressions,
+              previous: report.prevTotals.impressions,
+            }}
           />
-          <Stat label="CTR" value={formatCtr(report.totals.ctr)} />
-          <Stat
+          <StatTile label="CTR" value={formatCtr(report.totals.ctr)} />
+          <StatTile
             label="Avg position"
             value={formatPosition(report.totals.position)}
           />
         </div>
-      ) : null}
+      )}
     </CardShell>
   );
 }
@@ -128,13 +120,13 @@ export function AuditHealthCard({
         <EmptyCardBody
           message="Crawl your site for broken links, missing tags and indexability problems."
           cta={
-            <Link
-              to="/p/$projectId/audit"
-              params={{ projectId }}
-              className="btn btn-primary btn-sm"
+            <Button
+              size="lg"
+              nativeButton={false}
+              render={<Link to="/p/$projectId/audit" params={{ projectId }} />}
             >
               Run an audit
-            </Link>
+            </Button>
           }
         />
       </CardShell>
@@ -161,11 +153,23 @@ export function AuditHealthCard({
         </Link>
       }
     >
-      {audit.topIssues.length === 0 ? (
-        <div className="flex items-center gap-2 text-sm text-base-content/70">
-          <Check className="size-4 text-success" />
-          No issues found — your site looks healthy.
-        </div>
+      {audit.status === "running" ? (
+        // A running crawl has at most a partial issue list, and an empty one
+        // is not the same as a healthy site.
+        <p className="text-sm text-muted-foreground">
+          Issues appear here when the crawl finishes.
+        </p>
+      ) : audit.topIssues.length === 0 ? (
+        audit.status === "completed" ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Check className="size-4 text-success" />
+            No issues found — your site looks healthy.
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Run the audit again to see issues.
+          </p>
+        )
       ) : (
         <ul className="space-y-2">
           {audit.topIssues.map((issue) => (
@@ -177,25 +181,31 @@ export function AuditHealthCard({
                 <span
                   className={`size-2 shrink-0 rounded-full ${
                     issue.severity === "critical"
-                      ? "bg-error"
+                      ? "bg-destructive"
                       : issue.severity === "warning"
                         ? "bg-warning"
-                        : "bg-base-content/30"
+                        : "bg-muted-foreground/30"
                   }`}
                 />
                 <span className="truncate">
                   {issueTitles[issue.issueType] ?? issue.issueType}
                 </span>
               </span>
-              <span className="shrink-0 tabular-nums text-base-content/60">
+              <span className="shrink-0 tabular-nums text-muted-foreground">
                 {issue.count} {issue.count === 1 ? "page" : "pages"}
               </span>
             </li>
           ))}
           {audit.totalIssueTypes > audit.topIssues.length ? (
-            <li className="text-xs text-base-content/50">
+            <li className="text-xs text-muted-foreground">
               + {audit.totalIssueTypes - audit.topIssues.length} more issue
               {audit.totalIssueTypes - audit.topIssues.length === 1 ? "" : "s"}
+            </li>
+          ) : null}
+          {/* A failed crawl keeps what it found, as the audit page does. */}
+          {audit.status !== "completed" ? (
+            <li className="text-xs text-muted-foreground">
+              From the pages crawled before the audit stopped.
             </li>
           ) : null}
         </ul>
@@ -216,11 +226,7 @@ export function BacklinkPulseCard({
   if (!backlinks && refreshing) {
     return (
       <CardShell title="Backlink pulse" stamp="Taking your first snapshot…">
-        <div className="grid grid-cols-2 gap-3" aria-busy>
-          {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="skeleton h-20" />
-          ))}
-        </div>
+        <StatGridSkeleton />
       </CardShell>
     );
   }
@@ -228,7 +234,7 @@ export function BacklinkPulseCard({
   if (!backlinks) {
     return (
       <CardShell title="Backlink pulse">
-        <p className="text-sm text-base-content/60">
+        <p className="text-sm text-muted-foreground">
           We&rsquo;ll snapshot who links to your domain — nothing to set up.
         </p>
       </CardShell>
@@ -253,7 +259,7 @@ export function BacklinkPulseCard({
       }
     >
       <div className="grid grid-cols-2 gap-3">
-        <Stat
+        <StatTile
           label="Ref. domains"
           value={
             backlinks.referringDomains === null
@@ -261,7 +267,7 @@ export function BacklinkPulseCard({
               : backlinks.referringDomains.toLocaleString()
           }
         />
-        <Stat
+        <StatTile
           label="Backlinks"
           value={
             backlinks.backlinks === null
@@ -269,7 +275,7 @@ export function BacklinkPulseCard({
               : backlinks.backlinks.toLocaleString()
           }
         />
-        <Stat
+        <StatTile
           label="New links"
           value={`▲ ${newLost(backlinks.newBacklinks)}`}
           tone={
@@ -278,12 +284,12 @@ export function BacklinkPulseCard({
               : undefined
           }
         />
-        <Stat
+        <StatTile
           label="Lost links"
           value={`▼ ${newLost(backlinks.lostBacklinks)}`}
           tone={
             backlinks.lostBacklinks && backlinks.lostBacklinks > 0
-              ? "error"
+              ? "destructive"
               : undefined
           }
         />

@@ -24,7 +24,7 @@ export interface EvaluationContext {
 }
 
 /** The site pass has facts and no page; site rules read nothing else. */
-export interface SiteEvaluationContext {
+interface SiteEvaluationContext {
   site: { facts: SiteFacts };
 }
 

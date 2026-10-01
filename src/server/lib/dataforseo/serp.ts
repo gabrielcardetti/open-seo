@@ -23,7 +23,7 @@ import { AppError } from "@/server/lib/errors";
 export const SERP_ANALYSIS_DEPTH = 20;
 
 /** DataForSEO bills SERPs in pages of 10; depth outside 10-100 is rejected. */
-function clampSerpDepth(depth: number): number {
+export function clampSerpDepth(depth: number): number {
   return Math.min(100, Math.max(10, depth));
 }
 
@@ -88,13 +88,18 @@ export async function fetchLiveSerp(input: {
   locationCode: number;
   languageCode: string;
   depth?: number;
+  /** Canonical DataForSEO name of a city, county, or region for a local SERP. */
+  locationName?: string;
 }): Promise<DataforseoApiResponse<SerpLiveItem[]>> {
+  const locationParams = input.locationName
+    ? { location_name: input.locationName }
+    : { location_code: input.locationCode };
   const response = await dataforseoPost(
     "/v3/serp/google/organic/live/advanced",
     [
       {
         keyword: input.keyword,
-        location_code: input.locationCode,
+        ...locationParams,
         language_code: input.languageCode,
         device: "desktop",
         os: "windows",

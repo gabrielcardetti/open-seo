@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { GoogleAnalyticsConnectionCard } from "@/client/features/ga4/GoogleAnalyticsConnectionCard";
+import { GoogleConnectionCard } from "@/client/features/integrations/GoogleConnectionCard";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { dismissDashboardGa4Card } from "@/serverFunctions/dashboard";
 
@@ -20,8 +20,10 @@ export function Ga4ConnectCard({
   });
 
   return (
-    <GoogleAnalyticsConnectionCard
+    <GoogleConnectionCard
+      provider="ga4"
       projectId={projectId}
+      prominent
       onDismiss={
         connected
           ? undefined

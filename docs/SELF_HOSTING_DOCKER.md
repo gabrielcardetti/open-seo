@@ -65,7 +65,7 @@ docker compose up -d
 If you are testing local code changes, build and run a local tag:
 
 ```bash
-docker build -f Dockerfile.selfhost -t open-seo:local .
+docker build -f deploy/docker/Dockerfile -t open-seo:local .
 OPEN_SEO_IMAGE=open-seo:local docker compose up -d
 ```
 

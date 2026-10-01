@@ -7,6 +7,7 @@ import {
   type BillingCustomerContext,
 } from "@/server/billing/subscription";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { CrawlerCredentialService } from "@/server/features/audit/services/CrawlerCredentialService";
 import {
   AUDIT_LIMITS,
   clampAuditMaxPages,
@@ -86,18 +87,43 @@ async function startAudit(input: {
       'Excluded paths must be sections of the site, such as "/archive"; the whole site ("/") cannot be excluded.',
     );
   }
+  const organizationId = input.billingCustomer.organizationId;
+  const requestedUrl = await normalizeAndValidateStartUrl(input.startUrl);
+  // The probe itself can be rate limited, so it carries the credential too.
+  let credential = await CrawlerCredentialService.resolveCrawlerAccess(
+    organizationId,
+    input.projectId,
+    new URL(requestedUrl).hostname,
+  );
+  // Anchor the audit to the site's real origin: a start domain that 301s
+  // elsewhere (…net -> …com, apex -> www) would otherwise dead-end after
+  // one page at the same-origin crawl boundary.
+  const probe = await resolveStartUrlRedirects(
+    requestedUrl,
+    await CrawlerCredentialService.openCrawlerAccess(credential?.sealed),
+  );
+  const startUrl = probe.url;
+  const startHost = new URL(startUrl).hostname;
+  if (startHost !== new URL(requestedUrl).hostname) {
+    credential = await CrawlerCredentialService.resolveCrawlerAccess(
+      organizationId,
+      input.projectId,
+      startHost,
+    );
+  }
+
   const config: AuditConfig = {
     maxPages,
     lighthouseStrategy,
     guidelinesStrategy,
     excludedPaths,
+    // Shopify storefronts answer with `powered-by: Shopify`; knowing this is
+    // what lets the report explain a throttled crawl instead of shrugging.
+    sitePlatform: probe.poweredBy?.toLowerCase().includes("shopify")
+      ? "shopify"
+      : undefined,
+    crawlerCredentialId: credential?.id,
   };
-  // Anchor the audit to the site's real origin: a start domain that 301s
-  // elsewhere (…net -> …com, apex -> www) would otherwise dead-end after
-  // one page at the same-origin crawl boundary.
-  const startUrl = await resolveStartUrlRedirects(
-    await normalizeAndValidateStartUrl(input.startUrl),
-  );
 
   await AuditRepository.createAudit({
     id: auditId,
@@ -141,6 +167,7 @@ async function startAudit(input: {
         projectId: input.projectId,
         startUrl,
         config,
+        access: credential?.sealed,
       },
     });
   } catch (error) {

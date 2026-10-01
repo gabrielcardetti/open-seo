@@ -10,7 +10,7 @@
  *     --confirm-database-host <host printed by the dry run>
  *
  * The Worker endpoint must be deployed with the same GDPR_ERASURE_SECRET as
- * this process. See runbooks/gdpr-erasure.md for required operator variables.
+ * this process. See docs/maintainers/runbooks/gdpr-erasure.md for required operator variables.
  */
 import process from "node:process";
 import { Autumn } from "autumn-js";

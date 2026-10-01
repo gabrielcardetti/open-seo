@@ -344,14 +344,6 @@ async function updateKeywordMetrics(
   );
 }
 
-async function getKeywordCountForConfig(configId: string) {
-  const rows = await db
-    .select({ value: count() })
-    .from(rankTrackingKeywords)
-    .where(eq(rankTrackingKeywords.configId, configId));
-  return rows[0]?.value ?? 0;
-}
-
 /** Keyword counts keyed by config id. Configs with no keywords are absent. */
 async function getKeywordCountsForConfigs(configIds: string[]) {
   // Chunked so the IN list stays under D1's ~100 bound-parameter cap.
@@ -388,7 +380,6 @@ export const RankTrackingRepository = {
   addKeywordsToConfig,
   removeKeywordsFromConfig,
   updateKeywordMetrics,
-  getKeywordCountForConfig,
   getKeywordCountsForConfigs,
   getConfigSummaries,
   getLatestSnapshotsForKeywords,

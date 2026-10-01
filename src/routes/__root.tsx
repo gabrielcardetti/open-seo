@@ -22,6 +22,7 @@ import {
   stopAnalyticsCapture,
 } from "@/client/lib/posthog";
 import { NotFound } from "@/client/components/NotFound";
+import { TooltipProvider } from "@/client/components/ui/tooltip";
 import appCss from "@/client/styles/app.css?url";
 import { useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
@@ -147,7 +148,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               context — nothing fetches until a useCustomer consumer mounts. */}
           <AutumnProvider>
             <QueryClientProvider client={queryClient}>
-              <>
+              <TooltipProvider>
                 <PostHogBootstrap />
                 {children}
                 <ExportToSheetsModal />
@@ -168,7 +169,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                     ]}
                   />
                 ) : null}
-              </>
+              </TooltipProvider>
             </QueryClientProvider>
           </AutumnProvider>
         </ClientOnly>

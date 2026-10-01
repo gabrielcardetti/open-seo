@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const createDataforseoClientMock = vi.hoisted(() => vi.fn());
 
@@ -11,10 +11,6 @@ vi.mock("@/server/lib/r2", () => ({
 }));
 
 import { fetchLighthouseResult, selectLighthouseSample } from "./lighthouse";
-
-afterEach(() => {
-  vi.clearAllMocks();
-});
 
 describe("selectLighthouseSample", () => {
   it("includes a start page reached through a trailing-slash redirect", () => {

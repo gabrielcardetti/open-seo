@@ -1,5 +1,6 @@
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -8,6 +9,29 @@ import { devtools } from "@tanstack/devtools-vite";
 import { leanWorkerBundle } from "./vite-plugin-lean-worker-bundle";
 
 export default defineConfig(({ mode }) => {
+  // Vitest sets mode to "test". Return a config without the Cloudflare and
+  // TanStack Start plugins so unit tests never boot workerd or the SSR dev
+  // server; only the tsconfig path alias is needed.
+  if (mode === "test") {
+    return {
+      plugins: [tsConfigPaths()],
+      test: {
+        environment: "node",
+        include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
+        restoreMocks: true,
+        clearMocks: true,
+        server: {
+          deps: {
+            // Processed by vitest (instead of loaded natively by node) so the
+            // oauth-refresh e2e test's cloudflare:workers mock reaches the real
+            // provider module.
+            inline: ["@cloudflare/workers-oauth-provider"],
+          },
+        },
+      },
+    };
+  }
+
   const env = loadEnv(mode, process.cwd(), "");
   const port = process.env.PORT
     ? Number(process.env.PORT)
@@ -22,6 +46,9 @@ export default defineConfig(({ mode }) => {
   const emitSourcemaps = env.POSTHOG_SOURCEMAPS === "true";
 
   return {
+    // Static files (favicons, manifest) live beside the app code instead of at
+    // the repo root.
+    publicDir: "src/public",
     envPrefix: [
       "VITE_",
       "AUTH_MODE",

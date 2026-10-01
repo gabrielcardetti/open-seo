@@ -1,46 +1,27 @@
-import type { ReactNode } from "react";
 import { useCustomer } from "autumn-js/react";
 import { useSession } from "@/lib/auth-client";
 import { isHostedClientAuthMode } from "@/lib/auth-mode";
-import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
+import {
+  getCustomerPlanStatus,
+  type PlanStatus,
+} from "@/client/features/billing/plan-detection";
 
-export type HostedPlanGateState = {
-  isLoading: boolean;
-  isFreePlan: boolean;
-};
-
-const SELF_HOSTED_PLAN_GATE: HostedPlanGateState = {
-  isLoading: false,
-  isFreePlan: false,
-};
-
-export function HostedPlanGate({
-  children,
-}: {
-  children: (state: HostedPlanGateState) => ReactNode;
-}) {
-  if (!isHostedClientAuthMode()) {
-    return children(SELF_HOSTED_PLAN_GATE);
-  }
-
-  return <HostedPlanGateContent>{children}</HostedPlanGateContent>;
-}
-
-function HostedPlanGateContent({
-  children,
-}: {
-  children: (state: HostedPlanGateState) => ReactNode;
-}) {
+// The single client-side plan gate. It is a UX layer only: the server enforces
+// every paid-plan limit before it spends anything.
+export function useHostedPlanGate(): "loading" | PlanStatus {
+  // Self-hosted has no Autumn customer and resolves to the paid tier on the
+  // server, so only hosted mode looks up the plan.
+  const isHostedMode = isHostedClientAuthMode();
   const { data: session, isPending: isSessionPending } = useSession();
   const hasSession = Boolean(session?.user?.id);
   const customerQuery = useCustomer({
-    queryOptions: { enabled: hasSession },
+    queryOptions: { enabled: isHostedMode && hasSession },
   });
 
-  return children({
-    isLoading: isSessionPending || !hasSession || customerQuery.isLoading,
-    isFreePlan:
-      !!customerQuery.data &&
-      getCustomerPlanStatus(customerQuery.data) === "free",
-  });
+  if (!isHostedMode) return "paid";
+  if (isSessionPending || !hasSession || customerQuery.isLoading) {
+    return "loading";
+  }
+  // Fails closed: a customer that failed to load resolves to "free".
+  return getCustomerPlanStatus(customerQuery.data);
 }

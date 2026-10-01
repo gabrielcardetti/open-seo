@@ -4,10 +4,9 @@ import {
   AUTUMN_MANAGED_ACCESS_FEATURE_ID,
   AUTUMN_PAID_PLAN_FEATURE_ID,
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-  AUTUMN_SEO_DATA_CREDITS_PER_USD,
   AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-  SEO_DATA_COST_MARKUP,
-  roundUsdForBilling,
+  applyBillingMarkupUsd,
+  creditsForProviderUsd,
 } from "@/shared/billing";
 import type { CreditFeature } from "@/shared/billing-credit-features";
 import { autumn, AUTUMN_TRACK_RETRY_OPTIONS } from "@/server/billing/autumn";
@@ -63,6 +62,8 @@ export async function getOrCreateOrganizationCustomer(
   return { id: customer.id };
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function customerHasPaidPlan(
   customerId: string,
   opts: { retryDenied?: boolean } = {},
@@ -78,7 +79,7 @@ export async function customerHasPaidPlan(
   // false negative does lasting damage — the scheduler would advance a paying
   // org's schedule and flag "plan_required" — callers opt into one re-check.
   // Interactive deny paths skip it to stay fast for genuinely free users.
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await sleep(300);
   const retry = await autumn.check({
     customerId,
     featureId: AUTUMN_PAID_PLAN_FEATURE_ID,
@@ -115,7 +116,7 @@ async function getUsageCreditsRemaining(customerId: string): Promise<{
   // SDK's retry policy only covers failed HTTP requests.
   let monthlyBalance = monthlyCheck.balance;
   if (!monthlyBalance) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await sleep(300);
     const retry = await autumn.check({
       customerId,
       featureId: AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
@@ -203,29 +204,254 @@ export async function checkUsageCreditsDepleted(
   return { depleted: true, monthlyRemaining: check.monthlyRemaining };
 }
 
+// A hold outlives the provider call it covers; an orphaned hold (isolate
+// death between check and finalize) releases at this TTL with no deduction.
+const HOLD_TTL_MS = 30 * 60_000;
+
+type UsageCreditFeatureId =
+  | typeof AUTUMN_SEO_DATA_BALANCE_FEATURE_ID
+  | typeof AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID;
+
+type UsageCreditHold = {
+  lockId: string;
+  featureId: UsageCreditFeatureId;
+  estimatedCredits: number;
+};
+
 /**
- * Throws INSUFFICIENT_CREDITS when the org has no usage/topup credits left.
- * Returns the monthly remaining so a caller can split spend monthly-first.
+ * Atomically holds `credits` on one balance feature. Autumn refuses the hold
+ * (allowed: false) when the balance is short, so concurrent calls cannot all
+ * pass on the same reading the way a plain balance check lets them.
+ *
+ * The SDK fails open on a failed request (timeout, 5xx) with `allowed: true,
+ * balance: null`, including one Autumn actually processed; that is a broken
+ * read, not a wallet, so retry it once and then fail closed. The retry reuses
+ * the lockId: a 409 `lock_already_exists` means the first hold landed (a
+ * refusal creates no lock), so the call proceeds on it instead of stranding a
+ * second hold for HOLD_TTL_MS. The SDK's own 5xx retry is off
+ * (AUTUMN_TRACK_RETRY_OPTIONS): it would replay a lock Autumn already took
+ * and throw that 409 from the first attempt, where nothing catches it. An
+ * absent feature reads `allowed: false, balance: null` and is a genuine
+ * refusal.
  */
-export async function assertUsageCreditsAvailable(
+async function holdCredits(
   customerId: string,
-): Promise<{ monthlyRemaining: number }> {
-  const { monthlyRemaining, topupRemaining } =
-    await getUsageCreditsRemaining(customerId);
+  featureId: UsageCreditFeatureId,
+  estimatedCredits: number,
+  properties: Record<string, unknown>,
+) {
+  const lockId = `dfs_${customerId}_${crypto.randomUUID()}`;
+  const hold: UsageCreditHold = { lockId, featureId, estimatedCredits };
+  const attempt = () =>
+    autumn.check(
+      {
+        customerId,
+        featureId,
+        requiredBalance: estimatedCredits,
+        sendEvent: true,
+        properties,
+        lock: { lockId, enabled: true, expiresAt: Date.now() + HOLD_TTL_MS },
+      },
+      AUTUMN_TRACK_RETRY_OPTIONS,
+    );
 
-  if (monthlyRemaining + topupRemaining <= 0) {
-    throw new AppError("INSUFFICIENT_CREDITS");
+  let result = await attempt();
+  if (result.allowed && !result.balance) {
+    await sleep(300);
+    try {
+      result = await attempt();
+    } catch (error) {
+      if (!errorBodyIncludes(error, "lock_already_exists")) throw error;
+      return { hold, allowed: true, balance: null };
+    }
   }
-
-  return { monthlyRemaining };
+  if (result.allowed && !result.balance) {
+    // INTERNAL_ERROR, not UPSTREAM_UNAVAILABLE: this must stay reportable.
+    throw new AppError(
+      "INTERNAL_ERROR",
+      `Autumn check returned no ${featureId} balance for customer ${customerId}`,
+    );
+  }
+  return { hold, allowed: result.allowed, balance: result.balance };
 }
 
 /**
- * Deducts a USD provider cost from the org's shared usage-credit pool: applies
- * the platform markup, converts to credits, spends monthly `usage_credits`
- * first then `topup_credits`, and emits the usage:credits_consume event. Both
- * DataForSEO and agent-LLM spend route through here, so they draw from the
- * one pool. Pass `monthlyRemaining` from the balance check that gated the call.
+ * Reserves the estimated credits for one provider call before it is made:
+ * monthly `usage_credits` first, else the whole estimate on `topup_credits`.
+ * Throws INSUFFICIENT_CREDITS (and emits the refusal event) when neither
+ * covers it. The caller must settle the returned hold with
+ * `settleUsageCredits` once the call's real cost is known.
+ */
+export async function reserveUsageCredits(args: {
+  customer: BillingCustomerContext;
+  customerId: string;
+  estimatedCredits: number;
+  creditFeature?: CreditFeature;
+}): Promise<UsageCreditHold> {
+  const estimatedCredits = Math.max(1, args.estimatedCredits);
+  const properties = {
+    creditFeature: args.creditFeature,
+    provider: "dataforseo",
+    estimatedCredits,
+  };
+
+  const monthly = await holdCredits(
+    args.customerId,
+    AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+    estimatedCredits,
+    properties,
+  );
+  if (monthly.allowed) return monthly.hold;
+
+  const topup = await holdCredits(
+    args.customerId,
+    AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
+    estimatedCredits,
+    properties,
+  );
+  if (topup.allowed) return topup.hold;
+
+  await captureServerEvent({
+    distinctId: args.customer.userId,
+    event: "usage:credits_gate_refused",
+    organizationId: args.customer.organizationId,
+    properties: {
+      project_id: args.customer.projectId,
+      reason: "estimate_exceeds_balance",
+      source: "dataforseo",
+      credit_feature: args.creditFeature,
+      estimated_credits: estimatedCredits,
+      monthly_remaining: monthly.balance?.remaining ?? 0,
+      topup_remaining: topup.balance?.remaining ?? 0,
+    },
+  });
+  throw new AppError("INSUFFICIENT_CREDITS");
+}
+
+// The SDK throws 4xx responses with the raw response body attached. Autumn
+// answers a reused lockId with 409 `lock_already_exists`, and a finalize for
+// a lock it no longer holds with a 400 whose message starts "Lock not found"
+// (the code is the generic invalid_request).
+function errorBodyIncludes(error: unknown, text: string) {
+  return (
+    error instanceof Error &&
+    "body" in error &&
+    typeof error.body === "string" &&
+    error.body.includes(text)
+  );
+}
+
+/**
+ * Settles a hold on the provider's real cost: confirms the deduction at the
+ * actual credits (Autumn deducts the override, above or below the hold, and
+ * returns the rest) or releases the hold when nothing was billed. Never
+ * throws: the customer already has the data, so a finalize that still fails
+ * after one retry is logged with everything needed to reconcile it and the
+ * hold expires at its TTL.
+ */
+export async function settleUsageCredits(args: {
+  customer: BillingCustomerContext;
+  hold: UsageCreditHold;
+  /** Resolved from the billed path by the caller; unknown for an unbilled call. */
+  creditFeature?: CreditFeature;
+  /** Billed provider cost, or null when the call was not charged. */
+  cost: { costUsd: number; path: string[] } | null;
+}): Promise<void> {
+  const { customer, hold, creditFeature, cost } = args;
+  const actualCredits = cost ? creditsForProviderUsd(cost.costUsd) : 0;
+  const totalCostUsd = cost ? applyBillingMarkupUsd(cost.costUsd) : 0;
+  const paths = cost ? [cost.path.join("/")] : [];
+
+  // No SDK-level 5xx retry (AUTUMN_TRACK_RETRY_OPTIONS): this loop owns
+  // the retry so a "Lock not found" can only be seen on our second attempt.
+  const finalize = () =>
+    autumn.balances.finalize(
+      {
+        lockId: hold.lockId,
+        ...(actualCredits > 0
+          ? { action: "confirm", overrideValue: actualCredits }
+          : { action: "release" }),
+        properties: {
+          creditFeature,
+          provider: "dataforseo",
+          paths,
+          totalCostUsd,
+          estimatedCredits: hold.estimatedCredits,
+        },
+      },
+      AUTUMN_TRACK_RETRY_OPTIONS,
+    );
+
+  let landed = false;
+  let lastError: unknown;
+  for (const attempt of [1, 2]) {
+    if (attempt === 2) await sleep(250);
+    try {
+      landed = (await finalize()).success;
+    } catch (error) {
+      lastError = error;
+      if (errorBodyIncludes(error, "Lock not found")) {
+        // On the retry this means the first attempt landed; on the first
+        // attempt the hold has already expired and the deduction is lost.
+        landed = attempt === 2;
+        break;
+      }
+    }
+    if (landed) break;
+  }
+  if (!landed) {
+    console.error("[autumn] finalize failed", {
+      organizationId: customer.organizationId,
+      lockId: hold.lockId,
+      held: hold.estimatedCredits,
+      actual: actualCredits,
+      error: lastError,
+    });
+    return;
+  }
+  if (actualCredits <= 0) return;
+
+  const onMonthly = hold.featureId === AUTUMN_SEO_DATA_BALANCE_FEATURE_ID;
+  await captureCreditsConsumed(customer, {
+    credit_feature: creditFeature,
+    monthly_credits: onMonthly ? actualCredits : 0,
+    topup_credits: onMonthly ? 0 : actualCredits,
+    total_credits: actualCredits,
+    cost_usd: totalCostUsd,
+    estimated_credits: hold.estimatedCredits,
+    paths,
+  });
+
+  // The estimate is meant to be an upper bound; an undershoot means a price
+  // constant in pricing.ts is stale and the spend bound has a hole.
+  if (actualCredits > hold.estimatedCredits) {
+    console.error("[billing] estimate undershoot", {
+      paths,
+      estimated: hold.estimatedCredits,
+      actual: actualCredits,
+    });
+  }
+}
+
+function captureCreditsConsumed(
+  customer: BillingCustomerContext,
+  properties: Record<string, unknown>,
+) {
+  return captureServerEvent({
+    distinctId: customer.userId,
+    event: "usage:credits_consume",
+    organizationId: customer.organizationId,
+    properties: { project_id: customer.projectId, ...properties },
+  });
+}
+
+/**
+ * Deducts a USD provider cost from the org's shared usage-credit pool after
+ * the fact: applies the platform markup, converts to credits, spends monthly
+ * `usage_credits` first then `topup_credits`, and emits the
+ * usage:credits_consume event. Only SAM's LLM spend uses this (token cost is
+ * unknowable up front); DataForSEO calls reserve-then-settle instead. Pass
+ * `monthlyRemaining` from the balance check that gated the call.
  */
 export async function trackUsageCreditSpend(args: {
   customer: BillingCustomerContext;
@@ -235,10 +461,8 @@ export async function trackUsageCreditSpend(args: {
   monthlyRemaining: number;
   properties?: Record<string, unknown>;
 }): Promise<{ monthlyCredits: number; topupCredits: number }> {
-  const totalCostUsd = roundUsdForBilling(args.costUsd * SEO_DATA_COST_MARKUP);
-  const totalCostCredits = Math.ceil(
-    totalCostUsd * AUTUMN_SEO_DATA_CREDITS_PER_USD,
-  );
+  const totalCostUsd = applyBillingMarkupUsd(args.costUsd);
+  const totalCostCredits = creditsForProviderUsd(args.costUsd);
   if (totalCostCredits <= 0) return { monthlyCredits: 0, topupCredits: 0 };
 
   // Clamp at 0: Autumn balances can read negative after an overdraft, and a
@@ -287,18 +511,12 @@ export async function trackUsageCreditSpend(args: {
     );
   }
 
-  await captureServerEvent({
-    distinctId: args.customer.userId,
-    event: "usage:credits_consume",
-    organizationId: args.customer.organizationId,
-    properties: {
-      project_id: args.customer.projectId,
-      credit_feature: args.creditFeature,
-      monthly_credits: monthlyDeduct,
-      topup_credits: topupDeduct,
-      total_credits: totalCostCredits,
-      cost_usd: totalCostUsd,
-    },
+  await captureCreditsConsumed(args.customer, {
+    credit_feature: args.creditFeature,
+    monthly_credits: monthlyDeduct,
+    topup_credits: topupDeduct,
+    total_credits: totalCostCredits,
+    cost_usd: totalCostUsd,
   });
   return { monthlyCredits: monthlyDeduct, topupCredits: topupDeduct };
 }

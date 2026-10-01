@@ -39,7 +39,6 @@ const customer = {
 
 describe("resolveAuditLimitTier", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     hasManagedAccessMock.mockResolvedValue(true);
     hasPaidPlanMock.mockResolvedValue(true);
   });

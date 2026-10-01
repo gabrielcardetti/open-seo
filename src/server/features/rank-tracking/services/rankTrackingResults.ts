@@ -1,7 +1,7 @@
 import { RankTrackingRepository } from "@/server/features/rank-tracking/repositories/RankTrackingRepository";
 import { toSqliteTimestamp } from "@/server/features/rank-tracking/rankTrackingTimestamps";
 import { AppError } from "@/server/lib/errors";
-import type { ComparePeriod } from "@/types/schemas/rank-tracking";
+import type { ComparePeriod } from "@/types/schemas/rank-tracking-search";
 import type {
   RankTrackingDeviceResult,
   RankTrackingRow,

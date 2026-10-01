@@ -63,5 +63,7 @@ const auditTabs = ["issues", "pages", "performance", "guidelines"] as const;
 
 export const auditSearchSchema = z.object({
   auditId: z.string().optional().catch(undefined),
+  // Pre-fills the launch form (the dashboard's "Audit your site" step).
+  url: z.string().optional().catch(undefined),
   tab: z.enum(auditTabs).catch("issues").default("issues"),
 });

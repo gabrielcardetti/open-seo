@@ -7,8 +7,7 @@ import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { formatMcpTable, type McpTableColumn } from "@/server/mcp/table";
 import { projectIdSchema } from "@/server/mcp/schemas";
 import { buildDashboardUrl } from "@/server/mcp/urls";
-import { hasSelfHostedGoogleOAuthConfig } from "@/server/features/google/oauth-config";
-import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { hasGoogleOAuthConfig } from "@/server/features/google/oauth-config";
 import { GscService } from "@/server/features/gsc/services/GscService";
 import {
   GSC_DATE_RANGES,
@@ -65,17 +64,13 @@ function connectGscUrl(baseUrl: string, projectId: string): string {
 }
 
 /** Self-hosted GSC requires the operator to provide a Google OAuth client and
- *  BETTER_AUTH_SECRET. Hosted mode always has both; self-hosted tools return this
- *  setup nudge before attempting a token lookup when either is missing. */
+ *  BETTER_AUTH_SECRET. Return this setup nudge before attempting a token lookup
+ *  when either is missing. */
 async function missingSelfHostedGoogleClientResponse(
   context: ProjectAuthContext,
   projectId: string,
 ) {
-  const [hosted, configured] = await Promise.all([
-    isHostedServerAuthMode(),
-    hasSelfHostedGoogleOAuthConfig(),
-  ]);
-  if (hosted || configured) return null;
+  if (await hasGoogleOAuthConfig()) return null;
 
   return mcpResponse({
     text: `This self-hosted OpenSEO deployment is not configured for Search Console yet. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and BETTER_AUTH_SECRET, then reconnect Search Console from the project's settings page. Setup docs: ${GSC_SELF_HOSTED_SETUP_DOCS_URL}`,

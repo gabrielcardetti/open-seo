@@ -64,6 +64,7 @@ import {
   listReportsTool,
   saveReportTool,
 } from "@/server/mcp/tools/report-tools";
+import { setReportSharingTool } from "@/server/mcp/tools/report-sharing-tools";
 import {
   deleteReportTemplateTool,
   listReportTemplatesTool,
@@ -246,6 +247,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);
+  register(setReportSharingTool);
   register(deleteReportTool);
   register(listReportTemplatesTool);
   register(saveReportTemplateTool);

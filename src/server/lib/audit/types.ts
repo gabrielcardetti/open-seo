@@ -22,6 +22,10 @@ export interface AuditConfig {
   guidelinesStrategy: GuidelinesStrategy;
   /** Path prefixes the crawl leaves out, e.g. "/archive" (see crawl-scope.ts). */
   excludedPaths: string[];
+  /** Detected from the start URL's `powered-by` response header. */
+  sitePlatform?: "shopify";
+  /** Which crawler-access credential the crawl replayed, if any. */
+  crawlerCredentialId?: string;
 }
 
 // Read-side only (writes stringify a typed AuditConfig). Stored rows may hold
@@ -51,6 +55,10 @@ const auditConfigSchema = z.object({
   guidelinesStrategy: guidelinesStrategySchema.default("none"),
   // Audits predating path exclusion have no such key: they crawled everything.
   excludedPaths: z.array(z.string()).catch([]).default([]),
+  // Absent on every audit stored before crawler access shipped, and a future
+  // platform value must not make an old report unviewable.
+  sitePlatform: z.literal("shopify").optional().catch(undefined),
+  crawlerCredentialId: z.string().optional().catch(undefined),
 });
 
 const auditConfigCodec = jsonCodec(auditConfigSchema);

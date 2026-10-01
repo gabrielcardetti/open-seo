@@ -378,12 +378,13 @@ export const organizationActivationState = sqliteTable(
 
 // Per-project state for the dashboard's onboarding checklist. Most steps
 // complete via real product state (projects.domain, gsc_connections, MCP
-// activation); the competitor step completes on click-through.
+// activation); the competitor and keyword steps complete on click-through.
 export const projectActivationState = sqliteTable("project_activation_state", {
   projectId: text("project_id")
     .primaryKey()
     .references(() => projects.id, { onDelete: "cascade" }),
   competitorStepClickedAt: text("competitor_step_clicked_at"),
+  keywordStepClickedAt: text("keyword_step_clicked_at"),
   // "I already connected" on the MCP card: hides the card for this project
   // without faking the org-level first-tool-call milestone, which stays
   // truthful and self-heals when a real external call lands.
@@ -444,5 +445,38 @@ export const dashboardStepDismissals = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.projectId, table.step] }),
     index("dashboard_step_dismissals_project_idx").on(table.projectId),
+  ],
+);
+
+// Crawler-access credentials for one host (currently only Shopify's
+// domain-scoped crawler signature). Stored on the project (website) it was
+// added for; an audit looks across the organization's projects, so a second
+// project auditing the same store still picks it up. The signature values are
+// encrypted, and never returned to the client.
+export const crawlerCredentials = sqliteTable(
+  "crawler_credentials",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Normalized lowercase hostname, e.g. "www.store.com".
+    host: text("host").notNull(),
+    provider: text("provider", { enum: ["shopify"] }).notNull(),
+    signatureInput: text("signature_input").notNull(),
+    signature: text("signature").notNull(),
+    // Parsed from the RFC 9421 `expires=` parameter when present; null when
+    // the signature input carries no expiry.
+    expiresAt: text("expires_at"),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    uniqueIndex("crawler_credentials_project_host_idx").on(
+      table.projectId,
+      table.host,
+    ),
   ],
 );

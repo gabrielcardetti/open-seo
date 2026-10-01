@@ -42,9 +42,12 @@ const RAW_COST_USD = {
   // Scheduled checks use the queued API. The app defaults to one device and
   // the top 40 results: $0.0006 for page one + $0.00045 per extra page.
   rankCheck: 0.0006 + (DEFAULT_RANK_DEPTH / 10 - 1) * 0.00045,
-  // A 150–300 result Labs search is currently $0.030–$0.048 raw. Use the
-  // midpoint so the customer estimate is a memorable $0.05 per search.
-  keywordLabs: 0.039,
+  // Labs live costs $0.012/task + $0.00012/row (measured Sep 2026). Auto mode
+  // blends two half-limit calls (suggestions + ideas), so the default
+  // 150-result search is 2 x (0.012 + 75 x 0.00012) = $0.042; 300 results is
+  // $0.060 and 500 is $0.084. Price the default, which is what nearly every
+  // search uses.
+  keywordLabs: 0.042,
   // The MCP-only local SERP tool defaults to a live Google Maps/Local Finder
   // request with 20 results: $0.002 for page one + $0.0015 for page two.
   localSerp: 0.002 + (DEFAULT_LOCAL_SERP_DEPTH / 10 - 1) * 0.0015,
@@ -68,7 +71,7 @@ function creditsForRaw(rawUsd: number): number {
 
 // Credits charged per unit of each action (computed once from the model above).
 const CREDITS_PER_UNIT = {
-  keywordLabs: creditsForRaw(RAW_COST_USD.keywordLabs), // 50
+  keywordLabs: creditsForRaw(RAW_COST_USD.keywordLabs), // 54
   localSerp: creditsForRaw(RAW_COST_USD.localSerp), // 5
   backlinkProfile: creditsForRaw(RAW_COST_USD.backlinkProfile), // 79
   aiCitation: creditsForRaw(RAW_COST_USD.aiCitationPerPlatform), // 1088
@@ -98,7 +101,7 @@ const PRESETS: Record<"business" | "freelancer", Inputs> = {
     backlinks: 20,
     aiScans: 0,
   },
-  // About $25/mo of usage: an agency checking 15 client sites weekly.
+  // About $27/mo of usage: an agency checking 15 client sites weekly.
   freelancer: {
     sites: 15,
     keywordsPerSite: 20,

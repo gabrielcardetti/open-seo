@@ -4,7 +4,7 @@
  *
  * Shared by the deterministic suite (`golden.test.ts`, stub judges) and the
  * live eval (`scripts/guidelines-golden-eval.ts`, real judges), so both score a
- * case the same way. How to run and extend it: maintainer-docs/guidelines-evals.md.
+ * case the same way. How to run and extend it: docs/maintainers/guidelines-evals.md.
  */
 import { z } from "zod";
 import {

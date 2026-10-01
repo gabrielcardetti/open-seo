@@ -21,9 +21,12 @@ export type KeywordSearchTabInput = {
   type: "keyword";
   keyword: string;
   locationCode?: number;
+  /** City, county, or region for local volume; absent for national. */
+  locationName?: string;
   resultLimit: ResultLimit;
   mode: KeywordMode;
   clickstream: boolean;
+  groupKeywords: boolean;
 };
 
 export type SearchTabInput =
