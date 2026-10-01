@@ -1,5 +1,7 @@
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { sort } from "remeda";
+import { Badge } from "@/client/components/ui/badge";
+import { Button } from "@/client/components/ui/button";
 import { RULES_BY_ID, type Verdict } from "@/shared/guidelines/catalog";
 import { GuidelineFinding } from "./GuidelineFinding";
 import { findingKind, unansweredByReason } from "./guideline-view-model";
@@ -33,22 +35,26 @@ export interface GuidelineResultRow {
  */
 export const VERDICT_STYLE: Record<
   Verdict,
-  { label: string; className: string; bar: string }
+  {
+    label: string;
+    variant: "destructive" | "warning" | "secondary" | "success";
+    bar: string;
+  }
 > = {
-  reject: { label: "Reject", className: "badge-error", bar: "bg-error" },
-  revise: { label: "Revise", className: "badge-warning", bar: "bg-warning" },
+  reject: { label: "Reject", variant: "destructive", bar: "bg-destructive" },
+  revise: { label: "Revise", variant: "warning", bar: "bg-warning" },
   pass_with_warnings: {
     label: "Pass with warnings",
-    className: "badge-ghost",
-    bar: "bg-base-content/25",
+    variant: "secondary",
+    bar: "bg-muted-foreground/30",
   },
-  pass: { label: "Pass", className: "badge-success", bar: "bg-success" },
+  pass: { label: "Pass", variant: "success", bar: "bg-success" },
 };
 
 const VERDICT_RULE: Record<Verdict, string> = {
-  reject: "border-l-error/60",
+  reject: "border-l-destructive/60",
   revise: "border-l-warning/60",
-  pass_with_warnings: "border-l-base-content/20",
+  pass_with_warnings: "border-l-muted-foreground/30",
   pass: "border-l-success/50",
 };
 
@@ -109,22 +115,23 @@ export function GuidelineEvaluationItem({
     <li
       className={
         isOpen
-          ? `border-l-2 ${VERDICT_RULE[evaluation.verdict]} bg-base-200/20`
+          ? `border-l-2 ${VERDICT_RULE[evaluation.verdict]} bg-muted/30`
           : "border-l-2 border-l-transparent"
       }
     >
-      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-base-200/40 transition-colors">
+      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors">
         <button
           type="button"
           className="flex items-center gap-3 flex-1 min-w-0 text-left"
           onClick={onToggle}
           aria-expanded={isOpen}
         >
-          <span
-            className={`badge badge-sm badge-soft shrink-0 sm:w-[8.5rem] justify-center ${VERDICT_STYLE[evaluation.verdict].className}`}
+          <Badge
+            variant={VERDICT_STYLE[evaluation.verdict].variant}
+            className="sm:w-[8.5rem]"
           >
             {VERDICT_STYLE[evaluation.verdict].label}
-          </span>
+          </Badge>
           <span className="flex-1 min-w-0">
             <span
               className={`block truncate text-sm ${isSite ? "font-medium" : ""}`}
@@ -132,56 +139,64 @@ export function GuidelineEvaluationItem({
             >
               {isSite ? "Whole site" : displayUrl(evaluation.pageUrl)}
             </span>
-            <span className="flex flex-wrap items-center gap-x-2 text-xs text-base-content/55">
+            <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               {isSite ? (
                 <span>Judged from the crawl inventory</span>
               ) : (
                 evaluation.pageType && <span>{evaluation.pageType}</span>
               )}
               {evaluation.ymyl && (
-                <span
-                  className="badge badge-xs badge-soft badge-warning"
+                <Badge
+                  variant="warning"
+                  size="sm"
                   title="Your Money or Your Life topic: judged against a higher bar"
                 >
                   YMYL
-                </span>
+                </Badge>
               )}
               <span>{findingSummary(findings)}</span>
               {contentNotJudged && (
-                <span className="badge badge-xs badge-ghost border-dashed">
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="border-dashed text-muted-foreground"
+                >
                   Content not judged
-                </span>
+                </Badge>
               )}
             </span>
           </span>
           <ChevronRight
-            className={`size-4 shrink-0 text-base-content/40 transition-transform ${isOpen ? "rotate-90" : ""}`}
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
           />
         </button>
         {!isSite && (
-          <a
-            href={evaluation.pageUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-ghost btn-xs btn-square shrink-0 text-base-content/40"
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            nativeButton={false}
+            className="text-muted-foreground"
             aria-label="Open page"
             title="Open page"
+            render={
+              <a href={evaluation.pageUrl} target="_blank" rel="noreferrer" />
+            }
           >
             <ExternalLink className="size-3.5" />
-          </a>
+          </Button>
         )}
       </div>
 
       {isOpen && (
         <div className="pl-[11.25rem] pr-4 pb-4 pt-0.5 flex flex-col gap-4 max-md:pl-4">
           {evaluation.errorMessage && (
-            <p className="text-sm text-error">
+            <p className="text-sm text-destructive">
               {isSite ? "The site" : "This page"} could not be evaluated:{" "}
               {evaluation.errorMessage}
             </p>
           )}
           {contentNotJudged && (
-            <p className="text-sm text-base-content/70 max-w-prose">
+            <p className="text-sm text-muted-foreground max-w-prose">
               The served HTML has almost no text (the page is probably rendered
               in the browser), so no content rule was put to a judge. The
               verdict covers the page data only.
@@ -191,7 +206,7 @@ export function GuidelineEvaluationItem({
             leads.length === 0 &&
             !evaluation.errorMessage &&
             !contentNotJudged && (
-              <p className="text-sm text-base-content/70">
+              <p className="text-sm text-muted-foreground">
                 {isSite
                   ? "Nothing to fix across the site."
                   : "Nothing to fix on this page."}
@@ -208,9 +223,9 @@ export function GuidelineEvaluationItem({
               className="flex flex-col gap-3"
               open={confirmed.length === 0}
             >
-              <summary className="cursor-pointer w-fit text-sm text-base-content/60 hover:text-base-content/80 select-none">
+              <summary className="cursor-pointer w-fit text-sm text-muted-foreground hover:text-foreground select-none">
                 {leads.length} unconfirmed lead{leads.length === 1 ? "" : "s"}{" "}
-                <span className="text-xs text-base-content/45">
+                <span className="text-xs text-muted-foreground/80">
                   (flagged, but no judge quoted the page; they cannot block it)
                 </span>
               </summary>
@@ -235,16 +250,16 @@ export function GuidelineEvaluationItem({
 function UnansweredRules({ unanswered }: { unanswered: GuidelineResultRow[] }) {
   if (unanswered.length === 0) return null;
   return (
-    <details className="text-xs text-base-content/60">
-      <summary className="cursor-pointer w-fit hover:text-base-content/80 select-none">
+    <details className="text-xs text-muted-foreground">
+      <summary className="cursor-pointer w-fit hover:text-foreground select-none">
         {unanswered.length} rule{unanswered.length === 1 ? "" : "s"} not
         answered
       </summary>
       <ul className="mt-2 flex flex-col gap-2">
         {unansweredByReason(unanswered).map(({ reason, ruleIds }) => (
           <li key={reason}>
-            <p className="text-base-content/70">{reason}</p>
-            <p className="text-base-content/50">
+            <p className="text-foreground/80">{reason}</p>
+            <p className="text-muted-foreground">
               {ruleIds.map((id) => RULES_BY_ID.get(id)?.name ?? id).join(" · ")}
             </p>
           </li>

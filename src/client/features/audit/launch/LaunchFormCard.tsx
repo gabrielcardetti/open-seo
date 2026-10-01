@@ -16,6 +16,7 @@ import {
 } from "@/client/components/ui/field";
 import { Input } from "@/client/components/ui/input";
 import { Switch } from "@/client/components/ui/switch";
+import { Textarea } from "@/client/components/ui/textarea";
 import { MIN_PAGES } from "@/client/features/audit/launch/types";
 import type { useLaunchController } from "@/client/features/audit/launch/useLaunchController";
 import { getFieldError, getFormError } from "@/client/lib/forms";
@@ -214,20 +215,15 @@ function LaunchErrors({ launchForm }: Pick<Props, "launchForm">) {
 
 function ExcludedPathsOption({ launchForm }: Pick<Props, "launchForm">) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-200/20 p-3 space-y-2">
-      <label
-        htmlFor="audit-excluded-paths"
-        className="text-xs font-medium uppercase tracking-wide text-base-content/60"
-      >
-        Leave out sections
-      </label>
+    <Field className="rounded-lg border border-border p-3">
+      <FieldLabel htmlFor="audit-excluded-paths">Leave out sections</FieldLabel>
       <launchForm.Field name="excludedPathsInput">
         {(field) => (
-          <textarea
+          <Textarea
             id="audit-excluded-paths"
             rows={2}
             placeholder={"/archive\n/tag"}
-            className="textarea textarea-bordered textarea-sm w-full font-mono"
+            className="font-mono"
             value={field.state.value}
             onChange={(event) => {
               field.handleChange(event.target.value);
@@ -238,50 +234,49 @@ function ExcludedPathsOption({ launchForm }: Pick<Props, "launchForm">) {
           />
         )}
       </launchForm.Field>
-      <p className="text-xs text-base-content/50">
+      <FieldDescription>
         One path per line. Pages under these paths are not crawled, so they use
         none of the page limit and add no findings.
-      </p>
-    </div>
+      </FieldDescription>
+    </Field>
   );
 }
 
 function ContentGuidelinesOption({ launchForm }: Pick<Props, "launchForm">) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-200/20 p-3 space-y-2">
-      <label className="label cursor-pointer justify-start gap-2 p-0">
+    <Field className="rounded-lg border border-border p-3">
+      <div className="flex items-center gap-2">
         <launchForm.Field name="evaluateContent">
           {(field) => (
-            <input
-              type="checkbox"
-              className="toggle toggle-sm toggle-primary"
+            <Switch
+              id="audit-evaluate-content"
               checked={Boolean(field.state.value)}
-              onChange={(event) => field.handleChange(event.target.checked)}
+              onCheckedChange={(checked) => field.handleChange(checked)}
             />
           )}
         </launchForm.Field>
-        <span
-          className="text-sm font-medium text-base-content/80"
+        <FieldLabel
+          htmlFor="audit-evaluate-content"
           title="Judges your content against Google's published content guidelines."
         >
           Evaluate content against Google&apos;s guidelines
-        </span>
-      </label>
+        </FieldLabel>
+      </div>
 
       <launchForm.Subscribe
         selector={(snapshot) => snapshot.values.evaluateContent}
       >
         {(evaluateContent) =>
           evaluateContent ? (
-            <p className="text-xs text-base-content/60">
+            <FieldDescription>
               We judge a sample of your pages against Google&apos;s published
               content guidelines — people-first content, E-E-A-T, spam policies
               and AI guidance — and give each one a verdict with the evidence
               behind it. Adds a few minutes to the audit.
-            </p>
+            </FieldDescription>
           ) : null
         }
       </launchForm.Subscribe>
-    </div>
+    </Field>
   );
 }

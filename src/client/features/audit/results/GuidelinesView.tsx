@@ -1,6 +1,18 @@
 import { sort } from "remeda";
-import { useMemo, useState } from "react";
-import { Search, TriangleAlert } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { FileText, ListChecks, Search, TriangleAlert } from "lucide-react";
+import { EmptyState } from "@/client/components/EmptyState";
+import { SegmentedToggle } from "@/client/components/SegmentedToggle";
+import { Alert, AlertDescription } from "@/client/components/ui/alert";
+import { Badge } from "@/client/components/ui/badge";
+import { Button } from "@/client/components/ui/button";
+import { Checkbox } from "@/client/components/ui/checkbox";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/client/components/ui/input-group";
+import { Label } from "@/client/components/ui/label";
 import type { Verdict } from "@/shared/guidelines/catalog";
 import {
   GuidelineEvaluationItem,
@@ -17,6 +29,11 @@ import {
 } from "./guideline-view-model";
 
 type ViewMode = "pages" | "rules";
+
+const VIEW_MODES: { value: ViewMode; label: string; icon: ReactNode }[] = [
+  { value: "pages", label: "By page", icon: <FileText /> },
+  { value: "rules", label: "By rule", icon: <ListChecks /> },
+];
 
 export function GuidelinesView({
   evaluations,
@@ -93,14 +110,17 @@ export function GuidelinesView({
 
   if (evaluations.length === 0) {
     return (
-      <div className="py-10 text-center text-base-content/60">
-        <p className="font-medium">No content-guideline evaluation yet.</p>
-        <p className="text-sm mt-1">
-          Start an audit with &ldquo;Evaluate content against Google&rsquo;s
-          guidelines&rdquo; turned on, or judge the pages with your own model
-          over MCP (get_guidelines_evaluation_batch).
-        </p>
-      </div>
+      <EmptyState
+        variant="plain"
+        title="No content-guideline evaluation yet."
+        description={
+          <>
+            Start an audit with &ldquo;Evaluate content against Google&rsquo;s
+            guidelines&rdquo; turned on, or judge the pages with your own model
+            over MCP (get_guidelines_evaluation_batch).
+          </>
+        }
+      />
     );
   }
 
@@ -141,7 +161,7 @@ export function GuidelinesView({
             <span className="font-medium tabular-nums">{pages.length}</span>{" "}
             page{pages.length === 1 ? "" : "s"} judged
             {judges.length > 0 && (
-              <span className="text-base-content/55">
+              <span className="text-muted-foreground">
                 {" "}
                 · by {judges.join(", ")}
               </span>
@@ -151,7 +171,7 @@ export function GuidelinesView({
 
         {pages.length > 0 && (
           <div
-            className="flex h-2 w-full overflow-hidden rounded-full bg-base-300"
+            className="flex h-2 w-full overflow-hidden rounded-full bg-muted"
             aria-hidden
           >
             {VERDICT_ORDER.map((verdict) =>
@@ -173,12 +193,13 @@ export function GuidelinesView({
             (verdict) => {
               const active = verdicts.has(verdict);
               return (
-                <button
+                <Badge
                   key={verdict}
-                  type="button"
+                  variant={VERDICT_STYLE[verdict].variant}
+                  render={<button type="button" />}
                   onClick={() => toggleVerdict(verdict)}
                   aria-pressed={active}
-                  className={`badge gap-1.5 cursor-pointer transition-opacity ${VERDICT_STYLE[verdict].className} ${
+                  className={`gap-1.5 cursor-pointer ${
                     verdicts.size > 0 && !active ? "opacity-40" : ""
                   }`}
                 >
@@ -186,39 +207,39 @@ export function GuidelinesView({
                   <span className="tabular-nums font-semibold">
                     {counts[verdict]}
                   </span>
-                </button>
+                </Badge>
               );
             },
           )}
           {verdicts.size > 0 && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => setVerdicts(new Set())}
             >
               Clear
-            </button>
+            </Button>
           )}
         </div>
 
         {decisionOnly && (
-          <div role="alert" className="alert alert-warning alert-soft text-sm">
-            <TriangleAlert className="size-4 shrink-0" />
-            <span>
+          <Alert variant="warning">
+            <TriangleAlert />
+            <AlertDescription>
               Only the decision model judged these pages. It can flag problems
               but cannot quote the page, so none of its findings can block a
               page: treat them as leads. For confirmed verdicts, configure a
               language model for the audit, or judge the pages with your own
               model over MCP.
-            </span>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
       </section>
 
       {site && (
-        <div className="border border-base-300 rounded-lg overflow-hidden">
-          <div className="flex items-center gap-2 bg-base-200/60 px-4 py-1.5 border-b border-base-300/60">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-base-content/60">
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div className="flex items-center gap-2 bg-muted/50 px-4 py-1.5 border-b border-border">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Site-wide patterns
             </span>
           </div>
@@ -226,56 +247,44 @@ export function GuidelinesView({
         </div>
       )}
 
-      <div className="border border-base-300 rounded-lg overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 bg-base-200/60 px-3 py-2 border-b border-base-300/60">
-          <div role="tablist" className="tabs tabs-box tabs-xs">
-            <button
-              type="button"
-              role="tab"
-              className={`tab ${mode === "pages" ? "tab-active" : ""}`}
-              onClick={() => setMode("pages")}
-            >
-              By page
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={`tab ${mode === "rules" ? "tab-active" : ""}`}
-              onClick={() => setMode("rules")}
-            >
-              By rule
-            </button>
-          </div>
-          <label className="input input-xs flex-1 min-w-[10rem] max-w-xs">
-            <Search className="size-3 opacity-50" />
-            <input
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 bg-muted/50 px-3 py-2 border-b border-border">
+          <SegmentedToggle
+            showLabels
+            items={VIEW_MODES}
+            value={mode}
+            onChange={setMode}
+          />
+          <InputGroup className="h-7 flex-1 min-w-[10rem] max-w-xs bg-card">
+            <InputGroupAddon>
+              <Search className="size-3.5" />
+            </InputGroupAddon>
+            <InputGroupInput
               type="search"
               placeholder="Filter by URL"
+              aria-label="Filter by URL"
+              className="text-xs md:text-xs"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-          </label>
-          <label className="label text-xs cursor-pointer gap-1.5">
-            <input
-              type="checkbox"
-              className="checkbox checkbox-xs"
+          </InputGroup>
+          <Label className="text-xs font-normal cursor-pointer">
+            <Checkbox
               checked={ymylOnly}
-              onChange={(event) => setYmylOnly(event.target.checked)}
+              onCheckedChange={(checked) => setYmylOnly(checked)}
             />
             YMYL only
-          </label>
-          <span className="ml-auto text-xs tabular-nums text-base-content/50">
+          </Label>
+          <span className="ml-auto text-xs tabular-nums text-muted-foreground">
             {visiblePages.length} of {pages.length}
           </span>
         </div>
 
         {mode === "pages" ? (
           visiblePages.length > 0 ? (
-            <ul className="divide-y divide-base-300/60">
-              {visiblePages.map(item)}
-            </ul>
+            <ul className="divide-y divide-border">{visiblePages.map(item)}</ul>
           ) : (
-            <p className="px-4 py-6 text-sm text-base-content/60">
+            <p className="px-4 py-6 text-sm text-muted-foreground">
               No page matches these filters.
             </p>
           )
