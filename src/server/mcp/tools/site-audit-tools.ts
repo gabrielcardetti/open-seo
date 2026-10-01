@@ -1,14 +1,8 @@
-import { sort } from "remeda";
 import { z } from "zod";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { AuditService } from "@/server/features/audit/services/AuditService";
 import { AppError } from "@/server/lib/errors";
 import { captureServerEvent } from "@/server/lib/posthog";
-import {
-  AUDIT_ISSUE_TYPES,
-  getIssueDescriptor,
-  ISSUE_SEVERITY_ORDER,
-} from "@/shared/audit-issues";
 import { PAGE_FETCH_CLASSES } from "@/shared/audit-fetch-class";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
@@ -163,7 +157,7 @@ export const runSiteAuditTool = {
     });
 
     return mcpResponse({
-      text: `Audit ${auditId} started for ${args.url}. Poll get_audit_status until it finishes, then call get_audit_issues for the prioritized issue report (even a failed audit keeps results for every page it crawled).`,
+      text: `Audit ${auditId} started for ${args.url}. Wait for it with get_audit_status (pass waitSeconds: 50 and repeat until it finishes), then call get_audit_issues for the prioritized issue report (even a failed audit keeps results for every page it crawled).`,
       meta: buildProjectMeta(
         context,
         args.projectId,
@@ -176,9 +170,22 @@ export const runSiteAuditTool = {
 
 // ─── get_audit_status ────────────────────────────────────────────────────────
 
+/** Below the ~60s request timeout common MCP clients apply to a tool call. */
+const MAX_WAIT_SECONDS = 50;
+const WAIT_POLL_MS = 5_000;
+
 const statusInputSchema = {
   projectId: projectIdSchema,
   auditId: auditIdSchema,
+  waitSeconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_WAIT_SECONDS)
+    .optional()
+    .describe(
+      `Hold the call open up to this many seconds (max ${MAX_WAIT_SECONDS}) and return as soon as the audit finishes, instead of returning the current progress at once. Call again with the same value to keep waiting; a 400-page crawl takes several minutes.`,
+    ),
 } as const;
 
 type StatusArgs = z.infer<z.ZodObject<typeof statusInputSchema>>;
@@ -188,7 +195,7 @@ export const getAuditStatusTool = {
   config: {
     title: "Get site audit status",
     description:
-      "Check the progress of a site audit (phase, pages crawled, Lighthouse progress). Free — reads OpenSEO state and may reconcile a dead workflow by marking its audit failed. Omit auditId for the most recent audit.",
+      "Check the progress of a site audit (phase, pages crawled, Lighthouse progress). Pass waitSeconds to wait for it to finish within the call instead of polling. Free — reads OpenSEO state and may reconcile a dead workflow by marking its audit failed. Omit auditId for the most recent audit.",
     inputSchema: statusInputSchema,
     outputSchema: z
       .object({
@@ -206,7 +213,14 @@ export const getAuditStatusTool = {
     // getStatus fetches (and self-heals) the audit row itself; only hit the
     // DB here when we need to default to the most recent audit.
     const auditId = args.auditId ?? (await resolveAudit(args.projectId)).id;
-    const status = await AuditService.getStatus(auditId, args.projectId);
+    let status = await AuditService.getStatus(auditId, args.projectId);
+    const deadline = Date.now() + (args.waitSeconds ?? 0) * 1000;
+    while (status.status === "running" && Date.now() < deadline) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(WAIT_POLL_MS, deadline - Date.now())),
+      );
+      status = await AuditService.getStatus(auditId, args.projectId);
+    }
 
     const lighthouseNote =
       status.lighthouseTotal > 0
@@ -234,124 +248,7 @@ export const getAuditStatusTool = {
 
 // ─── get_audit_issues ────────────────────────────────────────────────────────
 
-const issuesInputSchema = {
-  projectId: projectIdSchema,
-  auditId: auditIdSchema,
-  severity: z
-    .enum(["critical", "warning", "info"])
-    .optional()
-    .describe("Only return issues of this severity."),
-  issueType: z
-    .string()
-    .optional()
-    .describe(
-      `Only return issues of this type. One of: ${Object.keys(AUDIT_ISSUE_TYPES).join(", ")}`,
-    ),
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(1_000)
-    .optional()
-    .describe("Max issues to return (default 200)."),
-} as const;
-
-type IssuesArgs = z.infer<z.ZodObject<typeof issuesInputSchema>>;
-
-export const getAuditIssuesTool = {
-  name: "get_audit_issues",
-  config: {
-    title: "Get site audit issues",
-    description:
-      "Read the prioritized issue report from a completed site audit. Every issue carries a how_to_fix with concrete remediation steps an agent can act on. Free — reads OpenSEO state. Omit auditId for the most recent audit.",
-    inputSchema: issuesInputSchema,
-    outputSchema: z
-      .object({
-        summary: z.array(looseObjectOutputSchema),
-        issues: z.array(looseObjectOutputSchema),
-        ...optionalMetaOutputSchema,
-      })
-      .passthrough(),
-    annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
-      destructiveHint: false,
-    },
-  },
-  handler: withMcpProjectAuth(async (args: IssuesArgs, context) => {
-    const audit = await resolveAudit(args.projectId, args.auditId);
-    const unsorted = await AuditRepository.getIssuesForAudit(audit.id, {
-      severity: args.severity,
-      issueType: args.issueType,
-    });
-    // Severity-first so truncation drops info rows, never critical ones.
-    const rows = sort(
-      unsorted,
-      (a, b) =>
-        ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
-        a.issueType.localeCompare(b.issueType),
-    );
-
-    const counts = new Map<string, number>();
-    for (const row of rows) {
-      counts.set(row.issueType, (counts.get(row.issueType) ?? 0) + 1);
-    }
-    const summary = sort(
-      Array.from(counts.entries()).map(([issueType, count]) => {
-        const descriptor = getIssueDescriptor(issueType);
-        return {
-          issueType,
-          title: descriptor?.title ?? issueType,
-          severity: descriptor?.severity ?? "info",
-          count,
-        };
-      }),
-      (a, b) =>
-        ISSUE_SEVERITY_ORDER[a.severity] - ISSUE_SEVERITY_ORDER[b.severity] ||
-        b.count - a.count,
-    );
-
-    const limit = args.limit ?? 200;
-    const issues = rows.slice(0, limit).map((row) => {
-      const descriptor = getIssueDescriptor(row.issueType);
-      return {
-        severity: row.severity,
-        issueType: row.issueType,
-        title: descriptor?.title ?? row.issueType,
-        url: row.pageUrl,
-        details: row.detailsJson
-          ? (JSON.parse(row.detailsJson) as unknown)
-          : null,
-        howToFix: descriptor?.howToFix ?? null,
-      };
-    });
-
-    const text =
-      rows.length === 0
-        ? args.severity || args.issueType
-          ? `No issues found for audit ${audit.id} matching the given filters.`
-          : `No issues recorded for audit ${audit.id}. Note: audits run before issue checks existed have no issue data — re-run the audit with run_site_audit to get a real report.`
-        : [
-            `Audit ${audit.id} (${audit.startUrl}): ${rows.length} issues${rows.length > limit ? ` (showing ${limit})` : ""}.`,
-            "By type:",
-            ...summary.map(
-              (entry) =>
-                `- [${entry.severity}] ${entry.title} (${entry.issueType}): ${entry.count}`,
-            ),
-            "Full issue rows with how_to_fix instructions are in structuredContent.issues.",
-          ].join("\n");
-
-    return mcpResponse({
-      text,
-      meta: buildProjectMeta(
-        context,
-        args.projectId,
-        auditPath(args.projectId, audit.id),
-      ),
-      structuredContent: { summary, issues },
-    });
-  }),
-};
+export { getAuditIssuesTool } from "@/server/mcp/tools/audit-issues-tool";
 
 // ─── get_audit_pages ─────────────────────────────────────────────────────────
 

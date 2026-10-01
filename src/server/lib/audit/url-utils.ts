@@ -151,6 +151,20 @@ export function detectUrlTemplate(pathname: string): string {
 }
 
 /**
+ * The template of a page URL (`detectUrlTemplate` of its path), so issues on
+ * pages built from the same template can be counted together. Site-level
+ * rows have no page URL.
+ */
+export function urlTemplateOf(url: string | null): string {
+  if (!url) return "(site)";
+  try {
+    return detectUrlTemplate(new URL(url).pathname);
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Extract the origin (protocol + hostname + port) from a URL string.
  */
 export function getOrigin(url: string): string {

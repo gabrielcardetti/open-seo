@@ -74,7 +74,7 @@ export function isScopedCrawl(scope: CrawlScope): boolean {
 }
 
 /** Whether a URL is inside the audit's scope (robots.txt aside). */
-export function isInScope(url: string, scope: CrawlScope): boolean {
+function isInScope(url: string, scope: CrawlScope): boolean {
   return (
     (scope.includedPaths.length === 0 ||
       isUnderPaths(url, scope.includedPaths)) &&
