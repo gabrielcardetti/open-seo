@@ -4,6 +4,7 @@ import { resetBingTestDb } from "@/server/features/bing/bing-test-db";
 import { BingService } from "./BingService";
 import { BingSiteHealthService } from "./BingSiteHealthService";
 import { BingSyncService } from "./BingSyncService";
+import type * as Discovery from "@/server/lib/audit/discovery";
 
 const testDb = await vi.hoisted(async () => {
   const { createBingTestDb } = await import("../bing-test-db");
@@ -20,7 +21,10 @@ const client = vi.hoisted(() => ({
   getUrlSubmissionQuota: vi.fn(),
   getLinkCounts: vi.fn(),
   getUserSites: vi.fn(),
+  submitFeed: vi.fn(),
 }));
+
+const robotsTxt = vi.hoisted(() => vi.fn());
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 vi.mock("@/db", () => ({ db: testDb.db }));
@@ -35,6 +39,10 @@ vi.mock("@/server/lib/secretBox", () => ({
 }));
 vi.mock("@/server/lib/bing/bingClient", () => ({
   createBingClient: () => client,
+}));
+vi.mock("@/server/lib/audit/discovery", async (importOriginal) => ({
+  ...(await importOriginal<typeof Discovery>()),
+  fetchRobotsTxtText: robotsTxt,
 }));
 
 const SITE = "https://example.com/";
@@ -105,6 +113,8 @@ describe("BingSyncService", () => {
     });
     client.getLinkCounts.mockResolvedValue({ links: [], totalPages: 0 });
     client.getUserSites.mockResolvedValue([]);
+    client.submitFeed.mockResolvedValue(undefined);
+    robotsTxt.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -198,6 +208,26 @@ describe("BingSyncService", () => {
     expect(health.connected && health.sitemaps).toEqual([
       expect.objectContaining({ feedUrl: "/a.xml", noLongerReported: true }),
       expect.objectContaining({ feedUrl: "/b.xml", noLongerReported: false }),
+    ]);
+  });
+
+  it("registers sitemaps robots.txt names that Bing doesn't list", async () => {
+    await seedConnection();
+    robotsTxt.mockResolvedValue(
+      [
+        "Sitemap: https://example.com/sitemap.xml",
+        "Sitemap: https://example.com/sitemap-new.xml",
+        "Sitemap: https://other.com/sitemap.xml",
+      ].join("\n"),
+    );
+    client.getFeeds.mockResolvedValue([
+      feed("https://example.com/sitemap.xml"),
+    ]);
+
+    await BingSyncService.syncProject("proj_1");
+
+    expect(client.submitFeed.mock.calls).toEqual([
+      [SITE, "https://example.com/sitemap-new.xml"],
     ]);
   });
 

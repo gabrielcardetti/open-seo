@@ -1,10 +1,15 @@
 import { openBingClientForProject } from "@/server/features/bing/bingAccess";
 import { BingConnectionRepository } from "@/server/features/bing/repositories/BingConnectionRepository";
 import { BingSnapshotRepository } from "@/server/features/bing/repositories/BingSnapshotRepository";
+import type { BingClient } from "@/server/lib/bing/bingClient";
 import {
   BingApiError,
   BingNotConnectedError,
 } from "@/server/lib/bing/bingErrors";
+import {
+  fetchRobotsTxtText,
+  parseRobotsTxt,
+} from "@/server/lib/audit/discovery";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Link counts change slowly and page through many calls: refresh weekly.
@@ -17,6 +22,9 @@ const TICK_DEADLINE_MS = 3 * 60 * 1000;
 // sync of any kind starts per project in this window.
 const MIN_MANUAL_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 2000;
+// Sitemaps robots.txt names but Bing doesn't know are registered with it;
+// a few per sync is plenty for a real site and bounds a hostile robots.txt.
+const MAX_SITEMAP_SUBMISSIONS_PER_SYNC = 5;
 
 const NOT_CONNECTED_SYNC_ERROR =
   "The API key used for this connection is gone or unreadable. Reconnect Bing Webmaster Tools with a saved key.";
@@ -51,6 +59,50 @@ function daysBetween(fromDate: string, toDate: string): number {
  * is still running when the project switches sites only adds to the old
  * site's history, and its status is dropped (see recordSyncResult).
  */
+/**
+ * Register with Bing the sitemaps the site's robots.txt names that Bing doesn't
+ * list yet (a new sitemap added to the site, say). Only sitemaps on the
+ * connected site's own origin are sent. Best-effort: an unreadable robots.txt
+ * or a refused submission never fails the sync. Returns how many were sent.
+ */
+async function submitMissingSitemaps(
+  client: BingClient,
+  siteUrl: string,
+  knownFeeds: string[],
+): Promise<number> {
+  const origin = new URL(siteUrl).origin;
+  let declared: string[];
+  try {
+    declared = parseRobotsTxt(
+      origin,
+      await fetchRobotsTxtText(origin),
+    ).sitemapUrls;
+  } catch (error) {
+    console.warn("[bing] could not read robots.txt for sitemaps", error);
+    return 0;
+  }
+  const known = new Set(knownFeeds);
+  const missing = [...new Set(declared)].filter((url) => {
+    try {
+      return new URL(url).origin === origin && !known.has(url);
+    } catch {
+      return false;
+    }
+  });
+  let submitted = 0;
+  for (const feedUrl of missing.slice(0, MAX_SITEMAP_SUBMISSIONS_PER_SYNC)) {
+    try {
+      await client.submitFeed(siteUrl, feedUrl);
+      submitted++;
+    } catch (error) {
+      // A rejected key or throttling would fail every later call too.
+      if (error instanceof BingApiError && error.kind !== "invalid") break;
+      console.warn("[bing] sitemap submission refused", { feedUrl });
+    }
+  }
+  return submitted;
+}
+
 async function syncProject(projectId: string): Promise<BingSyncResult> {
   const { connection, client } = await openBingClientForProject(projectId);
   const siteUrl = connection.siteUrl;
@@ -105,7 +157,13 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
     [
       "sitemaps",
       async () => {
-        const feeds = await client.getFeeds(siteUrl);
+        let feeds = await client.getFeeds(siteUrl);
+        const submitted = await submitMissingSitemaps(
+          client,
+          siteUrl,
+          feeds.map((feed) => feed.url),
+        );
+        if (submitted > 0) feeds = await client.getFeeds(siteUrl);
         await BingSnapshotRepository.upsertSitemaps(scope, feeds, now);
         return "ok";
       },

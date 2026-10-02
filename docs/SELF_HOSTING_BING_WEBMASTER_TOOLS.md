@@ -123,6 +123,11 @@ day. The first sync stores the roughly six months of data Bing serves. After
 that the history keeps growing, and OpenSEO keeps the days Bing drops. To pause
 the daily sync, turn off **Sync Bing data every day** on the Bing card.
 
+Each sync also reads the site's `robots.txt` and registers with Bing any
+sitemap listed there that Bing doesn't know yet, so a new sitemap reaches Bing
+without a visit to Bing Webmaster Tools. Only sitemaps on the connected site
+are sent, up to five per sync. Bing shows them as Pending until it crawls them.
+
 You can also click **Sync now**, on the Bing card or the Bing Insights page, or
 use the `sync_bing_now` MCP tool. A project can sync on demand at most once
 every ten minutes.

@@ -336,6 +336,11 @@ export function createBingClient(apiKey: string) {
       await call("SubmitUrlBatch", {}, { siteUrl, urlList });
     },
 
+    /** Register a sitemap or feed with Bing; it shows as Pending until crawled. */
+    async submitFeed(siteUrl: string, feedUrl: string): Promise<void> {
+      await call("SubmitFeed", {}, { siteUrl, feedUrl });
+    },
+
     /** Weekly Bing search counts for one keyword. Not tied to a site. */
     async getKeywordStats(q: string, country: string, language: string) {
       const rows = parseRows(
