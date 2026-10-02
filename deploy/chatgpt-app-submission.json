@@ -727,6 +727,42 @@
         "open_world_justification": "Fetches the user's public sitemaps from the open web but cannot change the site or any other publicly visible state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
+    },
+    "get_sitemaps": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the project's sitemap list and the sitemaps the connected Search Console property and the stored Bing snapshot report, without changing anything.",
+        "open_world_justification": "Operates only on private OpenSEO state and the user's own Search Console and Bing data; it cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "update_sitemaps": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Tracks, ignores, adds, or removes sitemaps in the project's sitemap list.",
+        "open_world_justification": "Fetches the user's public robots.txt and sitemap URLs to detect and check sitemaps, but does not change the site.",
+        "destructive_justification": "Removing a sitemap the user added by hand deletes it from the project's list when explicitly requested; nothing outside OpenSEO changes."
+      }
+    },
+    "submit_sitemaps": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Submits the project's tracked sitemaps to the user's Google Search Console property and Bing Webmaster Tools site.",
+        "open_world_justification": "Registers sitemaps with external search engines (Google Search Console and Bing Webmaster Tools) for the user's own website.",
+        "destructive_justification": "Submissions are additive and sitemaps the engine already lists are skipped by default; nothing is deleted or overwritten."
+      }
     }
   },
   "test_cases": [

@@ -123,10 +123,14 @@ day. The first sync stores the roughly six months of data Bing serves. After
 that the history keeps growing, and OpenSEO keeps the days Bing drops. To pause
 the daily sync, turn off **Sync Bing data every day** on the Bing card.
 
-Each sync also reads the site's `robots.txt` and registers with Bing any
-sitemap listed there that Bing doesn't know yet, so a new sitemap reaches Bing
-without a visit to Bing Webmaster Tools. Only sitemaps on the connected site
-are sent, up to five per sync. Bing shows them as Pending until it crawls them.
+Each sync also registers with Bing the project's **tracked** sitemaps that
+Bing doesn't list yet, so a sitemap you track in OpenSEO reaches Bing without a
+visit to Bing Webmaster Tools. You manage the tracked list in the **Sitemaps**
+card on the project's Indexing page: OpenSEO suggests the sitemaps your
+`robots.txt` names and your `/sitemap.xml`, and you track the ones that are
+yours. Only sitemaps on the connected site are sent, up to five per sync. Bing
+shows them as Pending until it crawls them. To send them right away, use
+**Submit missing to Bing** on the Sitemaps card.
 
 You can also click **Sync now**, on the Bing card or the Bing Insights page, or
 use the `sync_bing_now` MCP tool. A project can sync on demand at most once
@@ -223,8 +227,9 @@ quotas.
 New and changed URLs are announced automatically. To stop it, turn off **Check
 sitemaps daily and after audits** on the same page.
 
-- A daily check of your sitemaps sends URLs that are new or whose `<lastmod>`
-  moved to a later date. The first check only records what's there and sends
+- A daily check of your sitemaps (the tracked ones, or `robots.txt` and
+  `/sitemap.xml` while none are tracked) sends URLs that are new or whose
+  `<lastmod>` moved to a later date. The first check only records what's there and sends
   nothing. If your sitemap gives every URL the current time as `<lastmod>`,
   only new URLs are sent and the Indexing page tells you. Like the
   sync, this check only runs on Cloudflare deployments; on Docker, use **Check

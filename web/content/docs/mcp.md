@@ -3,7 +3,7 @@ title: "Set up OpenSEO MCP"
 description: "Connect OpenSEO MCP to Claude, Codex, and other AI clients."
 ---
 
-OpenSEO MCP lets compatible AI clients call OpenSEO tools for keyword research, SERP inspection, local business research, competitive search intelligence, domain research, backlink overview, saved keywords, rank tracking, shared project context, Google Search Console performance and URL inspection, Bing Webmaster Tools data, and IndexNow URL submission.
+OpenSEO MCP lets compatible AI clients call OpenSEO tools for keyword research, SERP inspection, local business research, competitive search intelligence, domain research, backlink overview, saved keywords, rank tracking, shared project context, Google Search Console performance and URL inspection, Bing Webmaster Tools data, sitemap registration, and IndexNow URL submission.
 
 The hosted MCP server URL is:
 
@@ -141,6 +141,7 @@ OpenSEO MCP exposes tools for SEO research workflows:
 - Read Copilot and Bing AI answer citations from an imported AI Performance export.
 - Look up Bing keyword impressions and related keywords (free, experimental).
 - Announce new and changed URLs to Bing and other IndexNow engines, verify the IndexNow key file, preview what the next sitemap check would send, and read the per-URL submission log (free, no credits). Announcing URLs and verifying the key need an owner or admin. Google does not take part in IndexNow.
+- Keep a project's sitemaps registered: see which sitemaps OpenSEO tracks and whether Google Search Console and Bing have each one, confirm detected sitemaps or add your own, and submit the missing ones to Google and Bing (free, no credits). Changing the list and submitting need an owner or admin; submitting to Google needs Search Console connected with write access.
 - Read and update a project's shared context: business, goal, positioning, writing preferences, competitors, key pages, and a research log (free, no credits).
 - Save and read HTML reports on a project (free, no credits). New reports are private. On hosted OpenSEO, explicitly ask the agent to publish with `set_report_sharing` (`public: true`) or revoke the link (`public: false`). `get_report` returns `report.shareUrl` for an existing public link, or `null` when unavailable.
 - List a project's report templates, and save a reusable report brief to the project (free, no credits).
