@@ -12,6 +12,7 @@
  */
 import type { WorkflowStep } from "cloudflare:workers";
 import { CATALOG_VERSION, type RuleStatus } from "@/shared/guidelines/catalog";
+import type { Engine } from "@/shared/guidelines/engines";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
 import type { SiteFacts } from "@/server/lib/guidelines/site-facts";
@@ -73,6 +74,7 @@ async function buildFacts(input: {
   crawlCompleted: boolean;
   businessOverview: string | null;
   sampledUrls: readonly string[];
+  robotsText: string | null;
 }): Promise<SiteFacts> {
   const { buildSiteFacts } = await import("@/server/lib/guidelines/site-facts");
   const pages = await GuidelineEvaluationRepository.getSiteInventory(
@@ -97,12 +99,14 @@ async function buildFacts(input: {
     homepageOutlinks,
     businessOverview: input.businessOverview,
     memberUrlFilter: new Set(input.sampledUrls),
+    robotsText: input.robotsText,
   });
 }
 
 async function evaluateWholeSite(
   facts: SiteFacts,
   businessOverview: string | null,
+  engines: readonly Engine[],
 ): Promise<PageEvaluation> {
   const [{ evaluateSite }, { resolveJudges }] = await Promise.all([
     import("@/server/lib/guidelines/site-evaluator"),
@@ -113,6 +117,7 @@ async function evaluateWholeSite(
     facts,
     businessOverview,
     languageJudge: judges.languageJudge,
+    engines,
   });
 }
 
@@ -148,6 +153,8 @@ export async function runSitePass(
     crawlCompleted: boolean;
     businessOverview: string | null;
     sampledUrls: readonly string[];
+    engines: readonly Engine[];
+    robotsText: string | null;
   },
 ): Promise<SitePass | null> {
   const { auditId, businessOverview } = params;
@@ -171,7 +178,7 @@ export async function runSitePass(
       step,
       "guidelines-site-eval",
       GUIDELINES_EVAL_STEP,
-      () => evaluateWholeSite(facts, businessOverview),
+      () => evaluateWholeSite(facts, businessOverview, params.engines),
     );
     return { facts, evaluation };
   } catch (error) {

@@ -15,9 +15,13 @@ import {
   auditPages,
   auditRuleResults,
   audits,
+  bingConnections,
+  bingCrawlIssues,
 } from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
+import { canonicalUrlKey } from "@/server/lib/audit/url-utils";
+import type { BwtPageSnapshot } from "@/server/lib/guidelines/evaluator-support";
 import { DECISION_MODEL_IDS } from "@/server/lib/guidelines/decision-transport";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
 
@@ -199,17 +203,21 @@ async function getEvaluationResultsForProject(
 }
 
 /**
- * URLs that already carry a judged verdict, so the externalized judge skips
- * them.
+ * URLs that already carry a judged verdict, with the rules their stored
+ * results name (which say which engines the verdict covers), so the
+ * externalized judge skips them.
  *
  * A row counts only when a judge that reads the page answered. Rows settled by
  * the deterministic rules alone, or by a decision model alone (verdicts with no
  * quote and no reason), are exactly the pages an external judge should pick
  * up, not skip.
  */
-async function getJudgedUrls(auditId: string): Promise<Set<string>> {
+async function getJudgedUrls(auditId: string): Promise<Map<string, string[]>> {
   const rows = await db
-    .select({ pageUrl: auditPageEvaluations.pageUrl })
+    .select({
+      id: auditPageEvaluations.id,
+      pageUrl: auditPageEvaluations.pageUrl,
+    })
     .from(auditPageEvaluations)
     .where(
       and(
@@ -222,7 +230,22 @@ async function getJudgedUrls(auditId: string): Promise<Set<string>> {
         isNull(auditPageEvaluations.errorMessage),
       ),
     );
-  return new Set(rows.map((row) => row.pageUrl));
+  if (rows.length === 0) return new Map();
+  const results = await db
+    .select({
+      evaluationId: auditRuleResults.evaluationId,
+      ruleId: auditRuleResults.ruleId,
+    })
+    .from(auditRuleResults)
+    .where(eq(auditRuleResults.auditId, auditId));
+  const ruleIds = new Map<string, string[]>();
+  for (const result of results) {
+    ruleIds.set(result.evaluationId, [
+      ...(ruleIds.get(result.evaluationId) ?? []),
+      result.ruleId,
+    ]);
+  }
+  return new Map(rows.map((row) => [row.pageUrl, ruleIds.get(row.id) ?? []]));
 }
 
 async function deleteEvaluationsForAudit(auditId: string) {
@@ -252,9 +275,66 @@ async function getSiteInventory(auditId: string) {
       wordCount: auditPages.wordCount,
       contentHash: auditPages.contentHash,
       crawlDepth: auditPages.crawlDepth,
+      // Read by Bing's site rules (sitemap, redirects, repeated metadata).
+      redirectUrl: auditPages.redirectUrl,
+      inSitemap: auditPages.inSitemap,
+      canonicalUrl: auditPages.canonicalUrl,
+      metaDescription: auditPages.metaDescription,
     })
     .from(auditPages)
     .where(eq(auditPages.auditId, auditId));
+}
+
+/**
+ * What Bing Webmaster Tools last said about each of `urls`, for BING-36, or
+ * null when the project has no Bing connection. Bing reports URLs in its own
+ * spelling, so they are matched on the canonical key (scheme, `www.`, query
+ * order), not byte for byte.
+ */
+async function getBwtSnapshots(
+  projectId: string,
+  urls: readonly string[],
+): Promise<Record<string, BwtPageSnapshot> | null> {
+  const [connection] = await db
+    .select({
+      siteUrl: bingConnections.siteUrl,
+      lastSyncedAt: bingConnections.lastSyncedAt,
+    })
+    .from(bingConnections)
+    .where(eq(bingConnections.projectId, projectId))
+    .limit(1);
+  if (!connection) return null;
+
+  const issues = await db
+    .select({
+      url: bingCrawlIssues.url,
+      httpCode: bingCrawlIssues.httpCode,
+      issueFlags: bingCrawlIssues.issueFlags,
+      firstSeenAt: bingCrawlIssues.firstSeenAt,
+    })
+    .from(bingCrawlIssues)
+    .where(
+      and(
+        eq(bingCrawlIssues.projectId, projectId),
+        eq(bingCrawlIssues.siteUrl, connection.siteUrl),
+        isNull(bingCrawlIssues.resolvedAt),
+      ),
+    );
+  const byKey = new Map<string, BwtPageSnapshot["openCrawlIssues"]>();
+  for (const { url, ...issue } of issues) {
+    const key = canonicalUrlKey(url).replace(/\/$/, "");
+    byKey.set(key, [...(byKey.get(key) ?? []), issue]);
+  }
+  return Object.fromEntries(
+    urls.map((url) => [
+      url,
+      {
+        lastSyncedAt: connection.lastSyncedAt,
+        openCrawlIssues:
+          byKey.get(canonicalUrlKey(url).replace(/\/$/, "")) ?? [],
+      },
+    ]),
+  );
 }
 
 /** The whole-site evaluation row, or null when the site was not evaluated. */
@@ -297,4 +377,5 @@ export const GuidelineEvaluationRepository = {
   getResultsForRules,
   getSiteInventory,
   getSiteEvaluation,
+  getBwtSnapshots,
 } as const;

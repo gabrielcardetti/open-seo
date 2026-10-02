@@ -39,7 +39,7 @@ export interface RobotsResult {
  * from parsing so Workflows can checkpoint the text as durable step state and
  * re-derive the parsed result deterministically on replay.
  */
-async function fetchRobotsTxtText(
+export async function fetchRobotsTxtText(
   origin: string,
   access?: CrawlerAccess | null,
 ): Promise<string | null> {

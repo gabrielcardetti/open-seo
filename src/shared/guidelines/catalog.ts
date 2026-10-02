@@ -27,6 +27,7 @@
  */
 import { z } from "zod";
 import catalogJson from "./catalog.json";
+import { DEFAULT_ENGINES, ENGINES, type Engine } from "./engines";
 
 /**
  * Who can answer a rule. This is the routing key for the whole evaluation:
@@ -45,15 +46,7 @@ const RULE_CHECKS = [
   "human",
 ] as const;
 
-/** The search engines whose guidelines the catalog carries. */
-export const ENGINES = ["google", "bing"] as const;
-export type Engine = (typeof ENGINES)[number];
-
-/**
- * What an evaluation judges when nobody says otherwise. Google only, so that
- * adding Bing's rules changed no verdict an audit already produced.
- */
-export const DEFAULT_ENGINES: readonly Engine[] = ["google"];
+export { DEFAULT_ENGINES, ENGINES, type Engine } from "./engines";
 
 /** Page-level, site-level, or judged at both levels. */
 const RULE_SCOPES = ["page", "site", "both"] as const;

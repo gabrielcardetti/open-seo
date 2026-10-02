@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { Engine } from "@/shared/guidelines/engines";
 import {
   deleteAudit,
   getAuditHistory,
@@ -92,6 +93,10 @@ export function useLaunchController({
           maxPages: effectiveMaxPages,
           lighthouseStrategy: value.runLighthouse ? "auto" : "none",
           guidelinesStrategy: value.evaluateContent ? "sample" : "none",
+          guidelineEngines:
+            value.evaluateContent && value.includeBing
+              ? ["google", "bing"]
+              : undefined,
           excludedPaths: parseExcludedPathsInput(value.excludedPathsInput),
         });
         toast.success("Audit started!");
@@ -137,6 +142,7 @@ function useLaunchMutations({ projectId }: { projectId: string }) {
       maxPages: number;
       lighthouseStrategy: "auto" | "none";
       guidelinesStrategy: "none" | "sample" | "all";
+      guidelineEngines?: Engine[];
       excludedPaths: string[];
     }) => startAudit({ data }),
     onSuccess: () => {

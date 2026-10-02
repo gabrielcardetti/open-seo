@@ -13,6 +13,8 @@
  */
 import type { WorkflowStep } from "cloudflare:workers";
 import { CATALOG_VERSION } from "@/shared/guidelines/catalog";
+import { DEFAULT_ENGINES, type Engine } from "@/shared/guidelines/engines";
+import type { BwtPageSnapshot } from "@/server/lib/guidelines/evaluator-support";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
 import {
@@ -50,6 +52,8 @@ interface GuidelinesPhaseParams {
   config: AuditConfig;
   /** False when the crawl stopped at its page limit: absence is not evidence. */
   crawlCompleted: boolean;
+  /** robots.txt as discovery read it (null when missing or unreadable). */
+  robotsText: string | null;
 }
 
 /**
@@ -65,6 +69,8 @@ async function evaluateOnePage(input: {
   pageId: string;
   businessOverview: string | null;
   site: SitePass | null;
+  engines: readonly Engine[];
+  bwt: BwtPageSnapshot | undefined;
 }) {
   const [
     { fetchPageForEvaluation },
@@ -82,6 +88,13 @@ async function evaluateOnePage(input: {
   const judges = await resolveJudges();
   const evaluation = await evaluatePage({
     page,
+    engines: input.engines,
+    // The site facts carry Bing's repeated-title check; bwt is present only
+    // when the project has a Bing Webmaster Tools connection.
+    context: {
+      ...(input.site ? { site: { facts: input.site.facts } } : {}),
+      ...(input.bwt ? { bwt: input.bwt } : {}),
+    },
     businessOverview: input.businessOverview,
     decisionJudge: judges.decisionJudge,
     languageJudge: judges.languageJudge,
@@ -100,6 +113,7 @@ export async function runGuidelinesPhase(
 ): Promise<void> {
   const { auditId, workflowInstanceId, projectId, startUrl, config } = params;
   if (config.guidelinesStrategy === "none") return;
+  const engines = config.guidelineEngines ?? [...DEFAULT_ENGINES];
 
   const sample = await pgStep(
     step,
@@ -148,6 +162,8 @@ export async function runGuidelinesPhase(
     crawlCompleted: params.crawlCompleted,
     businessOverview,
     sampledUrls: sample.map((page) => page.url),
+    engines,
+    robotsText: params.robotsText,
   });
 
   // Pages of the clusters the site pass flagged, when the sample missed them:
@@ -179,6 +195,16 @@ export async function runGuidelinesPhase(
   const toJudge = [...sample, ...flagged];
   const pages: PageSummary[] = [];
 
+  // What Bing Webmaster Tools reports for the pages to judge, read once.
+  const bwt = engines.includes("bing")
+    ? await pgStep(step, "guidelines-bing-snapshot", DB_STEP, () =>
+        GuidelineEvaluationRepository.getBwtSnapshots(
+          projectId,
+          toJudge.map((page) => page.url),
+        ),
+      )
+    : null;
+
   for (
     let waveStart = 0;
     waveStart < toJudge.length;
@@ -201,6 +227,8 @@ export async function runGuidelinesPhase(
               pageId: page.pageId,
               businessOverview,
               site,
+              engines,
+              bwt: bwt?.[page.url],
             }),
         ),
       ),

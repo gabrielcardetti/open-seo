@@ -120,6 +120,7 @@ export async function runAuditPhases(
     startUrl,
     config,
     crawlCompleted: crawl.completed,
+    robotsText: discovery.robotsText,
   });
   await finalizeAudit({
     step,
