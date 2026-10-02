@@ -78,7 +78,8 @@ describe("Bing Webmaster MCP tools", () => {
     expect(result.structuredContent).toMatchObject({
       ok: false,
       reason: "not_connected",
-      connectUrl: "https://open-seo.test/p/project_1/settings/integrations#bing-webmaster",
+      connectUrl:
+        "https://open-seo.test/p/project_1/settings/integrations#bing-webmaster",
     });
   });
 
