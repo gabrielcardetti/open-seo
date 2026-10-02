@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  optionalSearchPositiveIntParam,
+  searchTextParam,
+} from "@/types/schemas/domain";
 
 export const bingDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -97,3 +101,53 @@ export const importBingAiCsvSchema = withValidRange(
     endDate: bingDateSchema.optional(),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// /p/$projectId/bing query params
+// ---------------------------------------------------------------------------
+
+const BING_RANGES = [
+  "last_7_days",
+  "last_28_days",
+  "last_90_days",
+  "last_6_months",
+  "last_12_months",
+] as const;
+export type BingRange = (typeof BING_RANGES)[number];
+
+/** Range presets of the Bing Insights page, counted back from the newest
+ *  stored day. Longer ranges reach into OpenSEO's own snapshot history. */
+export const BING_RANGE_DAYS: Record<BingRange, number> = {
+  last_7_days: 7,
+  last_28_days: 28,
+  last_90_days: 90,
+  last_6_months: 182,
+  last_12_months: 365,
+};
+
+export const BING_INSIGHTS_TABS = [
+  "queries",
+  "pages",
+  "striking",
+  "crawl",
+  "backlinks",
+  "ai",
+] as const;
+
+export const BING_PAGE_SIZES = [25, 50, 100] as const;
+export const BING_DEFAULT_PAGE_SIZE = 25;
+
+export const bingInsightsSearchSchema = z.object({
+  tab: z.enum(BING_INSIGHTS_TABS).optional().catch(undefined),
+  range: z.enum(BING_RANGES).optional().catch(undefined),
+  q: searchTextParam,
+  sort: z.enum(BING_STATS_SORTS).optional().catch(undefined),
+  page: optionalSearchPositiveIntParam,
+  size: z.coerce
+    .number()
+    .refine((value) => (BING_PAGE_SIZES as readonly number[]).includes(value))
+    .optional()
+    .catch(undefined),
+});
+
+export type BingInsightsSearch = z.infer<typeof bingInsightsSearchSchema>;
