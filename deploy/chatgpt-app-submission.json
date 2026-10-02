@@ -571,6 +571,162 @@
         "open_world_justification": "Operates only on private OpenSEO state or private provider data and cannot change publicly visible internet state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
+    },
+    "get_bing_overview": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the project's stored Bing Webmaster history, connection status, and URL submission quota.",
+        "open_world_justification": "Reads user-authorized Bing Webmaster data and cannot change Bing or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_bing_search_performance": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves Bing clicks, impressions, CTR, and position from stored history, or live from the user-authorized Bing site for a drill-down.",
+        "open_world_justification": "Reads user-authorized Bing Webmaster data and cannot change Bing or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_bing_crawl_health": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the project's stored Bing crawl statistics, crawl issues, and sitemaps.",
+        "open_world_justification": "Reads user-authorized Bing Webmaster data and cannot change Bing or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_bing_backlinks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves stored Bing inbound link counts, or the pages linking to one URL from the user-authorized Bing account.",
+        "open_world_justification": "Reads user-authorized Bing Webmaster data and cannot change Bing or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_bing_keyword_stats": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves Bing keyword impression counts and related keywords through the user's Bing Webmaster key.",
+        "open_world_justification": "Reads user-authorized Bing Webmaster data and cannot change Bing or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "compare_search_engines": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only combines stored Bing history with read-only Search Console rows for the same queries or pages.",
+        "open_world_justification": "Reads user-authorized Google and Bing data and cannot change either service or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_bing_ai_citations": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves AI citation counts from Bing AI Performance exports the user imported.",
+        "open_world_justification": "Operates only on private OpenSEO state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "sync_bing_now": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Downloads the project's Bing Webmaster data and stores it in the user's private OpenSEO workspace.",
+        "open_world_justification": "Reads user-authorized Bing data into private OpenSEO state and cannot change Bing or publicly visible internet state.",
+        "destructive_justification": "Adds and updates stored snapshots without deleting history, and runs at most once every ten minutes per project."
+      }
+    },
+    "get_indexing_setup": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the project's IndexNow key, verification state, auto-submit settings, deploy hook URL, and Bing submission quota.",
+        "open_world_justification": "Operates only on private OpenSEO state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "verify_indexnow_key": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Fetches the site's public IndexNow key file and records whether it matches in the project's indexing settings.",
+        "open_world_justification": "Fetches a public URL on the user's own website, outside OpenSEO, but does not change the site.",
+        "destructive_justification": "Only updates the key's verification status; it does not delete data or change the website."
+      }
+    },
+    "submit_urls_for_indexing": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Sends URL change notifications to IndexNow or Bing's URL submission API and records each outcome in the project's log.",
+        "open_world_justification": "Notifies external search engines (IndexNow participants or Bing) about URLs on the user's own website.",
+        "destructive_justification": "Notifications are additive and URLs sent within the dedupe window are skipped; nothing is deleted or overwritten."
+      }
+    },
+    "get_indexing_log": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the project's recorded URL submissions and their status counts.",
+        "open_world_justification": "Operates only on private OpenSEO state or private provider data and cannot change publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_indexing_candidates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Reads the site's public sitemaps and compares them with the stored inventory without recording or sending anything.",
+        "open_world_justification": "Fetches the user's public sitemaps from the open web but cannot change the site or any other publicly visible state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
     }
   },
   "test_cases": [
