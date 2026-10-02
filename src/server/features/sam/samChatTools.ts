@@ -65,6 +65,11 @@ import {
   submitUrlsForIndexingTool,
   verifyIndexNowKeyTool,
 } from "@/server/mcp/tools/indexing-tools";
+import {
+  getSitemapsTool,
+  submitSitemapsTool,
+  updateSitemapsTool,
+} from "@/server/mcp/tools/sitemap-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 import {
   compareSearchEnginesTool,
@@ -456,5 +461,8 @@ export function buildSamMcpTools(
     submit_urls_for_indexing: adaptTool(submitUrlsForIndexingTool),
     get_indexing_log: adaptTool(getIndexingLogTool),
     get_indexing_candidates: adaptTool(getIndexingCandidatesTool),
+    get_sitemaps: adaptTool(getSitemapsTool),
+    update_sitemaps: adaptTool(updateSitemapsTool),
+    submit_sitemaps: adaptTool(submitSitemapsTool),
   };
 }
