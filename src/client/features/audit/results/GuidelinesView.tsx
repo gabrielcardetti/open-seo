@@ -13,7 +13,17 @@ import {
   InputGroupInput,
 } from "@/client/components/ui/input-group";
 import { Label } from "@/client/components/ui/label";
-import type { Verdict } from "@/shared/guidelines/catalog";
+import {
+  RULES_BY_ID,
+  type Engine,
+  type Verdict,
+} from "@/shared/guidelines/catalog";
+import {
+  ENGINE_LABEL,
+  EngineSummary,
+  tallyVerdicts,
+  useEngineVerdicts,
+} from "./GuidelineEngines";
 import {
   GuidelineEvaluationItem,
   VERDICT_STYLE,
@@ -36,17 +46,50 @@ const VIEW_MODES: { value: ViewMode; label: string; icon: ReactNode }[] = [
 ];
 
 export function GuidelinesView({
-  evaluations,
-  results,
+  evaluations: allEvaluations,
+  results: allResults,
+  engines: auditEngines,
 }: {
   evaluations: GuidelineEvaluationRow[];
   results: GuidelineResultRow[];
+  engines: Engine[];
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("pages");
   const [verdicts, setVerdicts] = useState<ReadonlySet<Verdict>>(new Set());
   const [ymylOnly, setYmylOnly] = useState(false);
   const [query, setQuery] = useState("");
+  const engineVerdicts = useEngineVerdicts(
+    allEvaluations,
+    allResults,
+    auditEngines,
+  );
+  const [chosenEngine, setEngine] = useState<Engine | null>(null);
+  const engine =
+    chosenEngine ??
+    (engineVerdicts.judged.includes("google") ? "google" : "bing");
+
+  // The view is one engine's: its verdicts, and its rules' findings. Rows not
+  // judged for it are left out rather than shown with another engine's verdict.
+  const { evaluations, results } = useMemo(
+    () => ({
+      evaluations: allEvaluations.flatMap((evaluation) => {
+        const verdict = engineVerdicts.verdicts.get(evaluation.id)?.[engine];
+        return verdict ? [{ ...evaluation, verdict }] : [];
+      }),
+      results: allResults.filter((result) =>
+        RULES_BY_ID.get(result.ruleId)?.engines.includes(engine),
+      ),
+    }),
+    [allEvaluations, allResults, engineVerdicts, engine],
+  );
+  const otherVerdicts = (evaluationId: string) =>
+    engineVerdicts.judged
+      .filter((other) => other !== engine)
+      .flatMap((other) => {
+        const verdict = engineVerdicts.verdicts.get(evaluationId)?.[other];
+        return verdict ? [{ label: ENGINE_LABEL[other], verdict }] : [];
+      });
 
   const { findingsByEvaluation, unansweredByEvaluation } = useMemo(() => {
     const findings = new Map<string, GuidelineResultRow[]>();
@@ -79,16 +122,10 @@ export function GuidelinesView({
     [evaluations],
   );
 
-  const counts = useMemo(() => {
-    const tally: Record<Verdict, number> = {
-      pass: 0,
-      pass_with_warnings: 0,
-      revise: 0,
-      reject: 0,
-    };
-    for (const page of pages) tally[page.verdict] += 1;
-    return tally;
-  }, [pages]);
+  const counts = useMemo(
+    () => tallyVerdicts(pages.map((page) => page.verdict)),
+    [pages],
+  );
 
   const visiblePages = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -116,8 +153,9 @@ export function GuidelinesView({
         description={
           <>
             Start an audit with &ldquo;Evaluate content against Google&rsquo;s
-            guidelines&rdquo; turned on, or judge the pages with your own model
-            over MCP (get_guidelines_evaluation_batch).
+            guidelines&rdquo; turned on (Bing&rsquo;s can be added there), or
+            judge the pages with your own model over MCP
+            (get_guidelines_evaluation_batch).
           </>
         }
       />
@@ -150,12 +188,33 @@ export function GuidelinesView({
       onToggle={() =>
         setExpanded(expanded === evaluation.id ? null : evaluation.id)
       }
+      otherVerdicts={otherVerdicts(evaluation.id)}
     />
   );
 
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-3">
+        {engineVerdicts.judged.length > 1 && (
+          <EngineSummary
+            engine={engine}
+            onChange={(next) => {
+              setEngine(next);
+              setVerdicts(new Set());
+            }}
+            tallies={engineVerdicts.judged.map((judged) => ({
+              engine: judged,
+              counts: tallyVerdicts(
+                allEvaluations
+                  .filter((evaluation) => evaluation.pageType !== "site")
+                  .map(
+                    (evaluation) =>
+                      engineVerdicts.verdicts.get(evaluation.id)?.[judged],
+                  ),
+              ),
+            }))}
+          />
+        )}
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-sm">
             <span className="font-medium tabular-nums">{pages.length}</span>{" "}

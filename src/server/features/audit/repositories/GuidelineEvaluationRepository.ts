@@ -21,6 +21,8 @@ import {
 import { executeInBatches } from "@/db/runBatch";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
 import { canonicalUrlKey } from "@/server/lib/audit/url-utils";
+import { parseAuditConfig } from "@/server/lib/audit/types";
+import { DEFAULT_ENGINES } from "@/shared/guidelines/engines";
 import type { BwtPageSnapshot } from "@/server/lib/guidelines/evaluator-support";
 import { DECISION_MODEL_IDS } from "@/server/lib/guidelines/decision-transport";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
@@ -183,23 +185,30 @@ async function getRuleResultsForAudit(auditId: string) {
     .where(eq(auditRuleResults.auditId, auditId));
 }
 
-/** Evaluations plus findings for one audit, scoped to the owning project. */
+/**
+ * Evaluations plus findings for one audit, scoped to the owning project, and
+ * the engines the audit was started to judge against (which readers fall back
+ * to for a row that failed to evaluate).
+ */
 async function getEvaluationResultsForProject(
   auditId: string,
   projectId: string,
 ) {
-  const audit = await db
-    .select({ id: audits.id })
+  const [audit] = await db
+    .select({ id: audits.id, config: audits.config })
     .from(audits)
     .where(and(eq(audits.id, auditId), eq(audits.projectId, projectId)))
     .limit(1);
-  if (audit.length === 0) return null;
+  if (!audit) return null;
 
   const [evaluations, results] = await Promise.all([
     getEvaluationsForAudit(auditId),
     getRuleResultsForAudit(auditId),
   ]);
-  return { evaluations, results };
+  const engines = parseAuditConfig(audit.config)?.guidelineEngines ?? [
+    ...DEFAULT_ENGINES,
+  ];
+  return { evaluations, results, engines };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/client/components/ui/badge";
 import { RULES_BY_ID } from "@/shared/guidelines/catalog";
+import { conflictNote } from "@/shared/guidelines/engine-verdicts";
 import type { GuidelineResultRow } from "./GuidelineEvaluationItem";
 import {
   findingKind,
@@ -25,6 +26,11 @@ const KIND_STYLE: Record<
     label: "Unconfirmed",
     variant: "outline",
     className: "border-dashed text-muted-foreground",
+  },
+  conflict: {
+    label: "Engines disagree",
+    variant: "outline",
+    className: "text-muted-foreground",
   },
   // Outlined, so it does not read as the filled "Revise" verdict beside it.
   warning: {
@@ -65,6 +71,9 @@ export function GuidelineFinding({
     finding.evidence,
   );
   const quote = kind === "site" ? null : rest;
+  // Where the engines disagree, the note says what each one says.
+  const hint =
+    kind === "conflict" ? conflictNote(finding.ruleId) : KIND_HINT[kind];
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -97,8 +106,8 @@ export function GuidelineFinding({
         )}
       </div>
 
-      {KIND_HINT[kind] && (
-        <p className="text-xs text-muted-foreground">{KIND_HINT[kind]}</p>
+      {hint && (
+        <p className="text-xs text-muted-foreground max-w-prose">{hint}</p>
       )}
       {finding.reason && !isStandardDowngrade(finding.reason) && (
         <p className="text-sm text-foreground/80 max-w-prose">

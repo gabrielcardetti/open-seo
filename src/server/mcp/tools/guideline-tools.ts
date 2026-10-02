@@ -5,7 +5,17 @@
  */
 import { z } from "zod";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
-import { CATALOG_VERSION, RULES_BY_ID } from "@/shared/guidelines/catalog";
+import {
+  CATALOG_VERSION,
+  ENGINES,
+  RULES_BY_ID,
+  type Engine,
+  type Verdict,
+} from "@/shared/guidelines/catalog";
+import {
+  conflictNote,
+  verdictsByEngine,
+} from "@/shared/guidelines/engine-verdicts";
 import {
   auditIdSchema,
   auditPath,
@@ -25,11 +35,17 @@ import { projectIdSchema } from "@/server/mcp/schemas";
 const resultsInputSchema = {
   projectId: projectIdSchema,
   auditId: auditIdSchema,
+  engine: z
+    .enum(ENGINES)
+    .optional()
+    .describe(
+      "Whose verdicts `verdict` filters on and `summary` counts: google or bing. Defaults to Google when the audit was judged against Google's guidelines, else Bing. Every page still reports its verdict for each engine it was judged for.",
+    ),
   verdict: z
     .enum(["pass", "pass_with_warnings", "revise", "reject"])
     .optional()
     .describe(
-      "Only return pages with this verdict. The whole-site verdict is always returned.",
+      "Only return pages with this verdict for `engine`. The whole-site verdict is always returned.",
     ),
   limit: z.number().int().min(1).max(500).optional().default(100),
 };
@@ -37,16 +53,25 @@ const resultsInputSchema = {
 type ResultsArgs = {
   projectId: string;
   auditId?: string;
-  verdict?: "pass" | "pass_with_warnings" | "revise" | "reject";
+  engine?: Engine;
+  verdict?: Verdict;
   limit: number;
 };
+
+const ENGINE_LABEL: Record<Engine, string> = { google: "Google", bing: "Bing" };
+
+function countVerdicts(verdicts: ReadonlyArray<Verdict | undefined>) {
+  const counts = { pass: 0, pass_with_warnings: 0, revise: 0, reject: 0 };
+  for (const verdict of verdicts) if (verdict) counts[verdict] += 1;
+  return counts;
+}
 
 export const getGuidelineResultsTool = {
   name: "get_guideline_results",
   config: {
     title: "Get content guideline verdicts",
     description:
-      "Read per-page verdicts from a site audit's content-guideline evaluation: which pages pass Google's official content guidelines, which rules they fail, the evidence, and the remediation for each. `site` is the whole-site verdict (doorway and scaled-content patterns, topical focus, trust pages), judged from the crawl inventory; it is not a page and is not counted in `summary`. Free — reads OpenSEO state. Omit auditId for the most recent audit.",
+      "Read per-page verdicts from a site audit's content-guideline evaluation: which pages pass the search engines' official content guidelines (Google's, and Bing's when the audit asked for them), which rules they fail, the evidence, and the remediation for each. Each page has a verdict per engine it was judged for (`verdicts`), side by side; `verdict` and `summary` follow `engine`. A rule both engines state is judged once and lists both in `engines`. A rule where Bing and Google disagree reads as status `conflict` with a note, and never blocks a page. `site` is the whole-site verdict (doorway and scaled-content patterns, topical focus, trust pages, robots.txt for Bingbot), judged from the crawl inventory; it is not a page and is not counted in `summary`. Free — reads OpenSEO state. Omit auditId for the most recent audit.",
     inputSchema: resultsInputSchema,
     outputSchema: z
       .object({
@@ -87,41 +112,73 @@ export const getGuidelineResultsTool = {
       if (bucket) bucket.push(result);
       else byEvaluation.set(result.evaluationId, [result]);
     }
+    const verdictsOf = new Map(
+      data.evaluations.map((evaluation) => [
+        evaluation.id,
+        verdictsByEngine(
+          evaluation,
+          byEvaluation.get(evaluation.id) ?? [],
+          data.engines,
+        ),
+      ]),
+    );
+    const judgedEngines = ENGINES.filter((engine) =>
+      [...verdictsOf.values()].some((verdicts) => verdicts[engine]),
+    );
+    const engine =
+      args.engine ?? (judgedEngines.includes("google") ? "google" : "bing");
 
-    const describe = (evaluation: (typeof data.evaluations)[number]) => ({
-      url: evaluation.pageUrl,
-      verdict: evaluation.verdict,
-      ymyl: evaluation.ymyl,
-      page_type: evaluation.pageType,
-      unanswered_rules: evaluation.unknownCount,
-      judged_by: evaluation.judge,
-      findings: (byEvaluation.get(evaluation.id) ?? [])
-        .filter((result) => result.status !== "unknown")
-        .map((result) => ({
-          rule: result.ruleId,
-          rule_name: RULES_BY_ID.get(result.ruleId)?.name ?? result.ruleId,
-          status: result.status,
-          severity: result.severity,
-          evidence: result.evidence,
-          reason: result.reason,
-          how_to_fix: result.remediation,
-          source: RULES_BY_ID.get(result.ruleId)?.sources[0]?.source_url,
-        })),
-    });
+    const describe = (evaluation: (typeof data.evaluations)[number]) => {
+      const verdicts = verdictsOf.get(evaluation.id) ?? {};
+      return {
+        url: evaluation.pageUrl,
+        verdict: verdicts[engine] ?? null,
+        verdicts,
+        ymyl: evaluation.ymyl,
+        page_type: evaluation.pageType,
+        unanswered_rules: evaluation.unknownCount,
+        judged_by: evaluation.judge,
+        findings: (byEvaluation.get(evaluation.id) ?? [])
+          .filter((result) => result.status !== "unknown")
+          .map((result) => {
+            const rule = RULES_BY_ID.get(result.ruleId);
+            const conflict = conflictNote(result.ruleId);
+            return {
+              rule: result.ruleId,
+              rule_name: rule?.name ?? result.ruleId,
+              engines: rule?.engines ?? [],
+              // A rule the engines disagree on is information, not a fault.
+              status: conflict ? "conflict" : result.status,
+              severity: conflict ? "info" : result.severity,
+              ...(conflict ? { note: conflict } : {}),
+              evidence: result.evidence,
+              reason: result.reason,
+              how_to_fix: result.remediation,
+              sources: (rule?.sources ?? []).map((source) => ({
+                engine: source.engine,
+                url: source.source_url,
+              })),
+            };
+          }),
+      };
+    };
 
     // The site row's URL is a sentinel (`<origin>/#site`), not a page: it is
     // reported on its own and kept out of the per-page counts.
     const siteRow = data.evaluations.find((e) => e.pageType === "site");
     const pageRows = data.evaluations.filter((e) => e.pageType !== "site");
     const filtered = args.verdict
-      ? pageRows.filter((e) => e.verdict === args.verdict)
+      ? pageRows.filter((e) => verdictsOf.get(e.id)?.[engine] === args.verdict)
       : pageRows;
     const pages = filtered.slice(0, args.limit).map(describe);
 
-    const counts = { pass: 0, pass_with_warnings: 0, revise: 0, reject: 0 };
-    for (const evaluation of pageRows) {
-      counts[evaluation.verdict] += 1;
-    }
+    const byEngine = Object.fromEntries(
+      judgedEngines.map((judged) => [
+        judged,
+        countVerdicts(pageRows.map((e) => verdictsOf.get(e.id)?.[judged])),
+      ]),
+    );
+    const siteVerdicts = siteRow ? (verdictsOf.get(siteRow.id) ?? {}) : {};
 
     return mcpResponse({
       structuredContent: {
@@ -130,7 +187,9 @@ export const getGuidelineResultsTool = {
         summary: {
           evaluated: pageRows.length,
           catalog_version: CATALOG_VERSION,
-          ...counts,
+          engine,
+          ...countVerdicts(pageRows.map((e) => verdictsOf.get(e.id)?.[engine])),
+          by_engine: byEngine,
         },
       },
       meta: buildProjectMeta(
@@ -139,12 +198,12 @@ export const getGuidelineResultsTool = {
         auditPath(args.projectId, audit.id),
       ),
       text: [
-        ...(siteRow ? [`Whole site: ${siteRow.verdict}`] : []),
         `Content guidelines, ${pageRows.length} pages evaluated (catalog ${CATALOG_VERSION}):`,
-        `- reject: ${counts.reject}`,
-        `- revise: ${counts.revise}`,
-        `- pass with warnings: ${counts.pass_with_warnings}`,
-        `- pass: ${counts.pass}`,
+        ...judgedEngines.map((judged) => {
+          const counts = byEngine[judged];
+          const site = siteVerdicts[judged];
+          return `- ${ENGINE_LABEL[judged]}: reject ${counts.reject}, revise ${counts.revise}, pass with warnings ${counts.pass_with_warnings}, pass ${counts.pass}${site ? `; whole site: ${site}` : ""}`;
+        }),
       ].join("\n"),
     });
   }),
