@@ -5,9 +5,10 @@
  *
  * https://www.indexnow.org/documentation
  */
+import { getOptionalEnvValue } from "@/server/lib/runtime-env";
 import type { UrlSubmissionStatus } from "@/shared/indexing";
 
-const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
+const INDEXNOW_ORIGIN = "https://api.indexnow.org";
 /** IndexNow accepts at most 10,000 URLs per request. */
 export const INDEXNOW_MAX_URLS = 10_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -92,14 +93,24 @@ export async function postIndexNow(input: {
     httpStatus: null,
     errorMessage: "IndexNow was not reached.",
   };
+  // IndexNow rate-limits Cloudflare Workers' shared outbound IPs (429), so a
+  // deployment can send its requests through a relay that forwards /indexnow
+  // and checks a shared secret — the same relay pattern as Bing's API.
+  const origin =
+    (await getOptionalEnvValue("INDEXNOW_API_BASE_URL"))?.replace(/\/+$/, "") ||
+    INDEXNOW_ORIGIN;
+  const relaySecret = await getOptionalEnvValue("INDEXNOW_RELAY_SECRET");
   let attempts = 0;
   for (const delay of [0, ...RETRY_DELAYS_MS]) {
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     attempts += 1;
     try {
-      const response = await fetch(INDEXNOW_ENDPOINT, {
+      const response = await fetch(`${origin}/indexnow`, {
         method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          ...(relaySecret ? { "X-Relay-Secret": relaySecret } : {}),
+        },
         body,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

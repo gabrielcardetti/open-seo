@@ -54,6 +54,7 @@ describe("UrlSubmissionService.submitUrls", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("retries a throttled IndexNow request and records the final answer", async () => {
@@ -70,6 +71,22 @@ describe("UrlSubmissionService.submitUrls", () => {
     expect(result.results).toEqual([
       expect.objectContaining({ status: "received", channel: "indexnow" }),
     ]);
+  });
+
+  it("sends IndexNow requests through a configured relay with its secret", async () => {
+    await verifiedIndexNowKey();
+    vi.stubEnv("INDEXNOW_API_BASE_URL", "https://relay.example.com/");
+    vi.stubEnv("INDEXNOW_RELAY_SECRET", "relay-secret");
+
+    await UrlSubmissionService.submitUrls(
+      "project-1",
+      ["https://example.com/a"],
+      "manual",
+    );
+
+    const [input, init] = vi.mocked(fetch).mock.calls[0];
+    expect(input).toBe("https://relay.example.com/indexnow");
+    expect(init?.headers).toMatchObject({ "X-Relay-Secret": "relay-secret" });
   });
 
   it("records a 403 as rejected and stops treating the key as verified", async () => {

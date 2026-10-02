@@ -300,6 +300,9 @@ const dataEnv = {
   // shared outbound IPs). See docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md.
   BING_API_BASE_URL: optionalVar("BING_API_BASE_URL"),
   BING_RELAY_SECRET: optionalSecret("BING_RELAY_SECRET"),
+  // Same for IndexNow, which also rate-limits Workers' IPs.
+  INDEXNOW_API_BASE_URL: optionalVar("INDEXNOW_API_BASE_URL"),
+  INDEXNOW_RELAY_SECRET: optionalSecret("INDEXNOW_RELAY_SECRET"),
 };
 
 export default Alchemy.Stack(
@@ -434,6 +437,9 @@ export default Alchemy.Stack(
         // evidence behind a finding. GUIDELINES_API_KEY/_BASE_URL point it at
         // any chat-completions endpoint; it falls back to OpenRouter.
         OPENROUTER_API_KEY: dataEnv.OPENROUTER_API_KEY,
+        // Audit-triggered IndexNow announcements use the same relay.
+        INDEXNOW_API_BASE_URL: dataEnv.INDEXNOW_API_BASE_URL,
+        INDEXNOW_RELAY_SECRET: dataEnv.INDEXNOW_RELAY_SECRET,
         GUIDELINES_API_KEY: optionalSecret("GUIDELINES_API_KEY"),
         GUIDELINES_MODEL: optionalVar("GUIDELINES_MODEL"),
         GUIDELINES_BASE_URL: optionalVar("GUIDELINES_BASE_URL"),

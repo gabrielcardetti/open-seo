@@ -73,6 +73,15 @@ and redeploy. A minimal Caddy configuration:
 }
 ```
 
+IndexNow does the same: from a Worker it often answers `429` to every
+announcement. Point it at a relay too, with a route that forwards `POST
+/indexnow` to `https://api.indexnow.org` behind the same secret check:
+
+```bash
+INDEXNOW_API_BASE_URL=https://your-relay.example.com
+INDEXNOW_RELAY_SECRET=a-long-random-secret
+```
+
 The API key travels in the request's query string, so serve the relay over
 HTTPS and keep its access logs free of query strings.
 
