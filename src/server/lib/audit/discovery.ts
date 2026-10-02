@@ -122,11 +122,8 @@ export function parseRobotsTxt(
   };
 }
 
-/**
- * Fetch and parse a sitemap (supports sitemap index recursion).
- * Returns a flat list of page URLs found.
- */
-function isProbablySitemapXml(
+/** An XML content type, or a body that opens like a sitemap. */
+export function isProbablySitemapXml(
   contentType: string | null,
   body: string,
 ): boolean {
@@ -478,12 +475,17 @@ const MAX_INVENTORY_URLS = 50_000;
  * indexing inventory. Unlike `discoverUrls` there is no crawl budget, only
  * the walk's own depth, document and URL bounds. The site is resolved first
  * (validated, redirects followed) so an apex domain that redirects to www
- * reads the www sitemaps. `truncated` says a cap cut the walk short (the same
+ * reads the www sitemaps. The walk starts from `sitemapUrls` (the project's
+ * tracked sitemaps) that are on that origin; without any, from robots.txt
+ * and /sitemap.xml. `truncated` says a cap cut the walk short (the same
  * sitemaps are always cut at the same place); `failedSitemaps` lists the
  * documents that could not be read this time, whose URLs are missing from
  * `entries`.
  */
-export async function collectSitemapEntries(domain: string): Promise<{
+export async function collectSitemapEntries(
+  domain: string,
+  sitemapUrls: string[] = [],
+): Promise<{
   origin: string;
   entries: SitemapEntry[];
   truncated: boolean;
@@ -492,12 +494,17 @@ export async function collectSitemapEntries(domain: string): Promise<{
   const startUrl = await normalizeAndValidateStartUrl(domain);
   const { url } = await resolveStartUrlRedirects(startUrl);
   const origin = new URL(url).origin;
-  const robots = parseRobotsTxt(origin, await fetchRobotsTxtText(origin));
-  const walk = await walkSitemaps(
-    origin,
-    sitemapSourcesFor(origin, robots),
-    MAX_INVENTORY_URLS,
+  const tracked = sitemapUrls.filter((sitemapUrl) =>
+    isSameOrigin(sitemapUrl, origin),
   );
+  const sources =
+    tracked.length > 0
+      ? tracked
+      : sitemapSourcesFor(
+          origin,
+          parseRobotsTxt(origin, await fetchRobotsTxtText(origin)),
+        );
+  const walk = await walkSitemaps(origin, sources, MAX_INVENTORY_URLS);
   return {
     origin,
     entries: Array.from(walk.urls, ([pageUrl, lastmod]) => ({
