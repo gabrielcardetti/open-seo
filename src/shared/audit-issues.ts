@@ -248,6 +248,32 @@ export const AUDIT_ISSUE_TYPES = {
     howToFix:
       "Add links from higher-level pages (hubs, category pages, navigation) to flatten the path to this page.",
   },
+  // From Bing Webmaster Tools: what Bingbot saw on its own crawl, read from
+  // the project's last Bing sync. Only reported when Bing is connected.
+  "bing-malware": {
+    severity: "critical",
+    title: "Bing flagged malware",
+    explanation:
+      "Bing Webmaster Tools reports that this URL contains malware. Bing warns searchers away from flagged pages or drops them from results, and Copilot won't cite them.",
+    howToFix:
+      "Scan the page and the server for injected scripts, unexpected redirects, and compromised plugins or dependencies, and clean them up. Then request a malware review in Bing Webmaster Tools (Security → Malware).",
+  },
+  "bing-crawl-error": {
+    severity: "warning",
+    title: "Bing can't crawl this URL",
+    explanation:
+      "Bing Webmaster Tools reports an error when Bingbot fetches this URL: a 4xx or 5xx status, a timeout, or a DNS failure. Bing may see a different answer than our crawler did, for example when bot protection blocks Bingbot. Pages Bing can't fetch drop out of Bing, Copilot, and the AI answers built on Bing's index.",
+    howToFix:
+      "Fix the error if the page should exist, or return a 404/410 and remove it from your sitemap and internal links if it is gone. If the page loads for you, check that your firewall or CDN doesn't block or rate-limit Bingbot, then use URL Inspection in Bing Webmaster Tools to confirm.",
+  },
+  "bing-blocked-by-robots": {
+    severity: "warning",
+    title: "Blocked for Bingbot by robots.txt",
+    explanation:
+      "Bing Webmaster Tools reports that robots.txt stops Bingbot from crawling this URL. Bing then can't read the page, so it can't rank it well or cite it in Copilot answers. A `User-agent: bingbot` group in robots.txt replaces the `*` group for Bing.",
+    howToFix:
+      "If the page should appear in Bing, remove or narrow the Disallow rule that matches it (check both the `*` and any `bingbot` group). If blocking is intentional, no action is needed.",
+  },
 } as const satisfies Record<string, AuditIssueDescriptor>;
 
 export type AuditIssueType = keyof typeof AUDIT_ISSUE_TYPES;

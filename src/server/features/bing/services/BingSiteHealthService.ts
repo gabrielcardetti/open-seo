@@ -3,35 +3,13 @@ import {
   resolveRange,
   type DateRangeInput,
 } from "@/server/features/bing/bingStats";
+import { crawlIssueLabels } from "@/server/features/bing/crawlIssueFlags";
 import { BingConnectionRepository } from "@/server/features/bing/repositories/BingConnectionRepository";
 import { BingSnapshotRepository } from "@/server/features/bing/repositories/BingSnapshotRepository";
 
 const DEFAULT_CRAWL_RANGE_DAYS = 90;
 const OPEN_ISSUE_LIMIT = 200;
 const RESOLVED_ISSUE_LIMIT = 50;
-
-// Bing's CrawlIssues flags (Microsoft.Bing.Webmaster.Api.Interfaces). Labels
-// are best-effort until checked against live answers; the raw value is kept.
-const CRAWL_ISSUE_FLAGS: Array<[number, string]> = [
-  [1, "301 redirect"],
-  [2, "302 redirect"],
-  [4, "4xx error"],
-  [8, "5xx error"],
-  [16, "Blocked by robots.txt"],
-  [32, "Contains malware"],
-  [64, "Important URL blocked by robots.txt"],
-  [128, "DNS error"],
-  [256, "Timeout"],
-];
-
-function issueLabels(flags: number): string[] {
-  const labels = CRAWL_ISSUE_FLAGS.filter(([bit]) => (flags & bit) !== 0).map(
-    ([, label]) => label,
-  );
-  const known = CRAWL_ISSUE_FLAGS.reduce((all, [bit]) => all | bit, 0);
-  if ((flags & ~known) !== 0) labels.push(`Other (flags ${flags})`);
-  return labels;
-}
 
 /**
  * Bingbot's crawl of the site from the stored history: the daily series for
@@ -60,7 +38,7 @@ async function crawlHealth(projectId: string, input: DateRangeInput = {}) {
   ]);
   const withLabels = <T extends { issueFlags: number }>(issue: T) => ({
     ...issue,
-    labels: issueLabels(issue.issueFlags),
+    labels: crawlIssueLabels(issue.issueFlags),
   });
   return {
     connected: true as const,
