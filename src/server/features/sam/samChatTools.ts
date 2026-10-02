@@ -58,6 +58,13 @@ import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import {
+  getIndexingCandidatesTool,
+  getIndexingLogTool,
+  getIndexingSetupTool,
+  submitUrlsForIndexingTool,
+  verifyIndexNowKeyTool,
+} from "@/server/mcp/tools/indexing-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 import { discoverSiteUrls, readPages, readSite } from "@/server/lib/scrape";
 import { capToolOutput } from "@/server/features/sam/samToolOutput";
@@ -426,5 +433,10 @@ export function buildSamMcpTools(
     get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
     get_audit_pages: adaptTool(getAuditPagesTool),
+    get_indexing_setup: adaptTool(getIndexingSetupTool),
+    verify_indexnow_key: adaptTool(verifyIndexNowKeyTool),
+    submit_urls_for_indexing: adaptTool(submitUrlsForIndexingTool),
+    get_indexing_log: adaptTool(getIndexingLogTool),
+    get_indexing_candidates: adaptTool(getIndexingCandidatesTool),
   };
 }
