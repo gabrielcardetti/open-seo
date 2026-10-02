@@ -7,6 +7,7 @@ import {
   testDb,
 } from "@/server/features/indexing/indexing-test-db";
 import { SitemapCoverageService } from "./SitemapCoverageService";
+import { SitemapSubmissionService } from "./SitemapSubmissionService";
 import { SitemapRegistryRepository } from "./SitemapRegistryRepository";
 
 const gsc = vi.hoisted(() => ({
@@ -21,11 +22,11 @@ vi.mock("@/db", async () => ({
   db: (await import("@/server/features/indexing/indexing-test-db")).testDb,
 }));
 vi.mock("@/db/runBatch", async () => {
-  const { testDb } =
+  const { testDb: database } =
     await import("@/server/features/indexing/indexing-test-db");
   return {
-    runBatch: async (build: (tx: typeof testDb) => Promise<unknown>[]) => {
-      for (const statement of build(testDb)) await statement;
+    runBatch: async (build: (tx: typeof database) => Promise<unknown>[]) => {
+      for (const statement of build(database)) await statement;
     },
   };
 });
@@ -98,7 +99,7 @@ describe("SitemapCoverageService", () => {
   it("asks for a reconnect instead of submitting to Google with a read-only grant", async () => {
     gsc.canSubmitSitemaps.mockResolvedValue(false);
 
-    const result = await SitemapCoverageService.submitToEngines("project-1", {
+    const result = await SitemapSubmissionService.submitToEngines("project-1", {
       engines: ["google"],
       onlyMissing: true,
     });

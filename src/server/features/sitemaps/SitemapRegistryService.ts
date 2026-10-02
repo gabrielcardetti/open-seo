@@ -26,15 +26,20 @@ import {
 
 const MAX_URL_LENGTH = 2048;
 
+const unique = (urls: string[] | undefined) => [
+  ...new Set((urls ?? []).map((url) => url.trim()).filter(Boolean)),
+];
+const now = () => new Date().toISOString();
+
 /** What happened to one URL of a change request. */
-export type SitemapChange = {
+type SitemapChange = {
   url: string;
   action: "track" | "ignore" | "add" | "remove";
   ok: boolean;
   problem: string | null;
 };
 
-export type SitemapUpdateInput = {
+type SitemapUpdateInput = {
   detect?: boolean;
   add?: string[];
   track?: string[];
@@ -173,7 +178,7 @@ async function detect(
     projectId,
     suggested,
     { source: "detected", status: "suggested" },
-    new Date().toISOString(),
+    now(),
   );
   return { suggested, problem: null };
 }
@@ -194,11 +199,7 @@ async function addOne(
     (!row && rows.size >= MAX_PROJECT_SITEMAPS ? FULL_PROBLEM : null) ??
     (await probeProblem(url));
   if (problem) return problem;
-  await SitemapRegistryRepository.upsertTracked(
-    projectId,
-    url,
-    new Date().toISOString(),
-  );
+  await SitemapRegistryRepository.upsertTracked(projectId, url, now());
   return null;
 }
 
@@ -225,10 +226,6 @@ async function update(projectId: string, input: SitemapUpdateInput) {
         row,
       ]),
     );
-  const unique = (urls: string[] | undefined) => [
-    ...new Set((urls ?? []).map((url) => url.trim()).filter(Boolean)),
-  ];
-  const now = () => new Date().toISOString();
 
   for (const url of unique([...(input.add ?? []), ...(input.track ?? [])])) {
     const rows = await loadRows();

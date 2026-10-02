@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { requireOrgPermission } from "@/server/auth/org-gate";
 import { SitemapCoverageService } from "@/server/features/sitemaps/SitemapCoverageService";
+import { SitemapSubmissionService } from "@/server/features/sitemaps/SitemapSubmissionService";
 import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
@@ -236,7 +237,7 @@ export const submitSitemapsTool = {
   handler: withMcpProjectAuth(
     async (args: z.infer<z.ZodObject<typeof submitInput>>, context) => {
       requireOrgPermission(context.auth, { integration: ["manage"] });
-      const result = await SitemapCoverageService.submitToEngines(
+      const result = await SitemapSubmissionService.submitToEngines(
         args.projectId,
         {
           urls: args.urls,

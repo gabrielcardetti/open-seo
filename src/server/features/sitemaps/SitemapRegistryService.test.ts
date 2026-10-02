@@ -32,8 +32,8 @@ describe("SitemapRegistryService", () => {
     resetTestDatabase();
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const { pathname } = new URL(input.toString());
+      vi.fn((input: string) => {
+        const { pathname } = new URL(input);
         if (pathname === "/robots.txt") {
           return Promise.resolve(new Response(ROBOTS));
         }

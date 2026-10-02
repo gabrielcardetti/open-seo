@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { hasOrgPermission } from "@/lib/org-permissions";
 import { requireOrgPermission } from "@/server/auth/org-gate";
 import { SitemapCoverageService } from "@/server/features/sitemaps/SitemapCoverageService";
+import { SitemapSubmissionService } from "@/server/features/sitemaps/SitemapSubmissionService";
 import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
@@ -33,5 +34,5 @@ export const submitSitemaps = createServerFn({ method: "POST" })
   .validator(submitSitemapsSchema)
   .handler(async ({ data, context }) => {
     requireOrgPermission(context, { integration: ["manage"] });
-    return SitemapCoverageService.submitToEngines(context.projectId, data);
+    return SitemapSubmissionService.submitToEngines(context.projectId, data);
   });

@@ -127,9 +127,7 @@ export function isProbablySitemapXml(
   contentType: string | null,
   body: string,
 ): boolean {
-  if (contentType?.toLowerCase().includes("xml")) {
-    return true;
-  }
+  if (contentType?.toLowerCase().includes("xml")) return true;
 
   const trimmed = body.trimStart().toLowerCase();
   return (
@@ -246,9 +244,7 @@ async function fetchSitemapDocumentWithRetry(
     failed: false,
   };
   const normalizedSitemapUrl = normalizeUrl(sitemapUrl);
-  if (!normalizedSitemapUrl) {
-    return empty;
-  }
+  if (!normalizedSitemapUrl) return empty;
 
   let lastError: unknown = null;
 
@@ -261,9 +257,7 @@ async function fetchSitemapDocumentWithRetry(
         SITEMAP_FETCH_TIMEOUT_MS,
         access,
       );
-      if (!fetched) {
-        return empty;
-      }
+      if (!fetched) return empty;
       const { response } = fetched;
 
       const resolvedUrl = normalizeUrl(fetched.finalUrl, normalizedSitemapUrl);

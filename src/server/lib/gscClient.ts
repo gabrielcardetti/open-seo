@@ -117,10 +117,11 @@ export function createGscClient(opts: {
     }
   }
 
-  async function request<T>(
+  /** One authenticated call; throws GscApiError on a non-2xx answer. */
+  async function send(
     url: string,
     init?: { method?: string; body?: unknown },
-  ): Promise<T> {
+  ): Promise<Response> {
     const token = await getToken();
     const hasBody = init?.body !== undefined;
     const response = await fetch(url, {
@@ -139,9 +140,14 @@ export function createGscClient(opts: {
         body,
       );
     }
-    // sitemaps.submit answers 204 with no body.
-    const text = await response.text();
-    return (text ? JSON.parse(text) : {}) as T;
+    return response;
+  }
+
+  async function request<T>(
+    url: string,
+    init?: { method?: string; body?: unknown },
+  ): Promise<T> {
+    return (await send(url, init)).json<T>();
   }
 
   return {
@@ -181,10 +187,12 @@ export function createGscClient(opts: {
     /** Webmasters API `sitemaps.submit`. Needs the grant's write scope;
      *  with only the read-only scope Google answers 403. */
     async submitSitemap(siteUrl: string, feedpath: string): Promise<void> {
-      await request<unknown>(
+      // Answers 204 with no body.
+      const response = await send(
         `${GSC_API_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(feedpath)}`,
         { method: "PUT" },
       );
+      await response.body?.cancel();
     },
 
     /** URL Inspection API `urlInspection.index.inspect`. This lives on a
