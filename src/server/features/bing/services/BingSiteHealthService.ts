@@ -15,7 +15,7 @@ const RESOLVED_ISSUE_LIMIT = 50;
  * Bingbot's crawl of the site from the stored history: the daily series for
  * the range, the newest day, the URLs Bing currently reports problems for,
  * the issues that stopped being reported since the range began, and the
- * sitemaps Bing knows.
+ * sitemaps Bing knows (flagging the ones it no longer reports).
  */
 async function crawlHealth(projectId: string, input: DateRangeInput = {}) {
   const connection = await BingConnectionRepository.getByProjectId(projectId);
@@ -36,6 +36,16 @@ async function crawlHealth(projectId: string, input: DateRangeInput = {}) {
     ),
     BingSnapshotRepository.getSitemaps(scope),
   ]);
+  // Every sitemap in a successful GetFeeds answer gets that sync's time, so
+  // one seen before the newest answer was missing from it: Bing stopped
+  // reporting it. Rows stay as history. (When Bing stops reporting every
+  // sitemap at once there's no newer answer to compare with, so none is
+  // flagged.)
+  const latestSitemapAnswer = sitemaps.reduce(
+    (latest, sitemap) =>
+      sitemap.lastSeenAt > latest ? sitemap.lastSeenAt : latest,
+    "",
+  );
   const withLabels = <T extends { issueFlags: number }>(issue: T) => ({
     ...issue,
     labels: crawlIssueLabels(issue.issueFlags),
@@ -53,7 +63,10 @@ async function crawlHealth(projectId: string, input: DateRangeInput = {}) {
       rows: openIssues.rows.map(withLabels),
     },
     resolvedIssues: resolvedIssues.map(withLabels),
-    sitemaps,
+    sitemaps: sitemaps.map((sitemap) => ({
+      ...sitemap,
+      noLongerReported: sitemap.lastSeenAt < latestSitemapAnswer,
+    })),
   };
 }
 

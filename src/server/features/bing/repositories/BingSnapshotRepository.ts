@@ -435,7 +435,9 @@ async function aggregateStats(input: {
       ? // Rows without a position sort last on both dialects.
         [sql`(${impressionPosition}) is null`, asc(impressionPosition)]
       : input.sort === "ctr"
-        ? [desc(ctr), desc(impressions)]
+        ? // Rows without impressions have no CTR; Postgres would sort them
+          // first on a descending sort, so put them last explicitly.
+          [sql`(${ctr}) is null`, desc(ctr), desc(impressions)]
         : input.sort === "impressions"
           ? [desc(impressions), desc(clicks)]
           : [desc(clicks), desc(impressions)];

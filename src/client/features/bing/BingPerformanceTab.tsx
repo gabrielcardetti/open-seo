@@ -41,6 +41,8 @@ type BingPerformanceRow = Extract<
   { connected: true }
 >["rows"][number];
 
+const MAX_SEARCH_LENGTH = 200;
+
 const rightAligned = {
   headerClassName: "text-right",
   cellClassName: "text-right tabular-nums",
@@ -123,7 +125,9 @@ export function BingPerformanceTab({
   const input: BingTableInput = {
     ...dates,
     dimension,
-    search: search.q?.trim() || undefined,
+    // The server takes at most 200 characters; a longer `q` can come from
+    // the URL.
+    search: search.q?.trim().slice(0, MAX_SEARCH_LENGTH) || undefined,
     ...(tab === "striking" ? { minPosition: 5, maxPosition: 20 } : {}),
     sort,
     page,
@@ -255,6 +259,7 @@ function SearchBox({
         aria-label={placeholder}
         placeholder={placeholder}
         value={value}
+        maxLength={MAX_SEARCH_LENGTH}
         onChange={(event) => setValue(event.target.value)}
         onBlur={() => {
           if (value.trim() !== initial) onSubmit(value.trim());

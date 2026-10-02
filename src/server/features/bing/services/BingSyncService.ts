@@ -13,7 +13,8 @@ const LINK_COUNT_MAX_PAGES = 20;
 // A cron tick syncs a few projects, then leaves the backlog to later ticks.
 const SYNCS_PER_TICK = 3;
 const TICK_DEADLINE_MS = 3 * 60 * 1000;
-// "Sync now" can't be used to hammer Bing's per-key rate limit.
+// "Sync now" can't be used to hammer Bing's per-key rate limit: at most one
+// sync of any kind starts per project in this window.
 const MIN_MANUAL_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 2000;
 
@@ -26,9 +27,10 @@ type BingSyncResult = {
   siteUrl: string;
   datasets: Record<string, DatasetStatus>;
   errors: string[];
-  /** The key was rejected or lost access to the site, so later datasets
-   *  weren't tried. */
-  stoppedEarly: boolean;
+  /** Why later datasets weren't tried: the key was rejected or lost access
+   *  to the site (`key`), or Bing throttled it (`throttled`). Every later
+   *  call would fail the same way and spend more of the key's allowance. */
+  stoppedBy: "key" | "throttled" | null;
 };
 
 function daysBetween(fromDate: string, toDate: string): number {
@@ -41,9 +43,13 @@ function daysBetween(fromDate: string, toDate: string): number {
 /**
  * Download everything the Bing Webmaster API serves for the project's site
  * into the snapshot tables. Each dataset is best-effort: one failing method
- * is recorded and the others still run. A rejected key (or a key that lost
- * the site) stops the sync, since every later call would fail the same way.
- * Throws BingNotConnectedError when there's no usable connection.
+ * is recorded and the others still run. A rejected or throttled key (or a key
+ * that lost the site) stops the sync, since every later call would fail the
+ * same way. Throws BingNotConnectedError when there's no usable connection.
+ *
+ * The snapshot writes are keyed by the site read at the start, so a sync that
+ * is still running when the project switches sites only adds to the old
+ * site's history, and its status is dropped (see recordSyncResult).
  */
 async function syncProject(projectId: string): Promise<BingSyncResult> {
   const { connection, client } = await openBingClientForProject(projectId);
@@ -140,9 +146,9 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
 
   const datasets: Record<string, DatasetStatus> = {};
   const errors: string[] = [];
-  let stoppedEarly = false;
+  let stoppedBy: BingSyncResult["stoppedBy"] = null;
   for (const [name, run] of steps) {
-    if (stoppedEarly) {
+    if (stoppedBy) {
       datasets[name] = "skipped";
       continue;
     }
@@ -156,13 +162,15 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
       if (!(error instanceof BingApiError)) {
         console.error("Bing sync dataset failed", { projectId, name, error });
       } else if (error.kind === "auth" || error.kind === "site_access") {
-        stoppedEarly = true;
+        stoppedBy = "key";
+      } else if (error.kind === "throttled") {
+        stoppedBy = "throttled";
       }
     }
   }
 
   await BingConnectionRepository.recordSyncResult({
-    projectId,
+    ...scope,
     // Only a sync that stored something counts as a sync; a dead key must not
     // block "Sync now" after the user fixes it.
     lastSyncedAt: Object.values(datasets).includes("ok") ? now : undefined,
@@ -170,7 +178,7 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
       errors.length > 0 ? errors.join("; ").slice(0, MAX_ERROR_LENGTH) : null,
     quota,
   });
-  return { siteUrl, datasets, errors, stoppedEarly };
+  return { siteUrl, datasets, errors, stoppedBy };
 }
 
 /**
@@ -190,10 +198,11 @@ async function runScheduledSyncs(): Promise<{ ran: number; failed: number }> {
     for (const connection of due) {
       if (Date.now() - startedAt > TICK_DEADLINE_MS) break;
       if (!connection.nextSyncAt) continue;
-      const claimed = await BingConnectionRepository.claimDue({
+      const claimed = await BingConnectionRepository.claimSync({
         projectId: connection.projectId,
         observedNextSyncAt: connection.nextSyncAt,
         nextSyncAt: new Date(startedAt + DAY_MS).toISOString(),
+        scheduled: true,
       });
       if (!claimed) continue;
       try {
@@ -205,6 +214,7 @@ async function runScheduledSyncs(): Promise<{ ran: number; failed: number }> {
         if (error instanceof BingNotConnectedError) {
           await BingConnectionRepository.recordSyncResult({
             projectId: connection.projectId,
+            siteUrl: connection.siteUrl,
             lastSyncError: NOT_CONNECTED_SYNC_ERROR,
           });
         } else {
@@ -226,31 +236,64 @@ async function runScheduledSyncs(): Promise<{ ran: number; failed: number }> {
 
 type SyncNowResult =
   | { status: "not_connected" }
-  | { status: "too_soon"; lastSyncedAt: string; retryAfterSeconds: number }
+  | { status: "too_soon"; lastAttemptAt: string; retryAfterSeconds: number }
   | ({ status: "synced" } & BingSyncResult);
 
-/** An on-demand sync for the app and agents, at most once per ten minutes. */
+/**
+ * Every sync, manual or scheduled, is claimed by moving `nextSyncAt` a day
+ * past its start, so the last attempt started a day before `nextSyncAt` —
+ * whether it succeeded or not, which a throttled key's syncs never do.
+ * Saving a key, choosing a site and turning sync on set `nextSyncAt` to now,
+ * which allows a sync straight away.
+ */
+function tooSoon(
+  nextSyncAt: string | null,
+  nowMs: number,
+): Extract<SyncNowResult, { status: "too_soon" }> | null {
+  if (!nextSyncAt) return null;
+  const lastAttemptMs = Date.parse(nextSyncAt) - DAY_MS;
+  const elapsed = nowMs - lastAttemptMs;
+  if (elapsed >= MIN_MANUAL_SYNC_INTERVAL_MS) return null;
+  return {
+    status: "too_soon",
+    lastAttemptAt: new Date(lastAttemptMs).toISOString(),
+    retryAfterSeconds: Math.ceil(
+      (MIN_MANUAL_SYNC_INTERVAL_MS - elapsed) / 1000,
+    ),
+  };
+}
+
+/**
+ * An on-demand sync for the app and agents, at most once per ten minutes. It
+ * stands in for today's scheduled sync, and claims the project with the same
+ * compare-and-set as the cron, so a double click or the app and an agent at
+ * once start one sync, not two.
+ */
 async function syncNow(projectId: string): Promise<SyncNowResult> {
   const connection = await BingConnectionRepository.getByProjectId(projectId);
   if (!connection) return { status: "not_connected" };
   const nowMs = Date.now();
-  if (connection.lastSyncedAt) {
-    const elapsed = nowMs - Date.parse(connection.lastSyncedAt);
-    if (elapsed < MIN_MANUAL_SYNC_INTERVAL_MS) {
-      return {
-        status: "too_soon",
-        lastSyncedAt: connection.lastSyncedAt,
-        retryAfterSeconds: Math.ceil(
-          (MIN_MANUAL_SYNC_INTERVAL_MS - elapsed) / 1000,
-        ),
-      };
-    }
-  }
-  // This sync stands in for today's scheduled one.
-  await BingConnectionRepository.setNextSyncAt(
+  const waiting = tooSoon(connection.nextSyncAt, nowMs);
+  if (waiting) return waiting;
+  const nextSyncAt = new Date(nowMs + DAY_MS).toISOString();
+  const claimed = await BingConnectionRepository.claimSync({
     projectId,
-    new Date(nowMs + DAY_MS).toISOString(),
-  );
+    observedNextSyncAt: connection.nextSyncAt,
+    nextSyncAt,
+    scheduled: false,
+  });
+  if (!claimed) {
+    // Another sync claimed the project between the read and the claim.
+    const current = await BingConnectionRepository.getByProjectId(projectId);
+    if (!current) return { status: "not_connected" };
+    return (
+      tooSoon(current.nextSyncAt, nowMs) ?? {
+        status: "too_soon",
+        lastAttemptAt: new Date(nowMs).toISOString(),
+        retryAfterSeconds: MIN_MANUAL_SYNC_INTERVAL_MS / 1000,
+      }
+    );
+  }
   try {
     return { status: "synced", ...(await syncProject(projectId)) };
   } catch (error) {

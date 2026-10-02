@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseAiPerformanceCsv } from "./aiPerformanceCsv";
 
 // Synthetic files: no real AI Performance export has been checked yet (see
 // the TODO in aiPerformanceCsv.ts).
 
 describe("parseAiPerformanceCsv", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("reads daily totals with a BOM, a preamble, semicolons and mixed date formats", () => {
     const csv = [
       "﻿AI Performance report",
@@ -50,6 +54,33 @@ describe("parseAiPerformanceCsv", () => {
     expect(parseAiPerformanceCsv(csv)).toMatchObject({
       kind: "queries",
       rows: [{ date: "2026-09-01", query: "best seo tools", citations: 4 }],
+    });
+  });
+
+  it("skips rows with dates or counts outside what Bing can report", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-10T08:00:00.000Z"));
+    const csv = [
+      "Date,Citations,Cited pages",
+      "2026-09-11,1,1",
+      "2026-09-12,1,1",
+      "2022-12-31,1,1",
+      "2026-09-01,-3,1",
+      "2026-09-02,3000000000,1",
+      "2026-09-03,2,99999999999",
+    ].join("\n");
+
+    expect(parseAiPerformanceCsv(csv)).toEqual({
+      ok: true,
+      kind: "daily",
+      rows: [{ date: "2026-09-11", citations: 1, citedPages: 1 }],
+      skipped: [
+        { line: 3, reason: "Date 2026-09-12 is out of range" },
+        { line: 4, reason: "Date 2022-12-31 is out of range" },
+        { line: 5, reason: "Citations -3 is out of range" },
+        { line: 6, reason: "Citations 3000000000 is out of range" },
+        { line: 7, reason: "Cited pages 99999999999 is out of range" },
+      ],
     });
   });
 

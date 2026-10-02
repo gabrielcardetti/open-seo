@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/client/components/ui/table";
+import { BingConnectionLost } from "@/client/features/bing/BingConnectionNotices";
 import {
   bingBacklinksOptions,
   bingErrorMessage,
@@ -67,7 +68,10 @@ export function BingBacklinksTab({
       </div>
     );
   }
-  if (!result.connected || result.mode !== "pages") return null;
+  if (!result.connected) {
+    return <BingConnectionLost projectId={projectId} className="p-4" />;
+  }
+  if (result.mode !== "pages") return null;
 
   return (
     <div className="space-y-3 p-4">
@@ -150,7 +154,6 @@ function LinkingPagesSheet({
     placeholderData: keepPreviousData,
   });
   const result = linksQuery.data;
-  const links = result?.connected && result.mode === "links" ? result : null;
 
   return (
     <Sheet
@@ -181,19 +184,19 @@ function LinkingPagesSheet({
               onRetry={() => void linksQuery.refetch()}
               isRetrying={linksQuery.isFetching}
             />
-          ) : !links ? (
-            <p role="alert" className="text-sm text-destructive">
-              Bing no longer accepts the connection&rsquo;s API key. Reconnect
-              Bing Webmaster Tools in Settings → Integrations.
-            </p>
-          ) : links.rows.length === 0 ? (
+          ) : !result?.connected ? (
+            <BingConnectionLost
+              projectId={projectId}
+              reason={result && "reason" in result ? result.reason : undefined}
+            />
+          ) : result.mode !== "links" ? null : result.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Bing lists no linking pages for this URL.
             </p>
           ) : (
             <>
               <ul className="divide-y divide-border rounded-lg border border-border">
-                {links.rows.map((link) => (
+                {result.rows.map((link) => (
                   <li
                     key={`${link.sourceUrl} ${link.anchorText ?? ""}`}
                     className="min-w-0 px-3 py-2 text-sm"
@@ -211,7 +214,7 @@ function LinkingPagesSheet({
                   </li>
                 ))}
               </ul>
-              {links.totalPages > 1 ? (
+              {result.totalPages > 1 ? (
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <Button
                     variant="outline"
@@ -222,12 +225,14 @@ function LinkingPagesSheet({
                     Previous
                   </Button>
                   <span className="text-muted-foreground">
-                    Page {page} of {links.totalPages}
+                    Page {page} of {result.totalPages}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={page >= links.totalPages || linksQuery.isFetching}
+                    disabled={
+                      page >= result.totalPages || linksQuery.isFetching
+                    }
                     onClick={() => setPage(page + 1)}
                   >
                     Next

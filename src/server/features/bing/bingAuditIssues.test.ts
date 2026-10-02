@@ -39,6 +39,31 @@ async function seedIssue(input: {
   });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function seedConnection(
+  input: {
+    syncEnabled?: boolean;
+    syncedDaysAgo?: number;
+    withKey?: boolean;
+  } = {},
+) {
+  const syncedAt = new Date(
+    Date.now() - (input.syncedDaysAgo ?? 0) * DAY_MS,
+  ).toISOString();
+  await testDb.client.execute({
+    sql: `INSERT INTO bing_connections
+      (id, project_id, organization_id, site_url, connected_by_user_id, sync_enabled, last_synced_at)
+      VALUES ('conn_1', 'proj_1', 'org_1', ?, 'user_1', ?, ?)`,
+    args: [SITE, input.syncEnabled === false ? 0 : 1, syncedAt],
+  });
+  if (input.withKey !== false) {
+    await testDb.client.execute(
+      "INSERT INTO bing_api_keys (user_id, api_key_encrypted, key_hint) VALUES ('user_1', 'key', 'abcd')",
+    );
+  }
+}
+
 describe("collectBingAuditIssues", () => {
   beforeEach(async () => {
     await resetBingTestDb(testDb.client);
@@ -56,13 +81,25 @@ describe("collectBingAuditIssues", () => {
     ).toEqual([]);
   });
 
-  it("maps open crawl issues to audit issues, matching crawled pages", async () => {
-    await testDb.client.execute({
-      sql: `INSERT INTO bing_connections
-        (id, project_id, organization_id, site_url, connected_by_user_id)
-        VALUES ('conn_1', 'proj_1', 'org_1', ?, 'user_1')`,
-      args: [SITE],
+  it.each([
+    ["daily sync is off", { syncEnabled: false }],
+    ["the connector's key is gone", { withKey: false }],
+    ["the last successful sync is over a week old", { syncedDaysAgo: 8 }],
+  ])("reports nothing when %s", async (_case, connection) => {
+    await seedConnection(connection);
+    await seedIssue({
+      url: "https://example.com/gone",
+      httpCode: 404,
+      flags: 4,
     });
+
+    expect(
+      await collectBingAuditIssues({ projectId: "proj_1", auditId: "a_1" }),
+    ).toEqual([]);
+  });
+
+  it("maps open crawl issues to audit issues, matching crawled pages", async () => {
+    await seedConnection();
     // 404 on a page our crawl reached.
     await seedIssue({
       url: "https://example.com/gone",

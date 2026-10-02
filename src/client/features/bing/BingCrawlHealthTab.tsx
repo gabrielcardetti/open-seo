@@ -14,11 +14,11 @@ import {
   TableRow,
 } from "@/client/components/ui/table";
 import { BingCrawlChart } from "@/client/features/bing/BingCharts";
+import { BingConnectionLost } from "@/client/features/bing/BingConnectionNotices";
 import {
   bingCrawlHealthOptions,
   bingErrorMessage,
   formatBingDay,
-  type BingDates,
 } from "@/client/features/bing/bingQueries";
 import { formatCount } from "@/client/features/search-performance/SearchPerformanceColumns";
 
@@ -72,12 +72,12 @@ function UrlCell({ url }: { url: string }) {
  *  with now, the ones that recovered, and the sitemaps it reads. */
 export function BingCrawlHealthTab({
   projectId,
-  dates,
+  days,
 }: {
   projectId: string;
-  dates: BingDates;
+  days: number;
 }) {
-  const crawlQuery = useQuery(bingCrawlHealthOptions(projectId, dates));
+  const crawlQuery = useQuery(bingCrawlHealthOptions(projectId, days));
 
   if (crawlQuery.isPending) {
     return <SkeletonTableRows className="p-4" />;
@@ -98,7 +98,9 @@ export function BingCrawlHealthTab({
     );
   }
   const health = crawlQuery.data;
-  if (!health.connected) return null;
+  if (!health.connected) {
+    return <BingConnectionLost projectId={projectId} className="p-4" />;
+  }
   const latest = health.daily.at(-1);
 
   return (
@@ -107,7 +109,7 @@ export function BingCrawlHealthTab({
         title="Bingbot crawl"
         hint={
           latest
-            ? `Latest day: ${formatBingDay(latest.date)}`
+            ? `${formatBingDay(health.range.startDate)} – ${formatBingDay(health.range.endDate)} · Latest day: ${formatBingDay(latest.date)}`
             : "No crawl data stored for these dates yet."
         }
       >
@@ -215,7 +217,10 @@ export function BingCrawlHealthTab({
         </Section>
       ) : null}
 
-      <Section title="Sitemaps" hint="The sitemaps and feeds Bing knows about.">
+      <Section
+        title="Sitemaps"
+        hint="The sitemaps and feeds Bing knows about. Ones Bing has dropped from its list stay here, marked as no longer reported."
+      >
         {health.sitemaps.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Bing has no sitemaps for this site. Submit yours in Bing Webmaster
@@ -237,7 +242,19 @@ export function BingCrawlHealthTab({
                 {health.sitemaps.map((sitemap) => (
                   <TableRow key={sitemap.feedUrl}>
                     <UrlCell url={sitemap.feedUrl} />
-                    <TableCell>{sitemap.status ?? "—"}</TableCell>
+                    <TableCell>
+                      {sitemap.noLongerReported ? (
+                        <Badge
+                          variant="warning"
+                          size="sm"
+                          title={`Missing from Bing's list since ${formatBingDay(sitemap.lastSeenAt)}`}
+                        >
+                          No longer reported
+                        </Badge>
+                      ) : (
+                        (sitemap.status ?? "—")
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {count(sitemap.urlCount)}
                     </TableCell>

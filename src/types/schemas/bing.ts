@@ -51,7 +51,13 @@ export const setBingSyncEnabledSchema = z.object({
 });
 
 export const bingRangeSchema = withValidRange(
-  z.object({ ...projectScoped, ...dateRangeShape }),
+  z.object({
+    ...projectScoped,
+    ...dateRangeShape,
+    // Without dates: how many days, ending at the newest stored day of this
+    // dataset (each one lags Bing by its own amount).
+    days: z.number().int().min(1).max(366).optional(),
+  }),
 );
 
 export const bingTableSchema = withValidRange(

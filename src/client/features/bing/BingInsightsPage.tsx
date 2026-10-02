@@ -19,6 +19,10 @@ import { BingAiCitationsTab } from "@/client/features/bing/BingAiCitationsTab";
 import { BingBacklinksTab } from "@/client/features/bing/BingBacklinksTab";
 import { BingTrafficChart } from "@/client/features/bing/BingCharts";
 import { BingConnectionCard } from "@/client/features/bing/BingConnectionCard";
+import {
+  BingConnectionLost,
+  BingSyncProblemAlert,
+} from "@/client/features/bing/BingConnectionNotices";
 import { BingCrawlHealthTab } from "@/client/features/bing/BingCrawlHealthTab";
 import { BingPerformanceTab } from "@/client/features/bing/BingPerformanceTab";
 import {
@@ -101,11 +105,19 @@ export function BingInsightsPage({
                 Manage connection
               </Link>
               {connection.canManage ? (
-                <BingSyncNowButton projectId={projectId} />
+                <BingSyncNowButton
+                  projectId={projectId}
+                  // The alert below says why and how to fix it.
+                  disabled={connection.connectorKeyMissing}
+                />
               ) : null}
             </div>
           ) : null}
         </div>
+
+        {connection?.connected ? (
+          <BingSyncProblemAlert connection={connection} />
+        ) : null}
 
         {connectionQuery.isPending ? (
           <SkeletonStatGrid />
@@ -148,6 +160,9 @@ function BingInsightsBody({
   onSearchChange: (update: Partial<BingInsightsSearch>) => void;
 }) {
   const range = search.range ?? "last_28_days";
+  // Crawl days and imported AI days end on their own newest day, which can
+  // be newer than the newest traffic day, so those tabs take a length.
+  const days = BING_RANGE_DAYS[range];
   const tab = search.tab ?? "queries";
   // Without dates the server reads the last 28 stored days. Its end date (the
   // newest stored day; Bing lags a few days) anchors every other range.
@@ -183,6 +198,11 @@ function BingInsightsBody({
         isRetrying={failedQuery.isFetching}
       />
     );
+  }
+  // The cached connection said connected, but the project was disconnected
+  // since (by another member, say).
+  if (anchor?.connected === false || summary?.connected === false) {
+    return <BingConnectionLost projectId={projectId} />;
   }
   if (!dates || !summary?.connected) {
     return <SkeletonStatGrid />;
@@ -313,7 +333,7 @@ function BingInsightsBody({
             onSearchChange={onSearchChange}
           />
         ) : tab === "crawl" ? (
-          <BingCrawlHealthTab projectId={projectId} dates={dates} />
+          <BingCrawlHealthTab projectId={projectId} days={days} />
         ) : tab === "backlinks" ? (
           <BingBacklinksTab
             projectId={projectId}
@@ -327,7 +347,7 @@ function BingInsightsBody({
         ) : (
           <BingAiCitationsTab
             projectId={projectId}
-            dates={dates}
+            days={days}
             canImport={canManage}
           />
         )}

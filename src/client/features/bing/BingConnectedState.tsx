@@ -2,11 +2,6 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/client/components/ConfirmDialog";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
@@ -15,6 +10,7 @@ import {
   bingErrorMessage,
   bingProjectKey,
 } from "@/client/features/bing/bingQueries";
+import { BingSyncProblemAlert } from "@/client/features/bing/BingConnectionNotices";
 import { BingSyncNowButton } from "@/client/features/bing/BingSyncNowButton";
 import { formatRelativeTime } from "@/client/lib/relative-time";
 import {
@@ -107,24 +103,7 @@ export function BingConnectedState({
         ) : null}
       </div>
 
-      {connection.connectorKeyMissing ? (
-        <Alert variant="warning">
-          <AlertTitle>Syncing has stopped</AlertTitle>
-          <AlertDescription>
-            The API key this site was connected with has been removed.{" "}
-            {canManage
-              ? "Save your own key and choose the site again to resume syncing."
-              : "Ask an owner or admin to reconnect Bing Webmaster Tools."}
-          </AlertDescription>
-        </Alert>
-      ) : connection.lastSyncError ? (
-        <Alert variant="warning">
-          <AlertTitle>The last sync had a problem</AlertTitle>
-          <AlertDescription className="break-words">
-            {connection.lastSyncError}
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      <BingSyncProblemAlert connection={connection} />
 
       {canManage ? (
         <>

@@ -542,7 +542,7 @@ export const getBingCrawlHealthTool = {
   config: {
     title: "Get Bing crawl health",
     description:
-      "Bingbot's crawl of the site from OpenSEO's stored daily history: pages crawled, crawl errors, pages in index, status-code and robots.txt/malware/DNS/timeout counts per day; the URLs Bing currently reports crawl issues for (with best-effort labels decoded from Bing's issue flags, raw flags kept); issues resolved since the range began (Bing stopped reporting them); and the sitemaps Bing knows. Bing's crawl-issue list is often empty even when problems exist. History starts when the project was connected. Read-only; uses no credits.",
+      "Bingbot's crawl of the site from OpenSEO's stored daily history: pages crawled, crawl errors, pages in index, status-code and robots.txt/malware/DNS/timeout counts per day; the URLs Bing currently reports crawl issues for (with best-effort labels decoded from Bing's issue flags, raw flags kept); issues resolved since the range began (Bing stopped reporting them); and the sitemaps Bing knows (noLongerReported: Bing dropped it from its list; kept as history). Bing's crawl-issue list is often empty even when problems exist. History starts when the project was connected. Read-only; uses no credits.",
     inputSchema: crawlInputSchema,
     outputSchema: z.looseObject({
       ...failureOutputShape,
@@ -603,7 +603,7 @@ export const getBingCrawlHealthTool = {
             )
           : "",
         `Resolved since ${result.range.startDate}: ${result.resolvedIssues.length}`,
-        `Sitemaps: ${result.sitemaps.map((sitemap) => `${sitemap.feedUrl} (${sitemap.status ?? "?"}, ${sitemap.urlCount ?? "?"} URLs)`).join("; ") || "none"}`,
+        `Sitemaps: ${result.sitemaps.map((sitemap) => `${sitemap.feedUrl} (${sitemap.status ?? "?"}, ${sitemap.urlCount ?? "?"} URLs${sitemap.noLongerReported ? ", no longer reported by Bing" : ""})`).join("; ") || "none"}`,
       ].filter(Boolean);
       return mcpResponse({
         text: text.join("\n"),
@@ -1044,7 +1044,7 @@ export const syncBingNowTool = {
       );
       if (result.status === "too_soon") {
         return mcpResponse({
-          text: `Bing was synced at ${result.lastSyncedAt}. Try again in ${Math.ceil(result.retryAfterSeconds / 60)} min.`,
+          text: `A Bing sync started at ${result.lastAttemptAt}. Try again in ${Math.ceil(result.retryAfterSeconds / 60)} min.`,
           meta,
           structuredContent: {
             ok: false,

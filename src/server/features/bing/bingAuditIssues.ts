@@ -3,6 +3,7 @@ import {
   CRAWL_ISSUE_FLAG,
   crawlIssueLabels,
 } from "@/server/features/bing/crawlIssueFlags";
+import { BingApiKeyRepository } from "@/server/features/bing/repositories/BingApiKeyRepository";
 import { BingConnectionRepository } from "@/server/features/bing/repositories/BingConnectionRepository";
 import { BingSnapshotRepository } from "@/server/features/bing/repositories/BingSnapshotRepository";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
@@ -11,6 +12,10 @@ import type { AuditIssueType } from "@/shared/audit-issues";
 
 // Bing reports one row per URL; an audit lists at most this many of them.
 const MAX_BING_CRAWL_ISSUES = 500;
+// The daily sync refreshes the issue list. Past a week without a successful
+// sync (paused, key removed or rejected, Bing failing) the stored list is too
+// old to report as the site's current state.
+const MAX_SYNC_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const CRAWL_ERROR_FLAGS =
   CRAWL_ISSUE_FLAG.code4xx |
@@ -43,7 +48,8 @@ function issueTypesFor(row: {
  * The crawl problems Bing currently reports for the project's connected site,
  * as audit issues. Reads the snapshot tables the Bing sync fills — the audit
  * never calls Bing — and returns nothing when the project has no Bing
- * connection. Issues point at the audit's page row when our crawl reached the
+ * connection or the stored list may be stale: daily sync off, the
+ * connector's key gone, or no successful sync in the last week. Issues point at the audit's page row when our crawl reached the
  * same URL. Redirect-only rows aren't problems and are left out.
  */
 export async function collectBingAuditIssues(input: {
@@ -53,7 +59,17 @@ export async function collectBingAuditIssues(input: {
   const connection = await BingConnectionRepository.getByProjectId(
     input.projectId,
   );
-  if (!connection) return [];
+  if (
+    !connection?.syncEnabled ||
+    !connection.lastSyncedAt ||
+    Date.now() - Date.parse(connection.lastSyncedAt) > MAX_SYNC_AGE_MS
+  ) {
+    return [];
+  }
+  const connectorKey = await BingApiKeyRepository.getByUserId(
+    connection.connectedByUserId,
+  );
+  if (!connectorKey) return [];
   const { rows } = await BingSnapshotRepository.getOpenCrawlIssues(
     { projectId: input.projectId, siteUrl: connection.siteUrl },
     MAX_BING_CRAWL_ISSUES,

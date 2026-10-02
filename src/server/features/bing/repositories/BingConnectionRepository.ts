@@ -89,7 +89,9 @@ async function setSyncEnabled(input: {
 }
 
 /** After a key is replaced, sync that member's projects on the next tick
- *  instead of waiting a day with the old key's errors on screen. */
+ *  instead of waiting a day with the old key's errors on screen, and let
+ *  "Sync now" run straight away (also on projects whose daily sync is off;
+ *  the cron skips those). */
 async function scheduleSyncForConnector(
   userId: string,
   nextSyncAt: string,
@@ -97,16 +99,15 @@ async function scheduleSyncForConnector(
   await db
     .update(bingConnections)
     .set({ nextSyncAt })
-    .where(
-      and(
-        eq(bingConnections.connectedByUserId, userId),
-        eq(bingConnections.syncEnabled, true),
-      ),
-    );
+    .where(eq(bingConnections.connectedByUserId, userId));
 }
 
+/** Only lands while the project is still connected to the site the sync
+ *  read: a sync that outlives a site switch must not mark the new site
+ *  synced (or show the old site's errors and quota on it). */
 async function recordSyncResult(input: {
   projectId: string;
+  siteUrl: string;
   lastSyncedAt?: string;
   lastSyncError: string | null;
   quota?: { daily: number; monthly: number; checkedAt: string };
@@ -123,23 +124,19 @@ async function recordSyncResult(input: {
       }),
       updatedAt: new Date().toISOString(),
     })
-    .where(eq(bingConnections.projectId, input.projectId));
-}
-
-async function setNextSyncAt(
-  projectId: string,
-  nextSyncAt: string,
-): Promise<void> {
-  await db
-    .update(bingConnections)
-    .set({ nextSyncAt })
-    .where(eq(bingConnections.projectId, projectId));
+    .where(
+      and(
+        eq(bingConnections.projectId, input.projectId),
+        eq(bingConnections.siteUrl, input.siteUrl),
+      ),
+    );
 }
 
 async function getDue(nowIso: string, limit: number) {
   return db
     .select({
       projectId: bingConnections.projectId,
+      siteUrl: bingConnections.siteUrl,
       nextSyncAt: bingConnections.nextSyncAt,
     })
     .from(bingConnections)
@@ -156,13 +153,15 @@ async function getDue(nowIso: string, limit: number) {
 }
 
 /**
- * Compare-and-set on `nextSyncAt`: whichever cron tick moves it first owns the
- * sync, so overlapping ticks never sync the same project twice.
+ * Compare-and-set on `nextSyncAt`: whichever caller moves it first owns the
+ * sync, so overlapping cron ticks and "Sync now" calls never sync the same
+ * project twice. A scheduled claim also needs the daily sync to be on.
  */
-async function claimDue(input: {
+async function claimSync(input: {
   projectId: string;
-  observedNextSyncAt: string;
+  observedNextSyncAt: string | null;
   nextSyncAt: string;
+  scheduled: boolean;
 }): Promise<boolean> {
   const claimed = await db
     .update(bingConnections)
@@ -170,8 +169,10 @@ async function claimDue(input: {
     .where(
       and(
         eq(bingConnections.projectId, input.projectId),
-        eq(bingConnections.syncEnabled, true),
-        eq(bingConnections.nextSyncAt, input.observedNextSyncAt),
+        input.scheduled ? eq(bingConnections.syncEnabled, true) : undefined,
+        input.observedNextSyncAt === null
+          ? isNull(bingConnections.nextSyncAt)
+          : eq(bingConnections.nextSyncAt, input.observedNextSyncAt),
       ),
     )
     .returning({ projectId: bingConnections.projectId });
@@ -186,7 +187,6 @@ export const BingConnectionRepository = {
   setSyncEnabled,
   scheduleSyncForConnector,
   recordSyncResult,
-  setNextSyncAt,
   getDue,
-  claimDue,
+  claimSync,
 };
