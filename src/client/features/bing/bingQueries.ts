@@ -31,11 +31,35 @@ export const bingConnectionOptions = (projectId: string) =>
     queryFn: () => getBingConnection({ data: { projectId } }),
   });
 
+// A failed Bing call a retry can't fix (a rejected key, a site the key can't
+// read) or must not hammer (Bing throttling the key).
+const NO_RETRY_CODES = new Set([
+  "RATE_LIMITED",
+  "VALIDATION_ERROR",
+  "FORBIDDEN",
+  "NOT_FOUND",
+]);
+
+/**
+ * Options for queries that call Bing live. Every call spends the key's rate
+ * limit, so they don't refetch on window focus, and errors a retry can't fix
+ * aren't retried.
+ */
+export const bingLiveQueryOptions = {
+  refetchOnWindowFocus: false,
+  retry: (failureCount: number, error: unknown) => {
+    const code = getErrorCode(error);
+    return !(code && NO_RETRY_CODES.has(code)) && failureCount < 3;
+  },
+};
+
 export const bingSitesOptions = (projectId: string) =>
   queryOptions({
     queryKey: [...bingProjectKey(projectId), "sites"],
     queryFn: () => listBingSites({ data: { projectId } }),
+    // Fresh each time the site picker opens.
     staleTime: 0,
+    ...bingLiveQueryOptions,
   });
 
 /** Without dates the server picks the last 28 days of stored traffic, whose
@@ -62,12 +86,16 @@ export const bingTableOptions = (projectId: string, input: BingTableInput) =>
     queryFn: () => getBingTable({ data: { projectId, ...input } }),
   });
 
-export const bingCrawlHealthOptions = (projectId: string, dates: BingDates) =>
+/** The last `days` days ending at the newest stored crawl day, which can be
+ *  newer than the newest traffic day. */
+export const bingCrawlHealthOptions = (projectId: string, days: number) =>
   queryOptions({
-    queryKey: [...bingProjectKey(projectId), "crawl", dates],
-    queryFn: () => getBingCrawlHealth({ data: { projectId, ...dates } }),
+    queryKey: [...bingProjectKey(projectId), "crawl", days],
+    queryFn: () => getBingCrawlHealth({ data: { projectId, days } }),
   });
 
+/** Without `url` the stored link counts; with `url` the pages linking to it,
+ *  live from Bing. */
 export const bingBacklinksOptions = (
   projectId: string,
   input: { url?: string; page: number; pageSize: number },
@@ -75,12 +103,14 @@ export const bingBacklinksOptions = (
   queryOptions({
     queryKey: [...bingProjectKey(projectId), "backlinks", input],
     queryFn: () => getBingBacklinks({ data: { projectId, ...input } }),
+    ...(input.url ? bingLiveQueryOptions : {}),
   });
 
-export const bingAiCitationsOptions = (projectId: string, dates: BingDates) =>
+/** The last `days` days ending at the newest imported AI citation day. */
+export const bingAiCitationsOptions = (projectId: string, days: number) =>
   queryOptions({
-    queryKey: [...bingProjectKey(projectId), "ai", dates],
-    queryFn: () => getBingAiCitations({ data: { projectId, ...dates } }),
+    queryKey: [...bingProjectKey(projectId), "ai", days],
+    queryFn: () => getBingAiCitations({ data: { projectId, days } }),
   });
 
 function addDays(date: string, days: number): string {
@@ -132,6 +162,15 @@ const BING_ERROR_MESSAGES: Record<string, string> = {
   UPSTREAM_UNAVAILABLE:
     "Bing Webmaster Tools didn't answer. Try again in a moment.",
 };
+
+/** What to say when a Bing read answers `connected: false`. */
+export const BING_NOT_CONNECTED_MESSAGES = {
+  not_connected: "Bing Webmaster Tools isn't connected to this project.",
+  key_invalid:
+    "Bing no longer accepts the API key behind this connection. Save a new key in Settings → Integrations.",
+  site_access:
+    "The API key behind this connection can't read this site anymore. Check the site is still verified in Bing Webmaster Tools.",
+} as const;
 
 /** Bing-specific wording for the error codes Bing calls end in. */
 export function bingErrorMessage(error: unknown, fallback: string): string {

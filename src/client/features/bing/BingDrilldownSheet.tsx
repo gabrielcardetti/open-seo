@@ -17,8 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/client/components/ui/table";
+import { BingConnectionLost } from "@/client/features/bing/BingConnectionNotices";
 import {
   bingErrorMessage,
+  bingLiveQueryOptions,
   bingProjectKey,
   formatBingPosition,
   type BingDates,
@@ -30,14 +32,6 @@ import {
 import { getBingDrilldown } from "@/serverFunctions/bing";
 
 export type BingDrilldownTarget = { page: string } | { query: string };
-
-const NOT_CONNECTED_MESSAGES = {
-  not_connected: "Bing Webmaster Tools isn't connected to this project.",
-  key_invalid:
-    "Bing no longer accepts the API key behind this connection. Save a new key in Settings → Integrations.",
-  site_access:
-    "The API key behind this connection can't read this site anymore. Check the site is still verified in Bing Webmaster Tools.",
-} as const;
 
 /**
  * The queries one page ranked for, or the pages that ranked for one query,
@@ -61,6 +55,7 @@ export function BingDrilldownSheet({
     queryFn: () =>
       getBingDrilldown({ data: { projectId, ...dates, ...target } }),
     enabled: target !== null,
+    ...bingLiveQueryOptions,
   });
   const isPage = target !== null && "page" in target;
   const result = drilldownQuery.data;
@@ -98,9 +93,7 @@ export function BingDrilldownSheet({
               isRetrying={drilldownQuery.isFetching}
             />
           ) : !result?.connected ? (
-            <p role="alert" className="text-sm text-destructive">
-              {NOT_CONNECTED_MESSAGES[result?.reason ?? "not_connected"]}
-            </p>
+            <BingConnectionLost projectId={projectId} reason={result?.reason} />
           ) : result.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Bing has no data for this in the selected dates. Bing keeps about

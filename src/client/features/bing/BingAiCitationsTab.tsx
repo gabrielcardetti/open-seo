@@ -22,7 +22,7 @@ import { BingCitationsChart } from "@/client/features/bing/BingCharts";
 import {
   bingAiCitationsOptions,
   bingErrorMessage,
-  type BingDates,
+  formatBingDay,
 } from "@/client/features/bing/bingQueries";
 import { formatCount } from "@/client/features/search-performance/SearchPerformanceColumns";
 
@@ -85,14 +85,14 @@ function TopTable({
 /** AI citations from imported AI Performance exports, and the import. */
 export function BingAiCitationsTab({
   projectId,
-  dates,
+  days,
   canImport,
 }: {
   projectId: string;
-  dates: BingDates;
+  days: number;
   canImport: boolean;
 }) {
-  const citationsQuery = useQuery(bingAiCitationsOptions(projectId, dates));
+  const citationsQuery = useQuery(bingAiCitationsOptions(projectId, days));
 
   if (citationsQuery.isPending) return <SkeletonTableRows className="p-4" />;
   if (citationsQuery.isError) {
@@ -133,6 +133,11 @@ export function BingAiCitationsTab({
 
   return (
     <div className="space-y-6 p-4">
+      <p className="text-sm text-muted-foreground">
+        {formatBingDay(citations.range.startDate)} –{" "}
+        {formatBingDay(citations.range.endDate)}, ending on the newest imported
+        day
+      </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatTile
           label="AI citations"

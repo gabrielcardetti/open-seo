@@ -14,11 +14,11 @@ import {
   TableRow,
 } from "@/client/components/ui/table";
 import { BingCrawlChart } from "@/client/features/bing/BingCharts";
+import { BingConnectionLost } from "@/client/features/bing/BingConnectionNotices";
 import {
   bingCrawlHealthOptions,
   bingErrorMessage,
   formatBingDay,
-  type BingDates,
 } from "@/client/features/bing/bingQueries";
 import { formatCount } from "@/client/features/search-performance/SearchPerformanceColumns";
 
@@ -72,12 +72,12 @@ function UrlCell({ url }: { url: string }) {
  *  with now, the ones that recovered, and the sitemaps it reads. */
 export function BingCrawlHealthTab({
   projectId,
-  dates,
+  days,
 }: {
   projectId: string;
-  dates: BingDates;
+  days: number;
 }) {
-  const crawlQuery = useQuery(bingCrawlHealthOptions(projectId, dates));
+  const crawlQuery = useQuery(bingCrawlHealthOptions(projectId, days));
 
   if (crawlQuery.isPending) {
     return <SkeletonTableRows className="p-4" />;
@@ -98,7 +98,9 @@ export function BingCrawlHealthTab({
     );
   }
   const health = crawlQuery.data;
-  if (!health.connected) return null;
+  if (!health.connected) {
+    return <BingConnectionLost projectId={projectId} className="p-4" />;
+  }
   const latest = health.daily.at(-1);
 
   return (
@@ -107,7 +109,7 @@ export function BingCrawlHealthTab({
         title="Bingbot crawl"
         hint={
           latest
-            ? `Latest day: ${formatBingDay(latest.date)}`
+            ? `${formatBingDay(health.range.startDate)} – ${formatBingDay(health.range.endDate)} · Latest day: ${formatBingDay(latest.date)}`
             : "No crawl data stored for these dates yet."
         }
       >

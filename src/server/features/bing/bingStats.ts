@@ -3,7 +3,12 @@ import type { BingAggregatedRow } from "@/server/features/bing/repositories/Bing
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type DateRangeInput = { startDate?: string; endDate?: string };
+export type DateRangeInput = {
+  startDate?: string;
+  endDate?: string;
+  /** The range's length when no dates are given. */
+  days?: number;
+};
 
 export function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS)
@@ -12,8 +17,8 @@ export function addDays(date: string, days: number): string {
 }
 
 /**
- * The caller's range, or the last `days` days ending at the newest stored data
- * (today when nothing is stored yet). Bing data lags and arrives in buckets,
+ * The caller's range, or the last `input.days` (else `days`) days ending at
+ * the newest stored data (today when nothing is stored yet). Bing data lags and arrives in buckets,
  * so "the last 28 days" means the last 28 days we have, not the calendar.
  */
 export function resolveRange(
@@ -23,7 +28,8 @@ export function resolveRange(
 ): { startDate: string; endDate: string } {
   const endDate =
     input.endDate ?? latestDate ?? new Date().toISOString().slice(0, 10);
-  const startDate = input.startDate ?? addDays(endDate, -(days - 1));
+  const startDate =
+    input.startDate ?? addDays(endDate, -((input.days ?? days) - 1));
   return { startDate, endDate };
 }
 
