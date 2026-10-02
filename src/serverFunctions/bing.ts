@@ -11,6 +11,7 @@ import { BingPerformanceService } from "@/server/features/bing/services/BingPerf
 import { BingService } from "@/server/features/bing/services/BingService";
 import { BingSiteHealthService } from "@/server/features/bing/services/BingSiteHealthService";
 import { BingSyncService } from "@/server/features/bing/services/BingSyncService";
+import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import { BingApiError } from "@/server/lib/bing/bingErrors";
 import { captureServerEvent } from "@/server/lib/posthog";
 import {
@@ -130,6 +131,12 @@ export const setBingSite = createServerFn({ method: "POST" })
       project_id: context.projectId,
       site_url: data.siteUrl,
     });
+    // Suggest the site's sitemaps; the sync registers tracked ones with Bing.
+    waitUntil(
+      SitemapRegistryService.detect(context.projectId).catch((error) =>
+        console.warn("Sitemap detection after connecting failed", error),
+      ),
+    );
     return { connected: true as const, siteUrl: data.siteUrl };
   });
 
