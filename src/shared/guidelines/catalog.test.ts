@@ -21,6 +21,7 @@ import {
   unjudgeableReason,
   MIN_CONFIDENCE,
 } from "./judge-map";
+import { verdictsByEngine } from "./engine-verdicts";
 
 /** A rule of the given severity, for verdict arithmetic. */
 function idOfSeverity(severity: string): string {
@@ -289,6 +290,57 @@ describe("per-engine verdicts from stored results", () => {
     expect(evaluatedEngines(stored.slice(1, 2), [])).toEqual(["google"]);
     expect(evaluatedEngines([], ["google"])).toEqual(["google"]);
   });
+
+  // WHY-01 was a critical Google rule; audits stored before it was retired
+  // were rejected on it, and must still read that way.
+  const retired = {
+    ruleId: "WHY-01",
+    status: "fail" as const,
+    severity: "critical" as const,
+  };
+
+  it("shows a one-engine evaluation's stored verdict as is", () => {
+    const evaluation = { verdict: "reject" as const, errorMessage: null };
+    expect(verdictsByEngine(evaluation, [retired], ["google"])).toEqual({
+      google: "reject",
+    });
+    expect(
+      verdictsByEngine(evaluation, [retired, stored[1]], ["google"]),
+    ).toEqual({ google: "reject" });
+  });
+
+  it("weighs a retired rule for its engine at its stored severity", () => {
+    expect(RULES_BY_ID.has(retired.ruleId)).toBe(false);
+    const mixed = [...stored, retired];
+    expect(engineVerdictFromResults(mixed, "google").verdict).toBe("reject");
+    expect(engineVerdictFromResults(mixed, "bing").verdict).toBe("revise");
+  });
+
+  // Which engines a stored evaluation was judged for is read from these
+  // rules (see `evaluatedEngines`): each belongs to one engine, applies to
+  // every page or site, and is never closed by an evaluator or a judge, so it
+  // is stored as a non-passing result on every row. Retiring one, sharing it
+  // with the other engine, or letting something pass it would silently make
+  // evaluations read as judged for fewer engines.
+  it.each([
+    ["PF-W10", "google", "page"],
+    ["PF-W10", "google", "site"],
+    ["SPAM-03", "google", "site"],
+    ["BING-30", "bing", "page"],
+    ["BING-03", "bing", "site"],
+  ] as const)(
+    "keeps %s as %s's sentinel on every %s row",
+    (id, engine, level) => {
+      const rule = RULES_BY_ID.get(id);
+      expect(rule?.engines).toEqual([engine]);
+      expect(rule?.applies_if).toBe("always");
+      expect([level, "both"]).toContain(rule?.scope);
+      // Human rules have no evaluator; BING-30's detector answers only on a hit
+      // (rule-evaluators.test.ts), and no judge may close it either.
+      expect(rule?.check === "human" || id === "BING-30").toBe(true);
+      expect(judgeableRules([rule!])).toEqual([]);
+    },
+  );
 });
 
 describe("judgeableRules", () => {
