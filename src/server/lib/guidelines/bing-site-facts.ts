@@ -88,6 +88,8 @@ interface RobotsGroup {
 /**
  * The groups of a robots.txt. Consecutive `User-agent` lines share the rules
  * that follow them; a `User-agent` line after a rule starts a new group.
+ * Agent names are compared as robots-parser does: lowercased, without a
+ * `/version` suffix (`bingbot/2.0` is Bingbot's group).
  */
 function robotsGroups(text: string): RobotsGroup[] {
   const groups: RobotsGroup[] = [];
@@ -104,7 +106,7 @@ function robotsGroups(text: string): RobotsGroup[] {
         current = { agents: [], rules: [] };
         groups.push(current);
       }
-      current.agents.push(value.toLowerCase());
+      current.agents.push(value.toLowerCase().split("/")[0].trim());
       lastWasAgent = true;
       continue;
     }
@@ -118,6 +120,15 @@ function robotsGroups(text: string): RobotsGroup[] {
 
 const ruleKey = (rule: RobotsGroup["rules"][number]) =>
   `${rule.kind}:${rule.path}`;
+
+/** `Allow: /` or an empty `Disallow:`: the rule that lets a bot crawl everything. */
+const allowsAll = (rule: RobotsGroup["rules"][number]) =>
+  (rule.kind === "allow" && rule.path === "/") ||
+  (rule.kind === "disallow" && rule.path === "");
+
+/** `Disallow: /`: the rule that shuts a bot out of the whole site. */
+const blocksAll = (rule: RobotsGroup["rules"][number]) =>
+  rule.kind === "disallow" && (rule.path === "/" || rule.path === "/*");
 
 /** A URL a robots path pattern matches, to test it against Bingbot's rules. */
 function sampleUrlFor(origin: string, pattern: string): string {
@@ -144,21 +155,30 @@ function bingRobotsFacts(input: {
     group.agents.includes("bingbot"),
   );
   const bingKeys = new Set(bingRules.map(ruleKey));
+  const genericRules = groups
+    .filter((group) => group.agents.includes("*"))
+    .flatMap((group) => group.rules);
+  // Letting Bingbot in on purpose is not the trap BING-02 is about: a Bingbot
+  // group that only allows everything (`Allow: /`, an empty `Disallow:`), or
+  // any Bingbot group on a site whose `*` group shuts every other bot out
+  // (an allowlist), was written to differ from `*`.
+  const deliberate =
+    (bingRules.length > 0 && bingRules.every(allowsAll)) ||
+    genericRules.some(blocksAll);
   // A `*` Disallow missing from Bingbot's group only matters when Bingbot's
   // rules then let it through; a stricter Bingbot group already covers it.
-  const droppedRules = hasBingbotGroup
-    ? groups
-        .filter((group) => group.agents.includes("*"))
-        .flatMap((group) => group.rules)
-        .filter(
-          (rule) =>
-            rule.kind === "disallow" &&
-            rule.path !== "" &&
-            !bingKeys.has(ruleKey(rule)) &&
-            bingAllows(sampleUrlFor(origin, rule.path)),
-        )
-        .map((rule) => `Disallow: ${rule.path}`)
-    : [];
+  const droppedRules =
+    hasBingbotGroup && !deliberate
+      ? genericRules
+          .filter(
+            (rule) =>
+              rule.kind === "disallow" &&
+              rule.path !== "" &&
+              !bingKeys.has(ruleKey(rule)) &&
+              bingAllows(sampleUrlFor(origin, rule.path)),
+          )
+          .map((rule) => `Disallow: ${rule.path}`)
+      : [];
 
   const blockedForBingOnly = sort(
     input.indexableUrls.filter((url) => genericAllows(url) && !bingAllows(url)),

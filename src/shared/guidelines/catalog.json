@@ -2430,7 +2430,7 @@
       "check": "binary",
       "applies_if": "always",
       "question": "Si robots.txt tiene un grupo propio para Bingbot, ¿repite las reglas del grupo genérico (*)?",
-      "pass_if": "No hay grupo para Bingbot, o su grupo incluye todas las reglas Disallow y Allow del grupo *.",
+      "pass_if": "No hay grupo para Bingbot, su grupo incluye todas las reglas Disallow y Allow del grupo *, o lo deja pasar a propósito (su grupo solo tiene Allow: / o un Disallow vacío, o el grupo * bloquea todo el sitio).",
       "fail_if": "El grupo de Bingbot omite reglas Disallow del grupo *: Bingbot ignora el grupo genérico y rastrea lo que el resto de bots tiene bloqueado.",
       "remediation": "Copiar al grupo de Bingbot todas las reglas del grupo *, además de las propias, o quitar el grupo de Bingbot si no hace falta.",
       "sources": [
