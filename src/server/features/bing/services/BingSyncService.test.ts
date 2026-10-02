@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BingApiError } from "@/server/lib/bing/bingErrors";
 import { resetBingTestDb } from "@/server/features/bing/bing-test-db";
 import { BingService } from "./BingService";
+import { BingSiteHealthService } from "./BingSiteHealthService";
 import { BingSyncService } from "./BingSyncService";
 
 const testDb = await vi.hoisted(async () => {
@@ -68,6 +69,15 @@ async function issues() {
     resolved: row.resolved_at !== null,
   }));
 }
+
+const feed = (url: string) => ({
+  url,
+  status: "Success",
+  type: null,
+  urlCount: 10,
+  lastCrawledAt: null,
+  submittedAt: null,
+});
 
 const issue = (url: string) => ({
   url,
@@ -172,6 +182,22 @@ describe("BingSyncService", () => {
     expect(await issues()).toEqual([
       { url: "/a", resolved: false },
       { url: "/b", resolved: true },
+    ]);
+  });
+
+  it("flags sitemaps Bing stops reporting without dropping them", async () => {
+    await seedConnection();
+    client.getFeeds.mockResolvedValue([feed("/a.xml"), feed("/b.xml")]);
+    await BingSyncService.syncProject("proj_1");
+
+    vi.setSystemTime(new Date("2026-09-11T08:00:00.000Z"));
+    client.getFeeds.mockResolvedValue([feed("/b.xml")]);
+    await BingSyncService.syncProject("proj_1");
+
+    const health = await BingSiteHealthService.crawlHealth("proj_1");
+    expect(health.connected && health.sitemaps).toEqual([
+      expect.objectContaining({ feedUrl: "/a.xml", noLongerReported: true }),
+      expect.objectContaining({ feedUrl: "/b.xml", noLongerReported: false }),
     ]);
   });
 
