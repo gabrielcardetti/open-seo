@@ -38,7 +38,7 @@ function bingPagePath(projectId: string) {
 function connectUrl(context: AuthContext, projectId: string) {
   return buildDashboardUrl(
     context.baseUrl,
-    `/p/${projectId}/settings/integrations`,
+    `/p/${projectId}/settings/integrations#bing-webmaster`,
   );
 }
 
