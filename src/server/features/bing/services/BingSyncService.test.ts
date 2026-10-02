@@ -238,10 +238,9 @@ describe("BingSyncService", () => {
       BingSyncService.syncNow("proj_1"),
     ]);
 
-    expect(results.map((result) => result.status).sort()).toEqual([
-      "synced",
-      "too_soon",
-    ]);
+    expect(results.map((result) => result.status)).toEqual(
+      expect.arrayContaining(["synced", "too_soon"]),
+    );
     expect(client.getRankAndTrafficStats).toHaveBeenCalledTimes(1);
   });
 
