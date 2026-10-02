@@ -23,26 +23,28 @@ Lo que es propio de cada sitio (dominios, secciones, migraciones, fuentes de dat
 1. `whoami`, `list_projects`. Un proyecto por dominio; si falta, `create_project`.
 2. `get_project_context`. Si falta `business_overview` o el alcance, corré `seo-project-setup` (al menos alcance, objetivos y key pages). Registrá las decisiones de alcance como sección custom `audit-scope`: qué dominios y secciones entran, cuáles se dejan fuera y por qué.
 3. Inventario real: contá las URLs de cada sitemap (incluidos índices y sub-sitemaps) y agrupalas por sección. Comprobá que cada sitemap devuelva XML y esté listado en el índice o en `robots.txt`: un sitemap que devuelve HTML o que no está enlazado ya es un hallazgo.
-4. Search Console conectado en cada proyecto (Integrations). Sin GSC la priorización de la fase 4 queda ciega.
+4. Search Console conectado en cada proyecto (Integrations). Sin GSC la priorización de la fase 4 queda ciega. Si el proyecto tiene Bing Webmaster Tools conectado, corré `sync_bing_now` antes del crawl: la auditoría lee los problemas de rastreo de Bing del último sync.
 
 ## Fase 1 — Crawl técnico completo
 
 - `run_site_audit` con `maxPages` por encima del total del inventario (tope 10.000), `evaluateContent: false`, y `runLighthouse: true` solo si interesa rendimiento (muestra de 10). Las secciones que quedan fuera del alcance (anotadas en `audit-scope`) van en `excludePaths` (p. ej. `["/archivo"]`): no se crawlean, no gastan presupuesto de páginas y no suman hallazgos. Para auditar una sola sección, `includePaths` (p. ej. `["/bopv"]`) con la URL de inicio dentro de ella; en ese caso no se informan páginas huérfanas. El crawl arranca desde robots + sitemaps y es gratis; lo único que cuesta es tiempo (~1 min cada 50 páginas con pacing).
 - `get_audit_status` con `waitSeconds: 50`, repitiendo hasta que termine.
-- Al terminar: `get_audit_issues` con `groupBy: "template"` (una fila por tipo × plantilla de URL, con recuento y ejemplos). **Agrupá por plantilla**, no por página: 100 títulos largos que salen de la misma plantilla son un solo arreglo. Las páginas noindex no suman issues de longitud de título ni de meta description.
+- Al terminar: `get_audit_issues` con `groupBy: "template"` (una fila por tipo × plantilla de URL, con recuento y ejemplos). **Agrupá por plantilla**, no por página: 100 títulos largos que salen de la misma plantilla son un solo arreglo. Las páginas noindex no suman issues de longitud de título ni de meta description. Con Bing conectado aparecen además `bing-malware`, `bing-crawl-error` y `bing-blocked-by-robots`; si Bing no puede rastrear una URL que nuestro crawler sí alcanzó, puede ser un firewall o un grupo `bingbot` en robots.txt: revisá robots.txt y las reglas del firewall o CDN antes de reportarlo.
 - Contrastá: páginas del sitemap que el crawl no alcanzó, páginas crawleadas que no están en el sitemap, noindex inesperados, canonicals que apuntan a otro dominio.
 - Verificá cada hallazgo que vayas a reportar contra el HTML vivo (`curl`), como exige `seo-audit`.
 
-## Fase 2 — Contenido contra las guías de Google
+## Fase 2 — Contenido contra las guías de Google (y de Bing)
 
 Judging externo: la herramienta entrega páginas y reglas, un modelo nuestro juzga, y OpenSEO recalcula el veredicto desde el catálogo.
+
+**Motores.** Por defecto se juzgan solo las reglas de Google. Pasá `engines: ["google","bing"]` a `get_guidelines_evaluation_batch` y el **mismo** valor a `submit_guidelines_evaluation` cuando importe Bing o Copilot (Bing conectado, tráfico de Bing, citas en respuestas de IA). Las reglas que dicen lo mismo en los dos motores se juzgan una vez y cuentan para ambos. Una página ya juzgada para Google vuelve a salir en el batch si pedís Bing, y enviar solo Bing conserva lo que ya estaba guardado para Google. Decidilo al empezar y anotalo en `audit-scope`, para que la ronda siguiente use los mismos motores y `compare_audits` compare lo mismo.
 
 1. **Qué juzgar.** Todas las páginas editoriales (`strategy: "all"`). Las secciones generadas por plantilla con miles de URLs se juzgan por muestra (`strategy: "sample"` o una lista de ~20–40 URLs representativas): juzgar 2.000 páginas idénticas en estructura dice poco más que juzgar 30.
 2. **Reparto.** Listá las URLs elegibles con `get_audit_pages` (2xx, indexables), partilas en lotes y dale a cada juez **su propia lista** vía `get_guidelines_evaluation_batch({ urls: [...] })`. Sin `urls`, dos jueces en paralelo reciben las mismas páginas.
 3. **Calibración antes del volumen.** Elegí 10–15 páginas variadas (home, pillar, programática, legal, una que el crawl marcó thin). Que las juzguen Opus (referencia), Haiku y Grok **sin enviar**: cada uno escribe su JSON de findings en el scratchpad. Compará por página y regla: coincidencia de veredicto, fails que el barato inventa (sin cita literal), fails que se le escapan. Anotá el resultado en el contexto del proyecto (`judge-calibration`) con fecha y modelos.
 4. **Volumen.** El juez que salga bien calibrado juzga el resto en paralelo (subagentes Haiku con `model: "haiku"`, o Grok por CLI), enviando con `submit_guidelines_evaluation` y `judgeModel` real. Cada lote: pedir → juzgar → enviar → siguiente, hasta que el batch devuelva vacío.
 5. **Revisión.** Opus relee solo los `reject`, los `revise` y los `unknown` altos. Un fail sin cita de la página se descarta.
-6. Resultado: `get_guideline_results`.
+6. Resultado: `get_guideline_results`. Cada página trae `verdicts` por motor; `verdict`, el filtro `verdict` y `summary` siguen a `engine` (Google si se juzgó), y `summary.by_engine` cuenta los dos. Un finding con status `conflict` es una preferencia de Bing que Google considera innecesaria (BING-17, BING-34): va al backlog como opcional, nunca como bloqueo.
 
 Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivinar; citar las palabras de la página en cada fail; no inventar políticas fuera del catálogo.
 
@@ -65,7 +67,7 @@ Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivi
 
 ## Repetir y medir
 
-- Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log, o `list_site_audits`) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron. Si los dos crawls no cubrieron las mismas URLs, mirá `issues.common` (solo URLs presentes en ambas, también por plantilla): lo demás mezcla arreglos con cambios de muestra. Agent readiness guarda su propio historial en `get_agent_readiness`.
+- Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log, o `list_site_audits`) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron (los de Bing, aparte, en `guidelines.bing`). Si los dos crawls no cubrieron las mismas URLs, mirá `issues.common` (solo URLs presentes en ambas, también por plantilla): lo demás mezcla arreglos con cambios de muestra. Agent readiness guarda su propio historial en `get_agent_readiness`.
 - Anotá el resultado de cada ronda en el research log, para que la evolución quede en un solo lugar.
 
 ## Guardrails

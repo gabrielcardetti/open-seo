@@ -92,11 +92,15 @@ A project can connect to a site verified in the user's Bing Webmaster Tools acco
 
 OpenSEO saves a copy of the project's Bing data every day: clicks, impressions, CTR, and position by query, page, and day; crawl statistics and crawl issues; sitemaps; and inbound link counts. Bing itself only shows about the last six months, so this saved history is how OpenSEO keeps data beyond that window. The first sync after connecting saves what Bing still shows, and the history grows from there. Bing reports no device or country breakdown.
 
+The project's Bing Insights page shows this history: queries, pages, striking-distance queries (average position 5 to 20), crawl health, backlinks, and AI citations. When Bing is connected, site audits also list the crawl problems Bing reported (malware, crawl errors, URLs blocked for Bingbot by robots.txt).
+
 OpenSEO can compare the same queries or pages in Search Console and Bing side by side. Copilot and Bing AI citation data is available only when the user imports Bing's AI Performance CSV export, because Bing has no API for it.
 
 The Indexing page announces new and changed pages to Bing and other search engines that use IndexNow, either automatically (from a daily sitemap check, after a site audit, or from a deploy hook the user's build calls) or by pasting URLs. Every URL sent is logged with the engine's answer. An accepted notice means the engine received it, not that the page is indexed. Google does not take part in IndexNow; Search Console and URL inspection remain the tools for Google.
 
 Bing Webmaster Tools data and indexing tools use zero OpenSEO credits, like Search Console.
+
+A site audit's content evaluation judges pages against Google's guidelines by default. Users can also check Bing's Webmaster Guidelines (robots.txt for Bingbot, eligibility for Copilot citations, grounding, prompt injection), and the audit then shows Google's and Bing's verdicts side by side. Where Bing's advice contradicts Google's, the Bing rule only warns. Checking Bing's guidelines doesn't need a Bing connection.
 
 ## OpenSEO and Claude (or other AI clients)
 
