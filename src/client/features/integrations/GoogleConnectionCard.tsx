@@ -1,6 +1,12 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/client/components/ui/alert";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -35,9 +41,12 @@ export function GoogleConnectionCard({
   onDismiss,
   dismissing = false,
   prominent,
+  notice,
 }: {
   provider: GoogleProvider;
   projectId: string;
+  /** Shown under the connected property, such as a sitemap coverage alert. */
+  notice?: React.ReactNode;
   /** Shows the connect button as a large primary call to action. */
   prominent?: boolean;
   /** Adds a Dismiss button while the project is not connected. */
@@ -190,20 +199,28 @@ export function GoogleConnectionCard({
           {dismissButton}
         </div>
       ) : connected && !picking ? (
-        <GoogleConnectedState
-          property={connection?.property ?? ""}
-          detail={connection?.propertyDetail}
-          canManageAccounts={hasGrant}
-          email={connection?.connectedByEmail}
-          onChange={startPicking}
-          onDisconnect={() => {
-            setPropertyMutation.reset();
-            disconnectMutation.mutate();
-          }}
-          disconnecting={disconnectMutation.isPending}
-          disabled={linking}
-          canManage={canManage}
-        />
+        <>
+          <GoogleConnectedState
+            property={connection?.property ?? ""}
+            detail={connection?.propertyDetail}
+            canManageAccounts={hasGrant}
+            email={connection?.connectedByEmail}
+            onChange={startPicking}
+            onDisconnect={() => {
+              setPropertyMutation.reset();
+              disconnectMutation.mutate();
+            }}
+            disconnecting={disconnectMutation.isPending}
+            disabled={linking}
+            canManage={canManage}
+          />
+          <ReadOnlySearchConsoleAlert
+            connection={connection}
+            disabled={linking}
+            onReconnect={handleConnect}
+          />
+          {notice}
+        </>
       ) : showPicker ? (
         <fieldset disabled={changingConnection}>
           <GooglePropertyPicker
@@ -279,5 +296,41 @@ function ConnectionStatusPill({
           ? "Setup required"
           : "Not connected"}
     </Badge>
+  );
+}
+
+/** A Search Console grant from before OpenSEO asked for write access: reads
+ *  work, but submitting sitemaps needs one reconnect. */
+function ReadOnlySearchConsoleAlert({
+  connection,
+  disabled,
+  onReconnect,
+}: {
+  connection: GoogleConnection | undefined;
+  disabled: boolean;
+  onReconnect: () => void;
+}) {
+  if (connection?.canSubmitSitemaps !== false) return null;
+  return (
+    <Alert variant="warning" className="mt-4">
+      <TriangleAlert aria-hidden />
+      <AlertTitle className="font-normal">
+        Search Console is connected with read-only access. Reconnect the Google
+        account that connected this project to let OpenSEO submit sitemaps.
+      </AlertTitle>
+      {connection.canManage ? (
+        <AlertDescription>
+          <Button
+            size="xs"
+            variant="outline"
+            className="mt-1"
+            disabled={disabled}
+            onClick={onReconnect}
+          >
+            Reconnect Search Console
+          </Button>
+        </AlertDescription>
+      ) : null}
+    </Alert>
   );
 }
