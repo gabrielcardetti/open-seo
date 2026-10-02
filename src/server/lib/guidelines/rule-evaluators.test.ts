@@ -3,8 +3,7 @@ import { GUIDELINE_RULES } from "@/shared/guidelines/catalog";
 import { evaluateDeterministic } from "./rule-evaluators";
 import type { FetchedPage } from "./page-fetch";
 import { emptySpamSignals } from "./spam-signals";
-import { buildBingSiteFacts } from "./bing-site-facts";
-import type { SiteFacts } from "./site-facts";
+import { buildSiteFacts } from "./site-facts";
 import { fetchedPageFixture } from "./guideline-test-support";
 
 function fetchedPage(overrides: Partial<FetchedPage> = {}): FetchedPage {
@@ -159,19 +158,24 @@ describe("Bing evaluators", () => {
   // The site pass draws the repeat lists for the sampled pages only; a page
   // judged later (a flagged cluster's member) was never compared.
   it("leaves BING-13 open on a page the repeat check did not cover", () => {
-    const shared = { title: "Riego por goteo", contentHash: null };
     const crawled = ["/a", "/b", "/c"].map((path) => ({
+      id: path,
       url: `https://example.com${path}`,
       statusCode: 200,
       isIndexable: true,
-      ...shared,
+      title: "Riego por goteo",
+      wordCount: 500,
+      contentHash: path,
+      crawlDepth: 1,
     }));
-    const bing = buildBingSiteFacts({
-      pages: crawled,
-      startUrl: "https://example.com/",
-      memberUrlFilter: new Set(["https://example.com/a"]),
-    });
-    const site = { facts: { bing } as SiteFacts };
+    const site = {
+      facts: buildSiteFacts({
+        pages: crawled,
+        startUrl: "https://example.com/",
+        crawlCompleted: true,
+        memberUrlFilter: new Set(["https://example.com/a"]),
+      }),
+    };
     const bing13 = (url: string) =>
       evaluateDeterministic("BING-13", {
         page: fetchedPage({

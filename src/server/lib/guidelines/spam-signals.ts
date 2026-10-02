@@ -474,7 +474,7 @@ function steeringAddress(flat: string): RegExpExecArray | null {
       address.index,
       address.index + ADDRESS_REACH_CHARS,
     );
-    if (STEERS_THE_ANSWER.test(order)) return address as RegExpExecArray;
+    if (STEERS_THE_ANSWER.test(order)) return address;
   }
   return null;
 }
