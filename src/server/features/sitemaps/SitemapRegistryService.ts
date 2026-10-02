@@ -185,8 +185,12 @@ async function detect(
 
 const FULL_PROBLEM = `A project keeps at most ${MAX_PROJECT_SITEMAPS} sitemaps. Remove some first.`;
 
-/** Track a sitemap by hand: on the site, answering as a sitemap, under the cap. */
-async function addOne(
+/**
+ * Track one sitemap. A suggested or ignored row is confirmed as it is; a URL
+ * the registry doesn't hold must be on the site, answer as a sitemap, and fit
+ * under the cap.
+ */
+async function trackOne(
   projectId: string,
   host: string,
   url: string,
@@ -194,9 +198,18 @@ async function addOne(
 ): Promise<string | null> {
   const row = rows.get(url);
   if (row?.status === "tracked") return null;
+  if (row) {
+    await SitemapRegistryRepository.setStatus(
+      projectId,
+      [url],
+      "tracked",
+      now(),
+    );
+    return null;
+  }
   const problem =
     urlProblem(url, host) ??
-    (!row && rows.size >= MAX_PROJECT_SITEMAPS ? FULL_PROBLEM : null) ??
+    (rows.size >= MAX_PROJECT_SITEMAPS ? FULL_PROBLEM : null) ??
     (await probeProblem(url));
   if (problem) return problem;
   await SitemapRegistryRepository.upsertTracked(projectId, url, now());
@@ -205,8 +218,9 @@ async function addOne(
 
 /**
  * Apply one batch of registry changes, in order: detect, add, track, ignore,
- * remove. Tracking a URL the registry doesn't hold adds it (validated like a
- * manual add); ignoring one records it as ignored so detection skips it.
+ * remove. Tracking confirms a suggested or ignored sitemap, and adds a URL
+ * the registry doesn't hold (validated like a manual add); ignoring a URL it
+ * doesn't hold records it as ignored so detection skips it.
  * Removing a manual sitemap forgets it; removing a detected one ignores it,
  * so the next detection doesn't suggest it again.
  */
@@ -230,7 +244,7 @@ async function update(projectId: string, input: SitemapUpdateInput) {
   for (const url of unique([...(input.add ?? []), ...(input.track ?? [])])) {
     const rows = await loadRows();
     const action = input.add?.includes(url) ? "add" : "track";
-    record(action, url, await addOne(projectId, host, url, rows));
+    record(action, url, await trackOne(projectId, host, url, rows));
   }
 
   for (const url of unique(input.ignore)) {
