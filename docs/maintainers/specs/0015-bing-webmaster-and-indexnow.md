@@ -80,6 +80,7 @@ The tools that change state (`sync_bing_now`, `verify_indexnow_key`, `submit_url
 - Bing data in OpenSEO is up to a day old. Deployments that run no scheduled jobs depend on syncing Bing on demand, and on the deploy hook for sitemap checks.
 - Bing reports no device or country split. Query and page figures are weekly buckets, and positions are impression-weighted averages over the weeks in a range, so they do not line up exactly with Search Console's daily figures.
 - Some Bing methods answer unreliably: the crawl-issue list is often empty even when problems exist, and keyword statistics are marked experimental in their tool description.
+- Bing takes an API key only in the request URL, so with Workers traces on, the deploying Cloudflare account's traces can hold saved keys in plain text; the self-hosting guide says how to turn traces down and rotate a key.
 - Rotating `BETTER_AUTH_SECRET` makes saved Bing keys unreadable; affected users save their key again, and the projects they connected resume syncing on the next scheduled run.
 - The indexing ledger records announcements, not indexing. Google is not reached by either channel; Search Console and URL inspection remain the tools for Google.
 - New Bing capabilities should extend the Bing services and read from the stored history where Bing's API allows, keeping reads free and project-scoped.

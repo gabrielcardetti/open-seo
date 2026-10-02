@@ -45,6 +45,26 @@ flagged.
 Choosing the site, disconnecting, and syncing on demand need an organization
 owner or admin.
 
+### Security note
+
+Bing accepts an API key only as an `apikey` parameter in the request URL
+(its other option is OAuth, which OpenSEO doesn't use). OpenSEO's
+`wrangler.jsonc` turns on Workers traces, and a trace records the full URL of
+each outgoing request, so on Cloudflare the traces of the account you deploy
+to can contain your Bing API key in plain text. Anyone who can read that
+account's Workers observability data can read the key.
+
+To lower the exposure:
+
+- Turn traces off, or sample fewer requests, under `observability.traces` in
+  `wrangler.jsonc` (`"enabled": false`, or a `head_sampling_rate` below 1),
+  then redeploy.
+- Limit who has access to the Cloudflare account.
+- If you think the key was seen, delete it in Bing Webmaster Tools under
+  **Settings → API Access**, generate a new one, and save it in OpenSEO.
+
+Docker deployments don't send traces to Cloudflare.
+
 ## 3) Syncing
 
 On Cloudflare deployments, a scheduled job syncs each connected project once a
