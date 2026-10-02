@@ -42,6 +42,24 @@ export type GscSearchAnalyticsRequest = {
   aggregationType?: string;
 };
 
+/** A sitemap as Search Console reports it (`sitemaps.list`). Counts come as
+ *  strings on the wire. */
+export type GscSitemap = {
+  path: string;
+  lastSubmitted?: string;
+  lastDownloaded?: string;
+  isPending?: boolean;
+  isSitemapsIndex?: boolean;
+  type?: string;
+  warnings?: string | number;
+  errors?: string | number;
+  contents?: Array<{
+    type?: string;
+    submitted?: string | number;
+    indexed?: string | number;
+  }>;
+};
+
 /** Subset of the URL Inspection API `inspectionResult` we surface. The wire
  *  shape is richer; extra fields are ignored. */
 export type UrlInspectionResult = {
@@ -121,7 +139,9 @@ export function createGscClient(opts: {
         body,
       );
     }
-    return (await response.json()) as T;
+    // sitemaps.submit answers 204 with no body.
+    const text = await response.text();
+    return (text ? JSON.parse(text) : {}) as T;
   }
 
   return {
@@ -148,6 +168,23 @@ export function createGscClient(opts: {
         { method: "POST", body },
       );
       return data.rows ?? [];
+    },
+
+    /** Webmasters API `sitemaps.list`: the sitemaps submitted for a property. */
+    async listSitemaps(siteUrl: string): Promise<GscSitemap[]> {
+      const data = await request<{ sitemap?: GscSitemap[] }>(
+        `${GSC_API_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps`,
+      );
+      return data.sitemap ?? [];
+    },
+
+    /** Webmasters API `sitemaps.submit`. Needs the grant's write scope;
+     *  with only the read-only scope Google answers 403. */
+    async submitSitemap(siteUrl: string, feedpath: string): Promise<void> {
+      await request<unknown>(
+        `${GSC_API_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(feedpath)}`,
+        { method: "PUT" },
+      );
     },
 
     /** URL Inspection API `urlInspection.index.inspect`. This lives on a

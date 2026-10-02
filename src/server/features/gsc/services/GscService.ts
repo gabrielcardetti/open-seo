@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { account } from "@/db/schema";
-import { GSC_OAUTH_PROVIDER_ID } from "@/shared/gsc";
+import { GSC_OAUTH_PROVIDER_ID, GSC_WRITE_SCOPE } from "@/shared/gsc";
 import { AppError } from "@/server/lib/errors";
 import {
   createGscClient,
   type GscSite,
+  type GscSitemap,
   type UrlInspectionResult,
 } from "@/server/lib/gscClient";
 import {
@@ -272,6 +273,49 @@ async function inspectUrls(input: {
   };
 }
 
+/**
+ * Whether the grant behind a connection may submit sitemaps: it holds the
+ * `webmasters` write scope. Grants made before OpenSEO asked for it hold only
+ * `webmasters.readonly`; they keep reading, and need one reconnect to submit.
+ * Scopes are stored comma-separated; older rows may use spaces.
+ */
+async function canSubmitSitemaps(connection: GscConnection): Promise<boolean> {
+  const [grant] = await db
+    .select({ scope: account.scope })
+    .from(account)
+    .where(
+      and(
+        eq(account.userId, connection.connectedByUserId),
+        eq(account.providerId, GSC_OAUTH_PROVIDER_ID),
+        connection.gscAccountId
+          ? eq(account.accountId, connection.gscAccountId)
+          : undefined,
+      ),
+    )
+    .limit(1);
+  return (grant?.scope ?? "").split(/[\s,]+/).includes(GSC_WRITE_SCOPE);
+}
+
+function clientFor(connection: GscConnection) {
+  return createGscClient({
+    userId: connection.connectedByUserId,
+    gscAccountId: connection.gscAccountId ?? undefined,
+  });
+}
+
+/** The sitemaps Search Console lists for the connected property. */
+async function listSitemaps(connection: GscConnection): Promise<GscSitemap[]> {
+  return clientFor(connection).listSitemaps(connection.siteUrl);
+}
+
+/** Submit one sitemap to the connected property (needs the write scope). */
+async function submitSitemap(
+  connection: GscConnection,
+  sitemapUrl: string,
+): Promise<void> {
+  await clientFor(connection).submitSitemap(connection.siteUrl, sitemapUrl);
+}
+
 export const GscService = {
   getConnection,
   userHasGrant,
@@ -280,4 +324,7 @@ export const GscService = {
   disconnect,
   getPerformance,
   inspectUrls,
+  canSubmitSitemaps,
+  listSitemaps,
+  submitSitemap,
 };
