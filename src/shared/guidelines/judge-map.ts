@@ -24,7 +24,13 @@ const JUDGEABLE_CHECKS = new Set(["llm", "heuristic", "hybrid"]);
  * and an injected-malware scan. A model asked anyway will answer confidently
  * from nothing.
  */
-const NEVER_AUTO_CLOSE = new Set(["SPAM-01", "SPAM-04"]);
+const NEVER_AUTO_CLOSE = new Set([
+  "SPAM-01",
+  "SPAM-04",
+  // Prompt injection hides in markup the judge never sees; the raw-HTML scan
+  // answers it, and without a hit a reviewer does.
+  "BING-30",
+]);
 
 /**
  * Rules about how a page renders or is wired, not what it says. A judge sees
@@ -39,6 +45,17 @@ const NEEDS_RENDERING = new Set([
   "TECH-06", // links wired as <a href> rather than script handlers
   "TECH-07", // inbound internal links
   "TECH-08", // content only available after JavaScript
+  // Bing rules settled from crawl data: a text judge would only guess.
+  "BING-04", // sitemap URLs that redirect, fail or are canonicalized
+  "BING-05", // temporary redirects
+  "BING-06", // canonical instead of a redirect
+  "BING-10", // the same body on several URLs
+  "BING-11", // crawl waste
+  "BING-13", // title and meta description
+  "BING-14", // heading hierarchy
+  "BING-20", // images or video as the only source
+  "BING-34", // answers folded into tabs or expandables
+  "BING-35", // core content only in PDFs
 ]);
 
 /**
@@ -117,16 +134,28 @@ export function questionFor(rule: GuidelineRule): JudgeQuestion {
 }
 
 /**
+ * Whose guidelines a set of rules states, for the judge's framing: Google's
+ * when every rule has a Google source (a rule Bing also states is still
+ * Google's), Bing's when none has.
+ */
+export function guidelinesOwner(rules: readonly GuidelineRule[]): string {
+  const google = rules.some((rule) => rule.engines.includes("google"));
+  const bingOnly = rules.some((rule) => !rule.engines.includes("google"));
+  if (google && bingOnly) return "Google Search's and Bing's";
+  return bingOnly ? "Bing's" : "Google Search's";
+}
+
+/**
  * The prompt a judge sees for one rule: the catalog's question plus the exact
  * conditions it wrote for passing and failing. Nothing is paraphrased — the
- * whole point of the catalog is that the criteria are Google's, not ours.
+ * whole point of the catalog is that the criteria are the engine's, not ours.
  */
 export function instructionsFor(rule: GuidelineRule): string {
   return [
     rule.question,
     `PASS when: ${rule.pass_if}`,
     `FAIL when: ${rule.fail_if}`,
-    "This judges a web page against Google Search's official quality" +
+    `This judges a web page against ${guidelinesOwner([rule])} official quality` +
       " guidelines. Judge only what the page itself shows: when the rule is" +
       " about a pattern across many pages or about why the page was made," +
       " fail only if this page itself shows it.",
@@ -175,6 +204,8 @@ export function unjudgeableReason(rule: GuidelineRule): string | null {
   switch (rule.check) {
     case "gsc":
       return "Needs Search Console data for this URL.";
+    case "bwt":
+      return "Needs Bing Webmaster Tools data for this URL.";
     case "human":
       return "Needs a human reviewer.";
     case "binary":

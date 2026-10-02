@@ -268,12 +268,31 @@ function ContentGuidelinesOption({ launchForm }: Pick<Props, "launchForm">) {
       >
         {(evaluateContent) =>
           evaluateContent ? (
-            <FieldDescription>
-              We judge a sample of your pages against Google&apos;s published
-              content guidelines — people-first content, E-E-A-T, spam policies
-              and AI guidance — and give each one a verdict with the evidence
-              behind it. Adds a few minutes to the audit.
-            </FieldDescription>
+            <>
+              <FieldDescription>
+                We judge a sample of your pages against Google&apos;s published
+                content guidelines — people-first content, E-E-A-T, spam
+                policies and AI guidance — and give each one a verdict with the
+                evidence behind it. Adds a few minutes to the audit.
+              </FieldDescription>
+              <div className="flex items-center gap-2">
+                <launchForm.Field name="includeBing">
+                  {(field) => (
+                    <Switch
+                      id="audit-include-bing"
+                      checked={Boolean(field.state.value)}
+                      onCheckedChange={(checked) => field.handleChange(checked)}
+                    />
+                  )}
+                </launchForm.Field>
+                <FieldLabel
+                  htmlFor="audit-include-bing"
+                  title="Adds Bing's Webmaster Guidelines: robots.txt for Bingbot, Copilot citation eligibility, grounding and prompt injection."
+                >
+                  Also check Bing&apos;s Webmaster Guidelines
+                </FieldLabel>
+              </div>
+            </>
           ) : null
         }
       </launchForm.Subscribe>

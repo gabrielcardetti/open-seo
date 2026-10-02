@@ -88,15 +88,30 @@ import {
   getAgentReadinessTool,
   runAgentReadinessScanTool,
 } from "@/server/mcp/tools/agent-readiness-tools";
-import {
-  getGuidelinesEvaluationBatchTool,
-  submitGuidelinesEvaluationTool,
-} from "@/server/mcp/tools/guideline-judge-tools";
+import { getGuidelinesEvaluationBatchTool } from "@/server/mcp/tools/guideline-judge-tools";
+import { submitGuidelinesEvaluationTool } from "@/server/mcp/tools/guideline-submit-tool";
 import {
   deleteSiteAuditTool,
   listSiteAuditsTool,
 } from "@/server/mcp/tools/site-audit-cleanup-tools";
+import {
+  getIndexingCandidatesTool,
+  getIndexingLogTool,
+  getIndexingSetupTool,
+  submitUrlsForIndexingTool,
+  verifyIndexNowKeyTool,
+} from "@/server/mcp/tools/indexing-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
+import {
+  compareSearchEnginesTool,
+  getBingAiCitationsTool,
+  getBingBacklinksTool,
+  getBingCrawlHealthTool,
+  getBingKeywordStatsTool,
+  getBingOverviewTool,
+  getBingSearchPerformanceTool,
+  syncBingNowTool,
+} from "@/server/mcp/tools/bing-webmaster-tools";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
 
@@ -222,6 +237,14 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getKeywordMetricsTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
+  register(getBingOverviewTool);
+  register(getBingSearchPerformanceTool);
+  register(getBingCrawlHealthTool);
+  register(getBingBacklinksTool);
+  register(getBingKeywordStatsTool);
+  register(compareSearchEnginesTool);
+  register(getBingAiCitationsTool);
+  register(syncBingNowTool);
   register(getGoogleAnalyticsOrganicLandingPagesTool);
   register(getGoogleAnalyticsPagePerformanceTool);
   register(getGoogleAnalyticsKeyEventsTool);
@@ -244,6 +267,11 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(submitGuidelinesEvaluationTool);
   register(runAgentReadinessScanTool);
   register(getAgentReadinessTool);
+  register(getIndexingSetupTool);
+  register(verifyIndexNowKeyTool);
+  register(submitUrlsForIndexingTool);
+  register(getIndexingLogTool);
+  register(getIndexingCandidatesTool);
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);

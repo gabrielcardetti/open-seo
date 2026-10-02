@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { buildBingSiteFacts } from "./bing-site-facts";
 import { renderPageState, type JudgedRule, type RuleJudge } from "./judge";
 import { evaluatePage, type PageEvaluation } from "./page-evaluator";
 import type { FetchedPage } from "./page-fetch";
 import type { PatternCluster, SiteFacts } from "./site-facts";
 import { evaluateSite, finalizeSite, siteContextFor } from "./site-evaluator";
-import { emptySpamSignals } from "./spam-signals";
+import { fetchedPageFixture } from "./guideline-test-support";
 
 const ORIGIN = "https://example.com";
 const doorway = `${ORIGIN}/abogados-en-madrid`;
@@ -47,6 +48,7 @@ function siteFacts(overrides: Partial<SiteFacts> = {}): SiteFacts {
     },
     ugcSurfaces: [],
     tripwires: [],
+    bing: buildBingSiteFacts({ pages: [], startUrl: `${ORIGIN}/` }),
     ...overrides,
   };
 }
@@ -80,27 +82,14 @@ const passingJudge: RuleJudge = {
 };
 
 function fetchedPage(url: string): FetchedPage {
-  return {
+  return fetchedPageFixture({
     url,
     finalUrl: url,
-    statusCode: 200,
     title: "Abogados en Madrid | Firma",
-    metaDescription: "",
-    canonical: null,
-    robotsMeta: null,
-    googlebotMeta: null,
-    robotsHeader: null,
-    h1s: [],
     wordCount: 430,
     bodyText: "Abogados en Madrid con experiencia.",
-    structuredData: [],
-    imagesTotal: 0,
-    imagesMissingAlt: 0,
     internalLinks: 5,
-    externalLinks: 0,
-    isHttps: true,
-    spamSignals: emptySpamSignals(),
-  };
+  });
 }
 
 const finding = (evaluation: PageEvaluation, ruleId: string) =>

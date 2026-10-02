@@ -20,6 +20,7 @@ import {
   type CrawlScope,
 } from "@/server/lib/audit/crawl-scope";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { collectBingAuditIssues } from "@/server/features/bing/bingAuditIssues";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
@@ -36,6 +37,7 @@ import { runGuidelinesPhase } from "@/server/workflows/siteAuditWorkflowGuidelin
 import {
   DB_STEP,
   DISCOVERY_STEP,
+  INDEXING_STEP,
   LIGHTHOUSE_FETCH_STEP,
   LIGHTHOUSE_PERSIST_STEP,
   MULTIPAGE_CHECKS_STEP,
@@ -120,6 +122,7 @@ export async function runAuditPhases(
     startUrl,
     config,
     crawlCompleted: crawl.completed,
+    robotsText: discovery.robotsText,
   });
   await finalizeAudit({
     step,
@@ -131,6 +134,39 @@ export async function runAuditPhases(
     config,
     crawl,
   });
+  await runIndexingPhase(step, { auditId, projectId });
+}
+
+/**
+ * Announce the pages whose content changed since the previous audit, via
+ * IndexNow (see auditChanges.ts for why not Bing). Its own step with no
+ * retries so a replay never re-sends, and every failure is swallowed: the
+ * audit is already complete and indexing must never fail it.
+ */
+async function runIndexingPhase(
+  step: WorkflowStep,
+  input: { auditId: string; projectId: string },
+) {
+  try {
+    await pgStep(step, "indexing-submit", INDEXING_STEP, async () => {
+      try {
+        const { submitAuditChanges } =
+          await import("@/server/features/indexing/auditChanges");
+        return await submitAuditChanges(input);
+      } catch (error) {
+        console.warn("Audit indexing submission failed", {
+          auditId: input.auditId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { submitted: 0, skipped: "error" };
+      }
+    });
+  } catch (error) {
+    console.warn("Audit indexing step failed", {
+      auditId: input.auditId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function runDiscoveryPhase(
@@ -410,6 +446,7 @@ async function finalizeAudit(args: {
         pageUrl: startUrl,
       });
     }
+    issues.push(...(await bingIssuesForAudit(projectId, auditId)));
     const persistStartedAt = Date.now();
     await AuditRepository.insertIssues(auditId, issues);
     console.info("Audit finalization issues persisted", {
@@ -452,6 +489,22 @@ async function finalizeAudit(args: {
     // Crawl scratch state (frontier, links, mirror) is no longer needed.
     await getAuditScratchpad(auditId).destroy();
   });
+}
+
+/**
+ * What Bing's last sync reported about the site's URLs. A failed read never
+ * fails the audit: the Bing issues are left out and the error logged.
+ */
+async function bingIssuesForAudit(
+  projectId: string,
+  auditId: string,
+): Promise<DetectedIssue[]> {
+  try {
+    return await collectBingAuditIssues({ projectId, auditId });
+  } catch (error) {
+    console.warn("Audit Bing issues skipped", { auditId, error });
+    return [];
+  }
 }
 
 /**

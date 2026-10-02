@@ -13,9 +13,18 @@ import type {
 } from "@/server/lib/guidelines/page-evaluator";
 import type { SitePageResult } from "@/server/lib/guidelines/site-evaluator";
 import type { SiteFacts } from "@/server/lib/guidelines/site-facts";
+import type {
+  BwtPageSnapshot,
+  EvaluationContext,
+} from "@/server/lib/guidelines/evaluator-support";
 import {
   CATALOG_VERSION,
+  DEFAULT_ENGINES,
+  RULES_BY_ID,
+  evaluatedEngines,
+  ruleIsForEngines,
   rulesForContext,
+  type Engine,
   type GuidelineRule,
 } from "@/shared/guidelines/catalog";
 import { SITE_PATTERN_RULES } from "@/shared/guidelines/judge-map";
@@ -27,6 +36,96 @@ export const auditIdSchema = z
 
 export function auditPath(projectId: string, auditId: string) {
   return `/p/${projectId}/audit?auditId=${auditId}&tab=guidelines`;
+}
+
+/** The engines an audit was started to judge against (Google's by default). */
+export function auditEngines(audit: { config: string }): Engine[] {
+  return (
+    parseAuditConfig(audit.config)?.guidelineEngines ?? [...DEFAULT_ENGINES]
+  );
+}
+
+/**
+ * Whether a stored verdict already covers every engine asked for. A page
+ * judged for Google only is still open to a caller that asks for Bing.
+ */
+export function coversEngines(
+  storedRuleIds: readonly string[],
+  engines: readonly Engine[],
+  fallback: readonly Engine[],
+): boolean {
+  const covered = evaluatedEngines(
+    storedRuleIds.map((ruleId) => ({ ruleId })),
+    fallback,
+  );
+  return engines.every((engine) => covered.includes(engine));
+}
+
+/** A stored rule result, as the merge below reads it. */
+interface StoredResult {
+  ruleId: string;
+  status: "fail" | "warn" | "unknown";
+  severity: GuidelineRule["severity"];
+  score: number | null;
+  confidence: number | null;
+  evidence: string | null;
+  reason: string | null;
+}
+
+/** "site" for a pattern rule weighed at its full, site-confirmed severity. */
+function confirmedLevel(result: {
+  ruleId: string;
+  severity: GuidelineRule["severity"];
+}): "site" | undefined {
+  const rule = RULES_BY_ID.get(result.ruleId);
+  return rule?.scope === "both" && result.severity === "critical"
+    ? "site"
+    : undefined;
+}
+
+/**
+ * A new evaluation with the stored answers of the engines it did not judge
+ * kept, so a caller judging Bing's rules does not erase a page's Google
+ * verdict (both live in one row per URL). The stored severity of a critical
+ * pattern rule says it was confirmed by the site pass, which is the only
+ * case where the level changes its weight.
+ */
+export async function keepOtherEngines(
+  evaluation: PageEvaluation,
+  stored: readonly StoredResult[],
+  engines: readonly Engine[],
+  level: "page" | "site" = "page",
+): Promise<PageEvaluation> {
+  const carried = stored.flatMap((result) => {
+    const rule = RULES_BY_ID.get(result.ruleId);
+    return rule && !ruleIsForEngines(rule, engines) ? [{ result, rule }] : [];
+  });
+  if (carried.length === 0) return evaluation;
+  const { summarizeEvaluation } =
+    await import("@/server/lib/guidelines/page-evaluator");
+  return summarizeEvaluation({
+    page: { finalUrl: evaluation.url },
+    classification: evaluation.classification,
+    applicable: [
+      ...evaluation.applicableRuleIds.flatMap((id) => {
+        const rule = RULES_BY_ID.get(id);
+        return rule ? [rule] : [];
+      }),
+      ...carried.map(({ rule }) => rule),
+    ],
+    outcomes: [
+      ...evaluation.findings.map((finding) => ({
+        ...finding,
+        level: confirmedLevel(finding),
+      })),
+      ...carried.map(({ result }) => ({
+        ...result,
+        level: confirmedLevel(result),
+      })),
+    ],
+    judge: evaluation.judge,
+    level,
+  });
 }
 
 export async function resolveAudit(projectId: string, auditId?: string) {
@@ -84,18 +183,36 @@ async function storedCrawlCompleted(audit: StoredAudit): Promise<boolean> {
  * from crawled pages only. That makes the answers less strict than the
  * workflow's, never stricter.
  */
-export async function loadSiteInputs(projectId: string, audit: StoredAudit) {
+export async function loadSiteInputs(
+  projectId: string,
+  audit: StoredAudit,
+  engines: readonly Engine[] = DEFAULT_ENGINES,
+) {
   const { ProjectContextRepository } =
     await import("@/server/features/project-context/repositories/ProjectContextRepository");
-  const [pages, sections, crawlCompleted] = await Promise.all([
+  const [pages, sections, crawlCompleted, robotsText] = await Promise.all([
     GuidelineEvaluationRepository.getSiteInventory(audit.id),
     ProjectContextRepository.listSections(projectId),
     storedCrawlCompleted(audit),
+    // The crawl's copy of robots.txt is not stored; Bing's robots rules read
+    // it fresh, once per call, and only when Bing is asked for.
+    engines.includes("bing") ? fetchRobotsTxt(audit.startUrl) : undefined,
   ]);
   const businessOverview =
     sections.find((section) => section.key === "business_overview")?.content ??
     null;
-  return { pages, businessOverview, crawlCompleted, startUrl: audit.startUrl };
+  return {
+    pages,
+    businessOverview,
+    crawlCompleted,
+    startUrl: audit.startUrl,
+    robotsText,
+  };
+}
+
+async function fetchRobotsTxt(startUrl: string): Promise<string | null> {
+  const { fetchRobotsTxtText } = await import("@/server/lib/audit/discovery");
+  return fetchRobotsTxtText(new URL(startUrl).origin);
 }
 
 /**
@@ -113,6 +230,7 @@ export async function siteFactsFor(
     crawlCompleted: inputs.crawlCompleted,
     businessOverview: inputs.businessOverview,
     memberUrlFilter: new Set(memberUrls),
+    robotsText: inputs.robotsText,
   });
 }
 
@@ -134,11 +252,13 @@ export async function judgeSite({
   businessOverview,
   modelId,
   findings,
+  engines,
 }: {
   facts: SiteFacts;
   businessOverview: string | null;
   modelId: string;
   findings: readonly SubmittedSiteFinding[];
+  engines: readonly Engine[];
 }) {
   const asked: GuidelineRule[] = [];
   const judge: RuleJudge = {
@@ -167,6 +287,7 @@ export async function judgeSite({
     facts,
     businessOverview,
     languageJudge: judge,
+    engines,
   });
   const askedIds = new Set(asked.map((rule) => rule.id));
   return {
@@ -190,9 +311,16 @@ const SITE_JUDGING_NOTE =
 export async function siteBatchItem(
   facts: SiteFacts,
   businessOverview: string | null,
+  engines: readonly Engine[],
 ) {
   const [{ asked }, { renderSiteState }] = await Promise.all([
-    judgeSite({ facts, businessOverview, modelId: "mcp", findings: [] }),
+    judgeSite({
+      facts,
+      businessOverview,
+      modelId: "mcp",
+      findings: [],
+      engines,
+    }),
     import("@/server/lib/guidelines/judge"),
   ]);
   return {
@@ -265,6 +393,7 @@ export async function sitePageResults(
 export async function storedSiteEvaluation(
   auditId: string,
   facts: SiteFacts,
+  engines: readonly Engine[],
 ): Promise<PageEvaluation | null> {
   const row = await GuidelineEvaluationRepository.getSiteEvaluation(auditId);
   if (!row || row.errorMessage) return null;
@@ -274,7 +403,7 @@ export async function storedSiteEvaluation(
     ]),
     import("@/server/lib/guidelines/site-evaluator"),
   ]);
-  const applicable = await evaluateSite({ facts });
+  const applicable = await evaluateSite({ facts, engines });
   return {
     ...applicable,
     judge: row.judge ?? "deterministic",
@@ -291,4 +420,16 @@ export async function storedSiteEvaluation(
         remediation: result.remediation ?? "",
       })),
   };
+}
+
+/**
+ * What a page's deterministic rules read beyond the page: the site facts
+ * (Bing's repeated-title check) and Bing Webmaster Tools data, when the
+ * project is connected. The audit workflow passes the same.
+ */
+export function pageContext(
+  facts: SiteFacts,
+  bwt: BwtPageSnapshot | undefined,
+): Omit<EvaluationContext, "page"> {
+  return { site: { facts }, ...(bwt ? { bwt } : {}) };
 }

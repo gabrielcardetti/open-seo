@@ -60,9 +60,13 @@ async function readBounded(response: Response): Promise<string> {
 /**
  * A probe for one validated origin. Callers pass the origin through
  * `normalizeAndValidateStartUrl` first; this re-checks each hop so a redirect
- * cannot walk the checker into a private address.
+ * cannot walk the checker into a private address. With `followRedirects`
+ * off, a redirect comes back as the 3xx response itself.
  */
-export function createProbe(fetchImpl: typeof fetch = fetch): Probe {
+export function createProbe(
+  fetchImpl: typeof fetch = fetch,
+  { followRedirects = true }: { followRedirects?: boolean } = {},
+): Probe {
   return async (url, request = {}) => {
     let current = url;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
@@ -78,7 +82,12 @@ export function createProbe(fetchImpl: typeof fetch = fetch): Probe {
         return null;
       }
       const location = response.headers.get("location");
-      if (response.status >= 300 && response.status < 400 && location) {
+      if (
+        followRedirects &&
+        response.status >= 300 &&
+        response.status < 400 &&
+        location
+      ) {
         await response.body?.cancel();
         try {
           current = new URL(location, current).toString();

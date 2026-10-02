@@ -84,7 +84,7 @@ Want to go deeper?
 
 ## What each workflow does
 
-- `seo-project-setup`: verifies MCP, interviews the user about scope, goals, positioning, competitors, and key pages, and saves it all to the project's shared context. Also connects Google Search Console (or imports GSC exports).
+- `seo-project-setup`: verifies MCP, interviews the user about scope, goals, positioning, competitors, and key pages, and saves it all to the project's shared context. Also connects Google Search Console (or imports GSC exports), and offers Bing Webmaster Tools and IndexNow.
 - `seo-audit`: audits a site and explains material SEO problems, worthwhile improvements, and their likely effects on traffic and the business. A useful starting point when you have an existing site and want to understand what is worth improving.
 - `keyword-research`: finds search opportunities from seed topics and evaluates volume, difficulty, CPC, intent, and SERPs.
 - `keyword-clustering`: groups keywords by intent and maps clusters to existing or proposed pages.
@@ -100,6 +100,7 @@ Explain the difference between data sources:
 
 - OpenSEO MCP tools provide SEO data such as keyword research, exact ranked keywords, search volume, SERPs, SERP competitors, local business and Maps data, domain overviews, backlinks, saved keywords, projects, and rank trackers.
 - Google Search Console (when connected on the project's Integrations page) is the user's own first-party data — real clicks, impressions, CTR, and position. Read it live with `get_search_console_performance` instead of asking for CSV exports. It's free (no credits) and the best starting point for "what already ranks" and near-ranking opportunities.
+- Bing Webmaster Tools (when connected on the same page) adds Bing's own clicks, impressions, crawl problems, and a Google-versus-Bing view (`get_bing_overview`, `compare_search_engines`). OpenSEO keeps a daily copy because Bing only shows about six months. The project's Indexing page announces new and changed pages to Bing and other IndexNow engines; Google does not take part. All free.
 - Web search can find current market context, recent pages, reviews, docs, social profiles, and contact paths outside OpenSEO.
 - Browser/page scraping can extract page copy, headings, author names, contact links, schema, and content structure.
 - Project context (`get_project_context` / `update_project_context`) is the project's shared memory: business, goal, positioning, writing preferences, competitors, key pages, and a research log. It is free, every skill reads it, and the user can edit it on the project's Context page (in the sidebar under AI).

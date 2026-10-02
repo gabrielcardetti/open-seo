@@ -3,32 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 import { classifyPage } from "./page-classifier";
 import { evaluatePage } from "./page-evaluator";
 import type { FetchedPage } from "./page-fetch";
-import { emptySpamSignals } from "./spam-signals";
 import type { JudgedRule, RuleJudge } from "./judge";
+import { fetchedPageFixture } from "./guideline-test-support";
 
 function fetchedPage(overrides: Partial<FetchedPage> = {}): FetchedPage {
-  return {
+  return fetchedPageFixture({
     url: "https://example.com/guias/una-guia",
     finalUrl: "https://example.com/guias/una-guia",
-    statusCode: 200,
     title: "Una guía cualquiera",
     metaDescription: "Descripción",
     canonical: "https://example.com/guias/una-guia",
-    robotsMeta: null,
-    googlebotMeta: null,
-    robotsHeader: null,
     h1s: ["Una guía cualquiera"],
     wordCount: 900,
     bodyText: "Contenido de la página con bastante texto útil.",
-    structuredData: [],
-    imagesTotal: 0,
-    imagesMissingAlt: 0,
     internalLinks: 10,
     externalLinks: 2,
-    isHttps: true,
-    spamSignals: emptySpamSignals(),
     ...overrides,
-  };
+  });
 }
 
 /** A judge that answers whatever it is told to, and records what it was asked. */

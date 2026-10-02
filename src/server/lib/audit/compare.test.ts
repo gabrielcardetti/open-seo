@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { compareAudits } from "./compare";
 
+const snapshot = (hashes: Array<[string, string]>) => ({
+  pageUrls: ["/same", "/edited", "/unhashed"],
+  contentHashes: new Map(hashes),
+  issues: [],
+  verdicts: new Map<string, string>(),
+  siteVerdict: null,
+});
+
 describe("compareAudits", () => {
   it("matches issues by type and URL, and verdicts by URL", () => {
     const diff = compareAudits(
       {
         pageUrls: ["/a", "/b"],
+        contentHashes: new Map(),
         issues: [
           { issueType: "title-too-long", pageUrl: "/a" },
           { issueType: "title-too-long", pageUrl: "/b" },
@@ -18,6 +27,7 @@ describe("compareAudits", () => {
       },
       {
         pageUrls: ["/a", "/c"],
+        contentHashes: new Map(),
         issues: [
           { issueType: "title-too-long", pageUrl: "/a" },
           { issueType: "title-too-long", pageUrl: "/c" },
@@ -53,5 +63,21 @@ describe("compareAudits", () => {
     expect(diff.guidelines.improved).toEqual([
       { url: "/a", before: "revise", after: "pass" },
     ]);
+  });
+
+  it("reports pages whose content changed, not ones without a hash", () => {
+    const diff = compareAudits(
+      snapshot([
+        ["/same", "h1"],
+        ["/edited", "h2"],
+      ]),
+      snapshot([
+        ["/same", "h1"],
+        ["/edited", "h3"],
+        ["/unhashed", "h4"],
+      ]),
+    );
+
+    expect(diff.pages.changed).toEqual(["/edited"]);
   });
 });

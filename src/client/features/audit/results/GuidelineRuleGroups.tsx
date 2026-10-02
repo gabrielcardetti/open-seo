@@ -5,7 +5,7 @@ import { RULES_BY_ID } from "@/shared/guidelines/catalog";
 import {
   GuidelineFinding,
   SEVERITY_DOT,
-  WhatGoogleSays,
+  WhatTheGuidelinesSay,
 } from "./GuidelineFinding";
 import { VERDICT_STYLE } from "./GuidelineEvaluationItem";
 import type { RuleGroup } from "./guideline-view-model";
@@ -115,7 +115,7 @@ function RuleRow({
               <span className="text-foreground/80">{rule.remediation}</span>
             </p>
           )}
-          <WhatGoogleSays ruleId={group.ruleId} />
+          <WhatTheGuidelinesSay ruleId={group.ruleId} />
           <ul className="max-h-[480px] overflow-y-auto rounded border border-border bg-card divide-y divide-border">
             {shown.map(({ evaluation, finding }) => (
               <li

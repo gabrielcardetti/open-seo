@@ -24,6 +24,7 @@
     "cf-typegen": "wrangler types src/worker-configuration.d.ts --config wrangler.jsonc --config wrangler.audit.jsonc",
     "types:check": "tsc --noEmit",
     "eval:guidelines": "tsx scripts/guidelines-golden-eval.ts",
+    "check:bing-quotes": "tsx scripts/check-bing-guideline-quotes.ts",
     "format:check": "prettier --check .",
     "format:write": "prettier . --write",
     "auth:generate": "npm run auth:generate:d1 && npm run auth:generate:pg",

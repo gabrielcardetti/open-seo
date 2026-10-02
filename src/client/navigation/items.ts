@@ -9,7 +9,9 @@ import {
   Link2,
   MessageSquare,
   Radar,
+  ScanSearch,
   Search,
+  Send,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
@@ -44,6 +46,16 @@ const projectNavItems = [
     to: "/p/$projectId/search-performance" as const,
     label: "GSC Insights",
     icon: GoogleGlyphMuted,
+  },
+  {
+    to: "/p/$projectId/bing" as const,
+    label: "Bing Insights",
+    icon: ScanSearch,
+  },
+  {
+    to: "/p/$projectId/indexing" as const,
+    label: "Indexing",
+    icon: Send,
   },
   {
     to: "/p/$projectId/domain" as const,
@@ -138,6 +150,8 @@ export function getProjectNavGroups(projectId: string) {
       label: "My Site",
       items: [
         byPath("/p/$projectId/search-performance"),
+        byPath("/p/$projectId/bing"),
+        byPath("/p/$projectId/indexing"),
         byPath("/p/$projectId/rank-tracking"),
         byPath("/p/$projectId/saved"),
         byPath("/p/$projectId/audit"),

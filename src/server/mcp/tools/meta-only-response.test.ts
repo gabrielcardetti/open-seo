@@ -12,6 +12,7 @@ vi.mock("cloudflare:workers", () => ({
 }));
 
 import * as addRankTrackingKeywords from "./add-rank-tracking-keywords";
+import * as bingWebmasterTools from "./bing-webmaster-tools";
 import * as createProject from "./create-project";
 import * as createRankTracker from "./create-rank-tracker";
 import * as dataforseoResearchTools from "./dataforseo-research-tools";
@@ -23,6 +24,7 @@ import * as getDomainOverview from "./get-domain-overview";
 import * as getRankTracker from "./get-rank-tracker";
 import * as getSerpResults from "./get-serp-results";
 import * as googleAnalyticsTools from "./google-analytics-tools";
+import * as indexingTools from "./indexing-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
 import * as localSeoTools from "./local-seo-tools";
@@ -39,6 +41,7 @@ import * as whoami from "./whoami";
 
 const toolExports: Record<string, unknown> = {
   ...addRankTrackingKeywords,
+  ...bingWebmasterTools,
   ...createProject,
   ...createRankTracker,
   ...dataforseoResearchTools,
@@ -50,6 +53,7 @@ const toolExports: Record<string, unknown> = {
   ...getRankTracker,
   ...getSerpResults,
   ...googleAnalyticsTools,
+  ...indexingTools,
   ...listProjects,
   ...listSavedKeywords,
   ...localSeoTools,

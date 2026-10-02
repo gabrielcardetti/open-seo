@@ -31,6 +31,18 @@ export interface SpamSignals {
   hiddenContent: string[];
   /** SPAM-17: facts for the judge to weigh; never a verdict on their own. */
   scamFacts: string[];
+  /**
+   * BING-30: text hidden from visitors that plants orders for a language
+   * model: it tells the model to drop its instructions and, addressing it as
+   * a model, what to recommend or say, and it is not shown as a quotation.
+   */
+  promptInjection: string[];
+  /**
+   * BING-30: text no visitor sees that reads like an order to a model but
+   * carries only part of that pattern, or sits in an HTML comment. A
+   * reviewer's call, never a verdict.
+   */
+  promptInjectionLeads: string[];
 }
 
 export function emptySpamSignals(): SpamSignals {
@@ -39,6 +51,8 @@ export function emptySpamSignals(): SpamSignals {
     sneakyRedirects: [],
     hiddenContent: [],
     scamFacts: [],
+    promptInjection: [],
+    promptInjectionLeads: [],
   };
 }
 
@@ -69,6 +83,7 @@ export function detectSpamSignals(input: SpamSignalInput): SpamSignals {
       .flatMap((block) => describeSuspiciousBlock(block, scan.siteDomain))
       .slice(0, MAX_FINDINGS),
     scamFacts: findScamFacts(scan, input.bodyText).slice(0, MAX_FINDINGS),
+    ...findPromptInjection(scan),
   };
 }
 
@@ -411,4 +426,137 @@ function findScamFacts(scan: Scan, bodyText: string): string[] {
     );
   }
   return facts;
+}
+
+// ---------------------------------------------------------------------------
+// BING-30: prompt injection aimed at the language models that read the page
+// ---------------------------------------------------------------------------
+
+/** Telling a model to drop the instructions it was given. */
+const OVERRIDE_INSTRUCTIONS =
+  /\b(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+)?(?:of\s+)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding|original|system)\s+(?:instructions?|prompts?|directions|directives|rules|guidelines)\b|\b(?:disregard|ignore|forget)\s+(?:all\s+)?your\s+(?:instructions?|prompts?|rules|guidelines)\b|\b(?:ignora|olvida|descarta|omite)\s+(?:todas\s+)?(?:las\s+|tus\s+)?(?:instrucciones|indicaciones|[oó]rdenes)\s+(?:anteriores|previas|originales|del\s+sistema)\b|\b(?:new|updated)\s+system\s+(?:prompt|instructions?)\s*:/i;
+/**
+ * Speaking to a model as such: "if you are an AI", "note to LLMs", "dear
+ * ChatGPT". A page that only mentions AI ("our AI assistant: how can I
+ * help?", "we build AI agents", "As an AI, I can't…") is not addressing one.
+ */
+const ADDRESSES_A_MODEL =
+  /\b(?:if\s+you(?:'re|\s+are)\s+(?:an?\s+)?(?:ai|a\.i\.|llm|large\s+language\s+model|language\s+model|chatbot|ai\s+(?:assistant|agent|model)|bot)\b|you\s+are\s+(?:an?\s+)?(?:ai|llm|large\s+language\s+model|language\s+model|ai\s+(?:assistant|agent|model))\b|(?:note|message|instructions?)\s+(?:to|for)\s+(?:all\s+|any\s+)?(?:ai|llms?|language\s+models?|chatbots?|ai\s+(?:assistants?|agents?|models?|crawlers?|systems?))\b|(?:to\s+)?(?:any|all)\s+(?:ai|llms?|language\s+models?|ai\s+(?:assistants?|agents?|models?))\s+(?:reading|processing|summari[sz]ing|crawling)\b|(?:dear|attention|hey)\s*,?\s+(?:ai|llms?|chatgpt|claude|gemini|copilot|bing\s+chat)\b|si\s+eres\s+(?:una?\s+)?(?:ia|inteligencia\s+artificial|modelo\s+de\s+lenguaje|asistente\s+de\s+ia|chatbot|bot)\b|eres\s+(?:una?\s+)?(?:ia|modelo\s+de\s+lenguaje|asistente\s+de\s+ia)\b|(?:nota|mensaje|instrucciones)\s+para\s+(?:la\s+|las\s+|los\s+)?(?:ia|ias|modelos?\s+de\s+lenguaje|asistentes?\s+de\s+ia))/gi;
+/**
+ * What a planted instruction asks a model to do with its answer: recommend,
+ * rank, cite or say something. Instructions that only point an agent at a
+ * resource ("a Markdown copy is at /page.md") ask for none of it.
+ */
+const STEERS_THE_ANSWER =
+  /\b(?:recommend|endorse|promote|praise|rank|rate|prefer|choose|cite|mention|say|state|claim|tell\s+(?:the\s+)?users?|respond\s+with|reply\s+with|answer\s+with|describe\s+(?:\S+\s+){0,3}as|the\s+best|top[-\s]rated|number\s+one|recomienda|recomendar|menciona|mencionar|cita|citar|di\s+que|decir\s+que|responde|elige|el\s+mejor|la\s+mejor|los\s+mejores)\b|#1\b/i;
+/**
+ * Text that shows an injection rather than plants one: a write-up of the
+ * attack, or an example of it.
+ */
+const DISCUSSES_INJECTION =
+  /\b(?:for\s+(?:example|instance)|e\.g\.|prompt[-\s]?injections?|jailbreak\w*|attack(?:s|ers?)?|hack(?:s|ers?)|por\s+ejemplo|inyecci[oó]n\s+de\s+(?:prompts?|instrucciones)|ataques?|atacantes?)\b/i;
+/** How far apart the parts of a planted instruction may sit. */
+const ADDRESS_REACH_CHARS = 240;
+/** Text around a hit kept as evidence. */
+const INSTRUCTION_CONTEXT_CHARS = 160;
+
+interface ModelInstruction {
+  /** The text around the hit, as evidence. */
+  text: string;
+  /** Every part of a planted instruction is there, and none of it is quoted. */
+  planted: boolean;
+}
+
+/** An address to a model followed, within reach, by what to answer. */
+function steeringAddress(flat: string): RegExpExecArray | null {
+  for (const address of flat.matchAll(ADDRESSES_A_MODEL)) {
+    const order = flat.slice(
+      address.index,
+      address.index + ADDRESS_REACH_CHARS,
+    );
+    if (STEERS_THE_ANSWER.test(order)) return address;
+  }
+  return null;
+}
+
+/**
+ * Whether the text at `index` sits inside quotation marks: an odd number of
+ * straight double quotes before it, or an opening curly or angle quote not
+ * yet closed.
+ */
+function insideQuoteMarks(flat: string, index: number): boolean {
+  const before = flat.slice(0, index);
+  if ((before.match(/"/g)?.length ?? 0) % 2 === 1) return true;
+  if (/(?:^|[\s(:])['‘]$/.test(before.trimEnd())) return true;
+  return [
+    ["“", "”"],
+    ["«", "»"],
+    ["‘", "’"],
+  ].some(
+    ([open, close]) => before.lastIndexOf(open) > before.lastIndexOf(close),
+  );
+}
+
+/**
+ * Orders to a language model in text no visitor reads. Only the full pattern
+ * is planted: an order to drop its instructions next to a line that
+ * addresses a model and tells it what to recommend or say, with nothing
+ * presenting it as a quotation (quote marks, `<code>` or `<blockquote>`, an
+ * example in a write-up about the attack). Any one part alone is a lead:
+ * hidden i18n strings, a closed chat window or a tab quoting the attack all
+ * look like one part, and none of them is an attack.
+ */
+function findModelInstructions(
+  text: string,
+  quotedText = "",
+): ModelInstruction | null {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (!flat) return null;
+  const override = OVERRIDE_INSTRUCTIONS.exec(flat);
+  const address = steeringAddress(flat);
+  const hit = override ?? address;
+  if (!hit) return null;
+  const quoted =
+    override !== null &&
+    (quotedText
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .includes(override[0].toLowerCase()) ||
+      insideQuoteMarks(flat, override.index) ||
+      DISCUSSES_INJECTION.test(flat));
+  const start = Math.max(0, hit.index - 40);
+  return {
+    text: oneLine(flat.slice(start, start + INSTRUCTION_CONTEXT_CHARS), 200),
+    planted:
+      override !== null &&
+      address !== null &&
+      Math.abs(override.index - address.index) <= ADDRESS_REACH_CHARS &&
+      !quoted,
+  };
+}
+
+/**
+ * BING-30's findings: planted instructions in hidden blocks, and every other
+ * hit (a partial pattern in a hidden block, anything in a comment) as a lead.
+ */
+function findPromptInjection(
+  scan: Scan,
+): Pick<SpamSignals, "promptInjection" | "promptInjectionLeads"> {
+  const planted: string[] = [];
+  const leads: string[] = [];
+  for (const block of scan.hiddenBlocks) {
+    const hit = findModelInstructions(block.text, block.quotedText);
+    if (!hit) continue;
+    const where = `Hidden by inline ${block.technique} on <${block.tag}>`;
+    if (hit.planted) planted.push(`${where}: "${hit.text}"`);
+    else leads.push(`${where}, needs a look: "${hit.text}"`);
+  }
+  for (const comment of scan.comments) {
+    const hit = findModelInstructions(comment);
+    if (hit) leads.push(`In an HTML comment: "${hit.text}"`);
+  }
+  return {
+    promptInjection: planted.slice(0, MAX_FINDINGS),
+    promptInjectionLeads: leads.slice(0, MAX_FINDINGS),
+  };
 }

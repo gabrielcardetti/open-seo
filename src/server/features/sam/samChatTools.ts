@@ -58,7 +58,24 @@ import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import {
+  getIndexingCandidatesTool,
+  getIndexingLogTool,
+  getIndexingSetupTool,
+  submitUrlsForIndexingTool,
+  verifyIndexNowKeyTool,
+} from "@/server/mcp/tools/indexing-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
+import {
+  compareSearchEnginesTool,
+  getBingAiCitationsTool,
+  getBingBacklinksTool,
+  getBingCrawlHealthTool,
+  getBingKeywordStatsTool,
+  getBingOverviewTool,
+  getBingSearchPerformanceTool,
+  syncBingNowTool,
+} from "@/server/mcp/tools/bing-webmaster-tools";
 import { discoverSiteUrls, readPages, readSite } from "@/server/lib/scrape";
 import { capToolOutput } from "@/server/features/sam/samToolOutput";
 import openSeoFactSheet from "@/server/features/sam/openseo-fact-sheet.md?raw";
@@ -392,6 +409,14 @@ export function buildSamMcpTools(
     get_keyword_metrics: adaptTool(getKeywordMetricsTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
+    get_bing_overview: adaptTool(getBingOverviewTool),
+    get_bing_search_performance: adaptTool(getBingSearchPerformanceTool),
+    get_bing_crawl_health: adaptTool(getBingCrawlHealthTool),
+    get_bing_backlinks: adaptTool(getBingBacklinksTool),
+    get_bing_keyword_stats: adaptTool(getBingKeywordStatsTool),
+    compare_search_engines: adaptTool(compareSearchEnginesTool),
+    get_bing_ai_citations: adaptTool(getBingAiCitationsTool),
+    sync_bing_now: adaptTool(syncBingNowTool),
     // Unconditional like the MCP server's registrations — the GA4 launch gate
     // was removed in #505.
     get_google_analytics_organic_landing_pages: adaptObjectTool(
@@ -426,5 +451,10 @@ export function buildSamMcpTools(
     get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
     get_audit_pages: adaptTool(getAuditPagesTool),
+    get_indexing_setup: adaptTool(getIndexingSetupTool),
+    verify_indexnow_key: adaptTool(verifyIndexNowKeyTool),
+    submit_urls_for_indexing: adaptTool(submitUrlsForIndexingTool),
+    get_indexing_log: adaptTool(getIndexingLogTool),
+    get_indexing_candidates: adaptTool(getIndexingCandidatesTool),
   };
 }

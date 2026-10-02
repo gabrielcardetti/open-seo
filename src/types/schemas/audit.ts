@@ -4,6 +4,7 @@ import {
   MIN_AUDIT_PAGES,
   PAID_MAX_AUDIT_PAGES,
 } from "@/shared/audit-limits";
+import { ENGINES } from "@/shared/guidelines/engines";
 
 // ─── Server function input schemas ──────────────────────────────────────────
 
@@ -24,6 +25,9 @@ export const startAuditSchema = z.object({
     .enum(["none", "sample", "all"])
     .optional()
     .default("none"),
+  // Whose guidelines that phase judges against; the service defaults to
+  // Google's.
+  guidelineEngines: z.array(z.enum(ENGINES)).min(1).max(2).optional(),
   // Sections the crawl leaves out, as path prefixes ("/archive").
   excludedPaths: z.array(z.string().max(2048)).max(20).optional().default([]),
 });

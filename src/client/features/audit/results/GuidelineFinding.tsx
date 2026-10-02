@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/client/components/ui/badge";
 import { RULES_BY_ID } from "@/shared/guidelines/catalog";
+import { conflictNote } from "@/shared/guidelines/engine-verdicts";
 import type { GuidelineResultRow } from "./GuidelineEvaluationItem";
 import {
   findingKind,
@@ -25,6 +26,11 @@ const KIND_STYLE: Record<
     label: "Unconfirmed",
     variant: "outline",
     className: "border-dashed text-muted-foreground",
+  },
+  conflict: {
+    label: "Engines disagree",
+    variant: "outline",
+    className: "text-muted-foreground",
   },
   // Outlined, so it does not read as the filled "Revise" verdict beside it.
   warning: {
@@ -65,6 +71,9 @@ export function GuidelineFinding({
     finding.evidence,
   );
   const quote = kind === "site" ? null : rest;
+  // Where the engines disagree, the note says what each one says.
+  const hint =
+    kind === "conflict" ? conflictNote(finding.ruleId) : KIND_HINT[kind];
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -97,8 +106,8 @@ export function GuidelineFinding({
         )}
       </div>
 
-      {KIND_HINT[kind] && (
-        <p className="text-xs text-muted-foreground">{KIND_HINT[kind]}</p>
+      {hint && (
+        <p className="text-xs text-muted-foreground max-w-prose">{hint}</p>
       )}
       {finding.reason && !isStandardDowngrade(finding.reason) && (
         <p className="text-sm text-foreground/80 max-w-prose">
@@ -134,37 +143,58 @@ export function GuidelineFinding({
         </p>
       )}
 
-      {!compact && rule && <WhatGoogleSays ruleId={rule.id} />}
+      {!compact && rule && <WhatTheGuidelinesSay ruleId={rule.id} />}
     </div>
   );
 }
 
-/** The rule's official quote and source, folded away until asked for. */
-export function WhatGoogleSays({ ruleId }: { ruleId: string }) {
+const ENGINE_LABEL = { google: "Google", bing: "Bing" } as const;
+
+/**
+ * The rule's official quotes and sources, one per engine that states it,
+ * folded away until asked for.
+ */
+export function WhatTheGuidelinesSay({ ruleId }: { ruleId: string }) {
   const rule = RULES_BY_ID.get(ruleId);
-  if (!rule || (!rule.official_quote && !rule.source_url)) return null;
+  const sources = rule?.sources.filter(
+    (source) => source.official_quote || source.source_url,
+  );
+  if (!rule || !sources?.length) return null;
+  const engines = rule.engines.map((engine) => ENGINE_LABEL[engine]);
   return (
     <details className="group text-xs max-w-prose">
       <summary className="cursor-pointer w-fit text-muted-foreground hover:text-foreground select-none">
-        What Google says
+        What {engines.join(" and ")} {engines.length > 1 ? "say" : "says"}
       </summary>
-      <div className="mt-1.5 flex flex-col gap-1 border-l-2 border-primary/30 pl-3">
-        {rule.official_quote && (
-          <p className="text-muted-foreground">
-            &ldquo;{rule.official_quote}&rdquo;
-          </p>
-        )}
-        {rule.source_url && (
-          <a
-            href={rule.source_url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 w-fit text-muted-foreground hover:text-foreground hover:underline"
+      <div className="mt-1.5 flex flex-col gap-2 border-l-2 border-primary/30 pl-3">
+        {sources.map((source) => (
+          <div
+            key={`${source.engine}:${source.source_url}`}
+            className="flex flex-col gap-1"
           >
-            Source
-            <ExternalLink className="size-3" />
-          </a>
-        )}
+            {source.official_quote && (
+              <p className="text-muted-foreground">
+                {sources.length > 1 && (
+                  <span className="font-medium text-foreground/80">
+                    {ENGINE_LABEL[source.engine]}:{" "}
+                  </span>
+                )}
+                &ldquo;{source.official_quote}&rdquo;
+              </p>
+            )}
+            {source.source_url && (
+              <a
+                href={source.source_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 w-fit text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {ENGINE_LABEL[source.engine]} source
+                <ExternalLink className="size-3" />
+              </a>
+            )}
+          </div>
+        ))}
       </div>
     </details>
   );

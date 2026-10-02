@@ -1,4 +1,3 @@
-import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { CrawlerCredentialRepository } from "@/server/features/audit/repositories/CrawlerCredentialRepository";
 import {
   checkCloudflareAccessToken,
@@ -9,7 +8,7 @@ import {
   type ShopifySignatureProblem,
 } from "@/server/features/audit/services/shopifySignature";
 import { AppError } from "@/server/lib/errors";
-import { getOptionalEnvValue } from "@/server/lib/runtime-env";
+import { openSecret, sealSecret } from "@/server/lib/secretBox";
 import {
   cloudflareAccessHeaders,
   isCrawlerAccessExpired,
@@ -18,7 +17,6 @@ import {
   type CrawlerAccess,
   type CrawlerAccessProvider,
 } from "@/shared/crawler-access";
-import { MIN_BETTER_AUTH_SECRET_LENGTH } from "@/shared/selfhost-checks";
 
 /**
  * A credential as it exists at rest: in the database and in the audit
@@ -43,18 +41,7 @@ type CrawlerCredentialProblem =
   | ShopifySignatureProblem
   | CloudflareAccessProblem;
 
-// Same key as the stored Google OAuth tokens, so self-hosters have one secret
-// to set and hosted mode always has it.
-async function getEncryptionKey(): Promise<string> {
-  const secret = (await getOptionalEnvValue("BETTER_AUTH_SECRET"))?.trim();
-  if (!secret || secret.length < MIN_BETTER_AUTH_SECRET_LENGTH) {
-    throw new AppError(
-      "AUTH_CONFIG_MISSING",
-      `Set BETTER_AUTH_SECRET to at least ${MIN_BETTER_AUTH_SECRET_LENGTH} characters to store crawler access credentials. It encrypts them.`,
-    );
-  }
-  return secret;
-}
+const SECRET_PURPOSE = "crawler access credentials";
 
 /**
  * What the client is allowed to see. The stored values are access
@@ -109,7 +96,6 @@ async function saveCrawlerCredential(input: {
   | { credential: CrawlerCredentialSummary }
   | { problem: CrawlerCredentialProblem }
 > {
-  const key = await getEncryptionKey();
   const { values } = input;
   const stored =
     values.provider === "shopify"
@@ -141,8 +127,8 @@ async function saveCrawlerCredential(input: {
     projectId: input.projectId,
     host: input.host,
     provider: values.provider,
-    signatureInput: await symmetricEncrypt({ key, data: stored.first }),
-    signature: await symmetricEncrypt({ key, data: stored.second }),
+    signatureInput: await sealSecret(stored.first, SECRET_PURPOSE),
+    signature: await sealSecret(stored.second, SECRET_PURPOSE),
     expiresAt: stored.expiresAt,
     createdByUserId: input.userId,
   });
@@ -199,9 +185,8 @@ async function openCrawlerAccess(
 ): Promise<CrawlerAccess | null> {
   if (!sealed) return null;
   try {
-    const key = await getEncryptionKey();
-    const first = await symmetricDecrypt({ key, data: sealed.signatureInput });
-    const second = await symmetricDecrypt({ key, data: sealed.signature });
+    const first = await openSecret(sealed.signatureInput, SECRET_PURPOSE);
+    const second = await openSecret(sealed.signature, SECRET_PURPOSE);
     return {
       host: sealed.host,
       expiresAt: sealed.expiresAt,

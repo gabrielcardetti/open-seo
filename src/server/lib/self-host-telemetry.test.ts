@@ -32,6 +32,7 @@ const emptyCounts = {
   rankTrackingKeywordCount: 0,
   savedKeywordCount: 0,
   gscConnected: false,
+  bingConnected: false,
   samChatUsed: false,
 };
 

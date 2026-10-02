@@ -3,12 +3,10 @@ import { z } from "zod";
 import { CATALOG_VERSION } from "@/shared/guidelines/catalog";
 import type { FetchedPage } from "@/server/lib/guidelines/page-fetch";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
-import { emptySpamSignals } from "@/server/lib/guidelines/spam-signals";
-import {
-  getGuidelinesEvaluationBatchTool,
-  submitGuidelinesEvaluationTool,
-} from "./guideline-judge-tools";
+import { getGuidelinesEvaluationBatchTool } from "./guideline-judge-tools";
+import { submitGuidelinesEvaluationTool } from "./guideline-submit-tool";
 import { makeToolContext } from "./tool-test-support";
+import { fetchedPageFixture } from "@/server/lib/guidelines/guideline-test-support";
 
 const ORIGIN = "https://example.com";
 const SITE = `${ORIGIN}/#site`;
@@ -51,6 +49,9 @@ const mocks = vi.hoisted(() => ({
   getAuditForProject: vi.fn(),
   getPagesForAudit: vi.fn(),
   getJudgedUrls: vi.fn(),
+  getRuleResultsForAudit: vi.fn(),
+  getBwtSnapshots: vi.fn(),
+  fetchRobotsTxtText: vi.fn(),
   getSiteInventory: vi.fn(),
   getSiteEvaluation: vi.fn(),
   getResultsForRules: vi.fn(),
@@ -86,36 +87,29 @@ vi.mock(
 vi.mock("@/server/lib/guidelines/page-fetch", () => ({
   fetchPageForEvaluation: mocks.fetchPageForEvaluation,
 }));
+vi.mock("@/server/lib/audit/discovery", () => ({
+  fetchRobotsTxtText: mocks.fetchRobotsTxtText,
+}));
 
 function fetchedPage(url: string): FetchedPage {
-  return {
+  return fetchedPageFixture({
     url,
     finalUrl: url,
-    statusCode: 200,
     title: "Abogados en Madrid | Firma",
-    metaDescription: "",
-    canonical: null,
-    robotsMeta: null,
-    googlebotMeta: null,
-    robotsHeader: null,
-    h1s: [],
     wordCount: 430,
     bodyText: "Abogados en Madrid con experiencia.",
-    structuredData: [],
-    imagesTotal: 0,
-    imagesMissingAlt: 0,
     internalLinks: 5,
-    externalLinks: 0,
-    isHttps: true,
-    spamSignals: emptySpamSignals(),
-  };
+  });
 }
 
 beforeEach(() => {
   mocks.getProjectForOrganization.mockResolvedValue({ id: "project_1" });
   mocks.getAuditForProject.mockResolvedValue(audit);
   mocks.getPagesForAudit.mockResolvedValue(inventory);
-  mocks.getJudgedUrls.mockResolvedValue(new Set());
+  mocks.getJudgedUrls.mockResolvedValue(new Map());
+  mocks.getRuleResultsForAudit.mockResolvedValue([]);
+  mocks.getBwtSnapshots.mockResolvedValue(null);
+  mocks.fetchRobotsTxtText.mockResolvedValue(null);
   mocks.getSiteInventory.mockResolvedValue(inventory);
   mocks.getSiteEvaluation.mockResolvedValue(null);
   mocks.getResultsForRules.mockResolvedValue([]);
@@ -156,7 +150,8 @@ describe("get_guidelines_evaluation_batch", () => {
     expect(site.rule_ids).toContain("SPAM-02");
     expect(site.content).toContain("C1");
 
-    mocks.getJudgedUrls.mockResolvedValue(new Set([SITE]));
+    // The site row's stored rules say it was judged for Google.
+    mocks.getJudgedUrls.mockResolvedValue(new Map([[SITE, ["SPAM-03"]]]));
     const judged = await getGuidelinesEvaluationBatchTool.handler(
       batchArgs({ urls: [SITE] }),
       makeToolContext(),
@@ -257,5 +252,48 @@ describe("submit_guidelines_evaluation", () => {
 
     mocks.getEvaluationsForAudit.mockResolvedValue(articles("0.0.0"));
     expect(await siteAuthors()).toMatchObject({ status: "unknown" });
+  });
+
+  // Both engines' answers live in one row per URL. Judging Bing's rules
+  // must not erase the page's Google findings, nor pass what Google failed.
+  it("keeps a page's stored Google answers when a caller judges Bing's rules", async () => {
+    mocks.getRuleResultsForAudit.mockResolvedValue([
+      {
+        pageUrl: DOORWAY,
+        ruleId: "PF-Q02",
+        status: "fail",
+        severity: "high",
+        score: null,
+        confidence: null,
+        evidence: "Abogados en Madrid",
+        reason: null,
+      },
+    ]);
+    await submitGuidelinesEvaluationTool.handler(
+      {
+        projectId: "project_1",
+        auditId: "audit_1",
+        engines: ["bing"],
+        results: [
+          {
+            url: DOORWAY,
+            findings: [
+              {
+                ruleId: "BING-15",
+                status: "fail",
+                evidence: "Abogados en Madrid",
+              },
+            ],
+          },
+        ],
+      },
+      makeToolContext(),
+    );
+
+    const [page] = mocks.insertEvaluations.mock.calls[0][0];
+    expect(page.evaluation.verdict).toBe("revise");
+    expect(page.evaluation.findings.map((f) => f.ruleId)).toEqual(
+      expect.arrayContaining(["PF-Q02", "BING-15"]),
+    );
   });
 });

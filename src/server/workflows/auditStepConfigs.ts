@@ -63,3 +63,12 @@ export const GUIDELINES_PERSIST_STEP: WorkflowStepConfig = {
   retries: { limit: 3, delay: "5 seconds", backoff: "exponential" },
   timeout: "2 minutes",
 };
+
+/**
+ * Announcing changed pages to IndexNow after the audit completes. No retries:
+ * a replay would re-send URLs that were already announced.
+ */
+export const INDEXING_STEP: WorkflowStepConfig = {
+  retries: { limit: 0, delay: 0 },
+  timeout: "2 minutes",
+};

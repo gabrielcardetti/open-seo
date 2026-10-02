@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isSupportedLanguageCode } from "@/shared/keyword-locations";
+import { ENGINES } from "@/shared/guidelines/engines";
 
 export const DEFAULT_LOCATION_CODE = 2840;
 
@@ -26,4 +27,13 @@ export const languageCodeSchema = z
   })
   .describe(
     "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects).",
+  );
+
+export const guidelineEnginesSchema = z
+  .array(z.enum(ENGINES))
+  .min(1)
+  .max(2)
+  .optional()
+  .describe(
+    'Whose content guidelines to judge against: ["google"] (default), ["google","bing"], or ["bing"]. Bing adds its Webmaster Guidelines: robots.txt as Bingbot reads it, noarchive/nocache/nosnippet for Copilot citations, sitemap and redirect hygiene, grounding (content that stands on its own, one main topic, key facts first) and prompt injection. A rule both engines state is judged once for both; verdicts are reported per engine.',
   );

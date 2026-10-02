@@ -63,7 +63,9 @@ const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 } as const;
 /** "2 fail · 3 unconfirmed", the row's one-line account of its findings. */
 function findingSummary(findings: GuidelineResultRow[]): string {
   if (findings.length === 0) return "Nothing to fix";
-  const fails = findings.filter((f) => f.status === "fail").length;
+  const fails = findings.filter(
+    (f) => f.status === "fail" && findingKind(f) !== "conflict",
+  ).length;
   const unconfirmed = findings.filter(
     (f) => findingKind(f) === "unconfirmed",
   ).length;
@@ -88,12 +90,15 @@ export function GuidelineEvaluationItem({
   unanswered,
   isOpen,
   onToggle,
+  otherVerdicts = [],
 }: {
   evaluation: GuidelineEvaluationRow;
   findings: GuidelineResultRow[];
   unanswered: GuidelineResultRow[];
   isOpen: boolean;
   onToggle: () => void;
+  /** The same page's verdict under the engines not shown, side by side. */
+  otherVerdicts?: Array<{ label: string; verdict: Verdict }>;
 }) {
   const isSite = evaluation.pageType === "site";
   // Too little served text to judge (an app rendered in the browser): its
@@ -155,6 +160,11 @@ export function GuidelineEvaluationItem({
                 </Badge>
               )}
               <span>{findingSummary(findings)}</span>
+              {otherVerdicts.map(({ label, verdict }) => (
+                <span key={label}>
+                  {label}: {VERDICT_STYLE[verdict].label}
+                </span>
+              ))}
               {contentNotJudged && (
                 <Badge
                   variant="outline"

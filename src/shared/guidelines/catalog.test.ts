@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   CATALOG_VERSION,
+  ENGINES,
   GUIDELINE_RULES,
   RULES_BY_ID,
+  SOURCE_DOCUMENTS,
   computeVerdict,
+  engineVerdictFromResults,
+  evaluatedEngines,
   rulesForContext,
   verdictSeverity,
 } from "./catalog";
@@ -17,6 +21,7 @@ import {
   unjudgeableReason,
   MIN_CONFIDENCE,
 } from "./judge-map";
+import { verdictsByEngine } from "./engine-verdicts";
 
 /** A rule of the given severity, for verdict arithmetic. */
 function idOfSeverity(severity: string): string {
@@ -29,27 +34,79 @@ describe("catalog", () => {
   // The catalog is data we replace wholesale when Google updates a source
   // document. This is the test that fails on a bad or truncated replacement.
   it("parses and carries the rules it declares", () => {
-    expect(GUIDELINE_RULES).toHaveLength(107);
+    expect(GUIDELINE_RULES).toHaveLength(134);
     expect(RULES_BY_ID.size).toBe(GUIDELINE_RULES.length);
     expect(CATALOG_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("gives every rule a source to trace a finding back to", () => {
-    const untraceable = GUIDELINE_RULES.filter(
-      (rule) => !rule.source_url.startsWith("http"),
+    const untraceable = GUIDELINE_RULES.filter((rule) =>
+      rule.sources.some((source) => !source.source_url.startsWith("http")),
     );
     expect(untraceable).toEqual([]);
   });
 
   // A rule that can reject or send back a page has to show the words it rests
-  // on. A truncated quote hides whether the rule says more than Google does.
+  // on, in every engine's source. A truncated quote hides whether the rule
+  // says more than the engine does.
   it("quotes the official text in full for every critical and high rule", () => {
     const unquoted = GUIDELINE_RULES.filter(
       (rule) =>
         (rule.severity === "critical" || rule.severity === "high") &&
-        (!rule.official_quote.trim() || /\.\.\.|…/.test(rule.official_quote)),
+        rule.sources.some(
+          (source) =>
+            !source.official_quote.trim() ||
+            /\.\.\.|…/.test(source.official_quote),
+        ),
     ).map((rule) => rule.id);
     expect(unquoted).toEqual([]);
+  });
+
+  it("derives each rule's engines from its sources", () => {
+    for (const rule of GUIDELINE_RULES) {
+      expect(rule.engines, rule.id).toEqual(
+        ENGINES.filter((engine) =>
+          rule.sources.some((source) => source.engine === engine),
+        ),
+      );
+    }
+  });
+
+  // The quote checker fetches each Bing source from the document it names.
+  it("names a re-checkable document for every Bing source", () => {
+    const undocumented = GUIDELINE_RULES.flatMap((rule) =>
+      rule.sources
+        .filter(
+          (source) =>
+            source.engine === "bing" &&
+            SOURCE_DOCUMENTS[source.source]?.url !== source.source_url,
+        )
+        .map((source) => `${rule.id} ${source.source}`),
+    );
+    expect(undocumented).toEqual([]);
+  });
+
+  // A blog post is a weaker authority than the guidelines themselves: a rule
+  // resting only on one may advise, not send a page back.
+  it("caps rules sourced only from a blog at medium severity", () => {
+    const overreaching = GUIDELINE_RULES.filter(
+      (rule) =>
+        rule.sources.every((source) => source.source === "SRC-BAIANS") &&
+        (rule.severity === "critical" || rule.severity === "high"),
+    );
+    expect(overreaching).toEqual([]);
+  });
+
+  it("points every conflict at another engine's existing rule", () => {
+    for (const rule of GUIDELINE_RULES) {
+      for (const conflict of rule.conflicts_with ?? []) {
+        const other = RULES_BY_ID.get(conflict.rule_id);
+        expect(other, `${rule.id} -> ${conflict.rule_id}`).toBeDefined();
+        expect(
+          other!.engines.some((engine) => !rule.engines.includes(engine)),
+        ).toBe(true);
+      }
+    }
   });
 });
 
@@ -74,9 +131,30 @@ describe("rulesForContext", () => {
     expect(ids({ ymyl: false }).has("YMYL-02")).toBe(false);
   });
 
+  // Adding Bing's rules must not change what a default (Google) evaluation
+  // asks; asking for Bing adds its rules and the ones both engines state.
+  it("asks only the selected engines' rules", () => {
+    const google = rulesForContext({}, "page");
+    const bing = rulesForContext({}, "page", ["bing"]);
+    expect(google.every((rule) => rule.engines.includes("google"))).toBe(true);
+    expect(bing.every((rule) => rule.engines.includes("bing"))).toBe(true);
+    expect(bing.some((rule) => rule.id === "SPAM-10")).toBe(true);
+    expect(google.some((rule) => rule.id.startsWith("BING-"))).toBe(false);
+  });
+
+  it("asks Bing Webmaster Tools rules only with a Bing connection", () => {
+    const ids = (hasBwt?: boolean) =>
+      rulesForContext({ hasBwt }, "page", ["bing"]).map((rule) => rule.id);
+    expect(ids()).not.toContain("BING-36");
+    expect(ids(true)).toContain("BING-36");
+  });
+
   it("keeps unconditional rules in every context", () => {
     const always = GUIDELINE_RULES.filter(
-      (r) => r.applies_if === "always" && r.scope === "page",
+      (r) =>
+        r.applies_if === "always" &&
+        r.scope === "page" &&
+        r.engines.includes("google"),
     );
     const asked = new Set(rulesForContext({}, "page").map((r) => r.id));
     expect(always.every((r) => asked.has(r.id))).toBe(true);
@@ -168,6 +246,101 @@ describe("computeVerdict", () => {
     const summary = computeVerdict([{ id: "GONE-99", status: "fail" }]);
     expect(summary.verdict).toBe("pass");
   });
+
+  // Where Bing and Google disagree, failing Bing's preference is reported but
+  // cannot send back a page Google's guidance accepts.
+  it("lets a rule that conflicts with another engine's only warn", () => {
+    const conflicting = GUIDELINE_RULES.find((r) => r.conflicts_with?.length);
+    expect(
+      computeVerdict([{ id: conflicting!.id, status: "fail" }]).verdict,
+    ).toBe("pass_with_warnings");
+  });
+});
+
+describe("per-engine verdicts from stored results", () => {
+  const stored = [
+    { ruleId: "BING-07", status: "fail" as const, severity: "high" as const },
+    { ruleId: "PF-W10", status: "unknown" as const, severity: "high" as const },
+    {
+      ruleId: "BING-03",
+      status: "unknown" as const,
+      severity: "medium" as const,
+    },
+    {
+      ruleId: "SPAM-10",
+      status: "warn" as const,
+      severity: "critical" as const,
+    },
+  ];
+
+  it("weighs each engine's rules only", () => {
+    expect(engineVerdictFromResults(stored, "google")).toMatchObject({
+      verdict: "pass_with_warnings",
+      unknownCount: 1,
+    });
+    expect(engineVerdictFromResults(stored, "bing")).toMatchObject({
+      verdict: "revise",
+      highFails: 1,
+      unknownCount: 1,
+    });
+  });
+
+  it("reads the engines an evaluation covered back from its rows", () => {
+    expect(evaluatedEngines(stored, ["google"])).toEqual(["google", "bing"]);
+    expect(evaluatedEngines(stored.slice(1, 2), [])).toEqual(["google"]);
+    expect(evaluatedEngines([], ["google"])).toEqual(["google"]);
+  });
+
+  // WHY-01 was a critical Google rule; audits stored before it was retired
+  // were rejected on it, and must still read that way.
+  const retired = {
+    ruleId: "WHY-01",
+    status: "fail" as const,
+    severity: "critical" as const,
+  };
+
+  it("shows a one-engine evaluation's stored verdict as is", () => {
+    const evaluation = { verdict: "reject" as const, errorMessage: null };
+    expect(verdictsByEngine(evaluation, [retired], ["google"])).toEqual({
+      google: "reject",
+    });
+    expect(
+      verdictsByEngine(evaluation, [retired, stored[1]], ["google"]),
+    ).toEqual({ google: "reject" });
+  });
+
+  it("weighs a retired rule for its engine at its stored severity", () => {
+    expect(RULES_BY_ID.has(retired.ruleId)).toBe(false);
+    const mixed = [...stored, retired];
+    expect(engineVerdictFromResults(mixed, "google").verdict).toBe("reject");
+    expect(engineVerdictFromResults(mixed, "bing").verdict).toBe("revise");
+  });
+
+  // Which engines a stored evaluation was judged for is read from these
+  // rules (see `evaluatedEngines`): each belongs to one engine, applies to
+  // every page or site, and is never closed by an evaluator or a judge, so it
+  // is stored as a non-passing result on every row. Retiring one, sharing it
+  // with the other engine, or letting something pass it would silently make
+  // evaluations read as judged for fewer engines.
+  it.each([
+    ["PF-W10", "google", "page"],
+    ["PF-W10", "google", "site"],
+    ["SPAM-03", "google", "site"],
+    ["BING-30", "bing", "page"],
+    ["BING-03", "bing", "site"],
+  ] as const)(
+    "keeps %s as %s's sentinel on every %s row",
+    (id, engine, level) => {
+      const rule = RULES_BY_ID.get(id);
+      expect(rule?.engines).toEqual([engine]);
+      expect(rule?.applies_if).toBe("always");
+      expect([level, "both"]).toContain(rule?.scope);
+      // Human rules have no evaluator; BING-30's detector answers only on a hit
+      // (rule-evaluators.test.ts), and no judge may close it either.
+      expect(rule?.check === "human" || id === "BING-30").toBe(true);
+      expect(judgeableRules([rule!])).toEqual([]);
+    },
+  );
 });
 
 describe("judgeableRules", () => {

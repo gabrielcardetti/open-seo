@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AuditComparisonRepository } from "@/server/features/audit/repositories/AuditComparisonRepository";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
 import { compareAudits } from "@/server/lib/audit/compare";
@@ -10,7 +11,12 @@ import {
 } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { projectIdSchema } from "@/server/mcp/schemas";
-import { resolveAudit } from "@/server/mcp/tools/guideline-tool-support";
+import {
+  auditEngines,
+  resolveAudit,
+} from "@/server/mcp/tools/guideline-tool-support";
+import type { Engine } from "@/shared/guidelines/engines";
+import { verdictsByEngine } from "@/shared/guidelines/engine-verdicts";
 
 /** URL lists are capped in the response; counts are always exact. */
 const MAX_LISTED = 50;
@@ -31,33 +37,69 @@ type Args = { projectId: string; baseAuditId: string; auditId?: string };
 /**
  * The latest successful verdict per page URL (a page can be judged more than
  * once), and the whole-site verdict apart: its URL is a sentinel, not a page.
+ * Each engine's verdict is recomputed from the stored results (see
+ * engine-verdicts.ts); Google's sit at the top level, Bing's beside them.
  */
-async function guidelineVerdicts(auditId: string) {
-  const rows =
-    await GuidelineEvaluationRepository.getEvaluationsForAudit(auditId);
-  const site = rows.find((row) => row.pageType === "site" && !row.errorMessage);
-  const latest = new Map<string, { verdict: string; at: string }>();
-  for (const row of rows) {
-    if (row.errorMessage || !row.verdict || row.pageType === "site") continue;
-    const at = String(row.evaluatedAt ?? "");
-    const seen = latest.get(row.pageUrl);
-    if (!seen || at > seen.at) {
-      latest.set(row.pageUrl, { verdict: row.verdict, at });
-    }
+async function guidelineVerdicts(audit: { id: string; config: string }) {
+  const [rows, results] = await Promise.all([
+    GuidelineEvaluationRepository.getEvaluationsForAudit(audit.id),
+    GuidelineEvaluationRepository.getRuleResultsForAudit(audit.id),
+  ]);
+  const resultsOf = new Map<string, typeof results>();
+  for (const result of results) {
+    resultsOf.set(result.evaluationId, [
+      ...(resultsOf.get(result.evaluationId) ?? []),
+      result,
+    ]);
   }
+  const configured = auditEngines(audit);
+  const perEngine = (engine: Engine) => {
+    let siteVerdict: string | null = null;
+    const latest = new Map<string, { verdict: string; at: string }>();
+    for (const row of rows) {
+      if (row.errorMessage || !row.verdict) continue;
+      const verdict = verdictsByEngine(
+        row,
+        resultsOf.get(row.id) ?? [],
+        configured,
+      )[engine];
+      if (!verdict) continue;
+      if (row.pageType === "site") {
+        siteVerdict = verdict;
+        continue;
+      }
+      const at = String(row.evaluatedAt ?? "");
+      const seen = latest.get(row.pageUrl);
+      if (!seen || at > seen.at) latest.set(row.pageUrl, { verdict, at });
+    }
+    return {
+      verdicts: new Map(Array.from(latest, ([url, v]) => [url, v.verdict])),
+      siteVerdict,
+    };
+  };
+  const bing = perEngine("bing");
   return {
-    verdicts: new Map(Array.from(latest, ([url, v]) => [url, v.verdict])),
-    siteVerdict: site?.verdict ?? null,
+    ...perEngine("google"),
+    ...(bing.verdicts.size > 0 || bing.siteVerdict ? { bing } : {}),
   };
 }
 
-async function snapshot(auditId: string) {
+async function snapshot(audit: { id: string; config: string }) {
   const [pages, issues, guidelines] = await Promise.all([
-    AuditRepository.getPagesForAudit(auditId),
-    AuditRepository.getIssuesForAudit(auditId, {}),
-    guidelineVerdicts(auditId),
+    AuditComparisonRepository.getPageHashesForAudit(audit.id),
+    AuditRepository.getIssuesForAudit(audit.id, {}),
+    guidelineVerdicts(audit),
   ]);
-  return { pageUrls: pages.map((page) => page.url), issues, ...guidelines };
+  return {
+    pageUrls: pages.map((page) => page.url),
+    contentHashes: new Map(
+      pages.flatMap((page) =>
+        page.contentHash ? [[page.url, page.contentHash] as const] : [],
+      ),
+    ),
+    issues,
+    ...guidelines,
+  };
 }
 
 export const compareAuditsTool = {
@@ -65,11 +107,18 @@ export const compareAuditsTool = {
   config: {
     title: "Compare two site audits",
     description:
-      "Before/after between two audits of the same project: pages added and removed, each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after. issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
+      "Before/after between two audits of the same project: pages added and removed, pages whose visible text changed (pages.changed, matched by URL and content hash), each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after — Google's at the top of `guidelines`, Bing's side by side in `guidelines.bing` when either audit was judged against Bing's guidelines (null otherwise). issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
     inputSchema,
     outputSchema: z
       .object({
-        pages: looseObjectOutputSchema,
+        pages: z.looseObject({
+          added: z.array(z.string()),
+          removed: z.array(z.string()),
+          changed: z.array(z.string()),
+          addedCount: z.number(),
+          removedCount: z.number(),
+          changedCount: z.number(),
+        }),
         issues: looseObjectOutputSchema,
         guidelines: looseObjectOutputSchema,
         ...optionalMetaOutputSchema,
@@ -87,8 +136,8 @@ export const compareAuditsTool = {
       resolveAudit(args.projectId, args.auditId),
     ]);
     const [before, after] = await Promise.all([
-      snapshot(base.id),
-      snapshot(current.id),
+      snapshot(base),
+      snapshot(current),
     ]);
     const diff = compareAudits(before, after);
     // A crawl still in progress has fewer pages, so everything it has not
@@ -104,7 +153,7 @@ export const compareAuditsTool = {
     const text = [
       ...(warning ? [warning] : []),
       `Audit ${base.id} (${base.startedAt}) → ${current.id} (${current.startedAt}).`,
-      `Pages: ${diff.pages.before} → ${diff.pages.after} (+${diff.pages.added.length}, -${diff.pages.removed.length}).`,
+      `Pages: ${diff.pages.before} → ${diff.pages.after} (+${diff.pages.added.length}, -${diff.pages.removed.length}, ${diff.pages.changed.length} with changed content).`,
       `Issues: ${diff.issues.before} → ${diff.issues.after}.`,
       ...diff.issues.byType.map(
         (t) =>
@@ -129,6 +178,11 @@ export const compareAuditsTool = {
             `Whole-site guideline verdict: ${diff.guidelines.site.before ?? "none"} → ${diff.guidelines.site.after ?? "none"}.`,
           ]
         : []),
+      ...(diff.guidelines.bing
+        ? [
+            `Bing guideline verdicts: ${JSON.stringify(diff.guidelines.bing.before)} → ${JSON.stringify(diff.guidelines.bing.after)}; improved ${diff.guidelines.bing.improved.length}, worsened ${diff.guidelines.bing.worsened.length}; whole site ${diff.guidelines.bing.site.before ?? "none"} → ${diff.guidelines.bing.site.after ?? "none"}.`,
+          ]
+        : []),
     ].join("\n");
 
     return mcpResponse({
@@ -140,8 +194,10 @@ export const compareAuditsTool = {
           ...diff.pages,
           added: diff.pages.added.slice(0, MAX_LISTED),
           removed: diff.pages.removed.slice(0, MAX_LISTED),
+          changed: diff.pages.changed.slice(0, MAX_LISTED),
           addedCount: diff.pages.added.length,
           removedCount: diff.pages.removed.length,
+          changedCount: diff.pages.changed.length,
         },
         issues: {
           ...diff.issues,
@@ -155,6 +211,11 @@ export const compareAuditsTool = {
           ...diff.guidelines,
           improved: diff.guidelines.improved.slice(0, MAX_LISTED),
           worsened: diff.guidelines.worsened.slice(0, MAX_LISTED),
+          bing: diff.guidelines.bing && {
+            ...diff.guidelines.bing,
+            improved: diff.guidelines.bing.improved.slice(0, MAX_LISTED),
+            worsened: diff.guidelines.bing.worsened.slice(0, MAX_LISTED),
+          },
         },
       },
     });
