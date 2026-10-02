@@ -317,6 +317,14 @@ async function buildInventory(db: Db, user: UserRow) {
       schema.ga4Connections,
       eq(schema.ga4Connections.connectedByUserId, user.id),
     ),
+    bing_connections: await db.$count(
+      schema.bingConnections,
+      eq(schema.bingConnections.connectedByUserId, user.id),
+    ),
+    bing_api_keys: await db.$count(
+      schema.bingApiKeys,
+      eq(schema.bingApiKeys.userId, user.id),
+    ),
     api_keys: await db.$count(
       schema.apikey,
       eq(schema.apikey.referenceId, user.id),
@@ -501,6 +509,15 @@ async function erasePostgres(db: Db, user: UserRow, organizationIds: string[]) {
     await tx
       .delete(schema.ga4Connections)
       .where(eq(schema.ga4Connections.connectedByUserId, user.id));
+    // Bing connections are read with the connector's own API key, so they go
+    // with it. The key row would cascade with the user; deleting it here keeps
+    // the erasure explicit.
+    await tx
+      .delete(schema.bingConnections)
+      .where(eq(schema.bingConnections.connectedByUserId, user.id));
+    await tx
+      .delete(schema.bingApiKeys)
+      .where(eq(schema.bingApiKeys.userId, user.id));
     // apikey.reference_id mirrors the plugin's polymorphic schema and has no
     // user FK, so keys don't cascade with the user row.
     await tx

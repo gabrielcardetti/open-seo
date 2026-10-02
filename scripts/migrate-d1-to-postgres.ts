@@ -248,6 +248,14 @@ function deltaPredicate(table: string, cutoffIso: string): string | null {
       return `datetime("fetched_at") >= ${since}`;
     case "rank_snapshots":
       return `datetime("checked_at") >= ${since}`;
+    // Bing sync upserts set updated_at on every write, so in-place refreshes
+    // of older weekly buckets are caught too.
+    case "bing_query_stats":
+    case "bing_page_stats":
+      return `datetime("updated_at") >= ${since}`;
+    // One append-only snapshot per capture day.
+    case "bing_link_counts":
+      return `"captured_on" >= date('${cutoffIso}')`;
     // Audit child rows carry no timestamp of their own — scope by parent audit.
     case "audit_pages":
     case "audit_lighthouse_results":
