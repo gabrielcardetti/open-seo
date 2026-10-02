@@ -1,6 +1,8 @@
 /**
  * The sitemap watch: keep an inventory of every URL the project's sitemaps
- * list, and announce the ones that are new or whose `<lastmod>` moved.
+ * list, and announce the ones that are new or whose `<lastmod>` moved. The
+ * sitemaps are the project's tracked ones, or, while none are tracked, the
+ * ones robots.txt names plus /sitemap.xml.
  *
  * The first inventory of a project is a baseline: everything is recorded and
  * nothing is submitted, so connecting a site never blasts thousands of URLs
@@ -14,6 +16,7 @@
 import { collectSitemapEntries } from "@/server/lib/audit/discovery";
 import { AppError } from "@/server/lib/errors";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import type { UrlSubmissionSource } from "@/shared/indexing";
 import { IndexingRepository } from "./IndexingRepository";
 import {
@@ -144,10 +147,11 @@ async function diffSitemaps(projectId: string) {
       "This project has no website domain. Set one in the project settings.",
     );
   }
-  const [collected, stored] = await Promise.all([
-    collectSitemapEntries(project.domain),
+  const [tracked, stored] = await Promise.all([
+    SitemapRegistryService.trackedUrls(projectId),
     IndexingRepository.listSitemapUrls(projectId),
   ]);
+  const collected = await collectSitemapEntries(project.domain, tracked);
   const changes = computeDiff(stored, collected.entries, Date.now());
   // Past the walk's cap the inventory is partial: don't read the rest as removed.
   const removedUrls = collected.truncated ? [] : changes.removedUrls;

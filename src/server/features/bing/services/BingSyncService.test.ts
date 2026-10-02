@@ -4,7 +4,6 @@ import { resetBingTestDb } from "@/server/features/bing/bing-test-db";
 import { BingService } from "./BingService";
 import { BingSiteHealthService } from "./BingSiteHealthService";
 import { BingSyncService } from "./BingSyncService";
-import type * as Discovery from "@/server/lib/audit/discovery";
 
 const testDb = await vi.hoisted(async () => {
   const { createBingTestDb } = await import("../bing-test-db");
@@ -24,8 +23,6 @@ const client = vi.hoisted(() => ({
   submitFeed: vi.fn(),
 }));
 
-const robotsTxt = vi.hoisted(() => vi.fn());
-
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
 vi.mock("@/db", () => ({ db: testDb.db }));
 vi.mock("@/db/runBatch", () => ({
@@ -39,10 +36,6 @@ vi.mock("@/server/lib/secretBox", () => ({
 }));
 vi.mock("@/server/lib/bing/bingClient", () => ({
   createBingClient: () => client,
-}));
-vi.mock("@/server/lib/audit/discovery", async (importOriginal) => ({
-  ...(await importOriginal<typeof Discovery>()),
-  fetchRobotsTxtText: robotsTxt,
 }));
 
 const SITE = "https://example.com/";
@@ -114,7 +107,6 @@ describe("BingSyncService", () => {
     client.getLinkCounts.mockResolvedValue({ links: [], totalPages: 0 });
     client.getUserSites.mockResolvedValue([]);
     client.submitFeed.mockResolvedValue(undefined);
-    robotsTxt.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -211,15 +203,15 @@ describe("BingSyncService", () => {
     ]);
   });
 
-  it("registers sitemaps robots.txt names that Bing doesn't list", async () => {
+  it("registers tracked sitemaps Bing doesn't list, and only those", async () => {
     await seedConnection();
-    robotsTxt.mockResolvedValue(
-      [
-        "Sitemap: https://example.com/sitemap.xml",
-        "Sitemap: https://example.com/sitemap-new.xml",
-        "Sitemap: https://other.com/sitemap.xml",
-      ].join("\n"),
-    );
+    await testDb.client.executeMultiple(`
+      INSERT INTO project_sitemaps (project_id, url, source, status, created_at, updated_at) VALUES
+        ('proj_1', 'https://example.com/sitemap.xml', 'detected', 'tracked', 'now', 'now'),
+        ('proj_1', 'https://example.com/sitemap-new.xml', 'manual', 'tracked', 'now', 'now'),
+        ('proj_1', 'https://example.com/sitemap-suggested.xml', 'detected', 'suggested', 'now', 'now'),
+        ('proj_1', 'https://example.com/sitemap-ignored.xml', 'detected', 'ignored', 'now', 'now');
+    `);
     client.getFeeds.mockResolvedValue([
       feed("https://example.com/sitemap.xml"),
     ]);

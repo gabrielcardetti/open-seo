@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { SitemapRegistryRepository } from "@/server/features/sitemaps/SitemapRegistryRepository";
 import { IndexingRepository } from "./IndexingRepository";
 import { resetTestDatabase } from "./indexing-test-db";
 import { SitemapWatchService } from "./SitemapWatchService";
@@ -184,5 +185,29 @@ describe("SitemapWatchService.runSitemapCheck", () => {
       diff: { newUrls: ["https://example.com/c"], removedUrls: [] },
     });
     expect(sentUrlLists()).toEqual([["https://example.com/c"]]);
+  });
+
+  it("reads the project's tracked sitemaps, not its suggestions", async () => {
+    const now = new Date().toISOString();
+    await SitemapRegistryRepository.upsertTracked(
+      "project-1",
+      "https://example.com/news.xml",
+      now,
+    );
+    await SitemapRegistryRepository.insertIfAbsent(
+      "project-1",
+      ["https://example.com/old.xml"],
+      { source: "detected", status: "suggested" },
+      now,
+    );
+    mocks.collectSitemapEntries.mockResolvedValueOnce(
+      sitemap([["https://example.com/a", null]]),
+    );
+
+    await check();
+
+    expect(mocks.collectSitemapEntries).toHaveBeenCalledWith("example.com", [
+      "https://example.com/news.xml",
+    ]);
   });
 });

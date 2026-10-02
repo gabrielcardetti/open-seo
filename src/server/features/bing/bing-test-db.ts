@@ -3,8 +3,9 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 
 /**
- * An in-memory SQLite database with the real Bing migration applied, for
- * tests that run the Bing repositories' SQL for real. Stub `projects` and
+ * An in-memory SQLite database with the real Bing migration (and the
+ * sitemap registry the sync reads) applied, for tests that run the Bing
+ * repositories' SQL for real. Stub `projects` and
  * `user` tables stand in for the referenced tables; foreign keys are off so
  * tests seed only the rows they assert on.
  */
@@ -18,6 +19,7 @@ export async function createBingTestDb() {
       ...readFileSync("drizzle/sqlite/0053_cynical_roughhouse.sql", "utf8")
         .split("--> statement-breakpoint")
         .filter((statement) => statement.includes("bing_")),
+      readFileSync("drizzle/sqlite/0054_fixed_midnight.sql", "utf8"),
     ].join("\n"),
   );
   return { client, db: drizzle(client) };
