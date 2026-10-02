@@ -285,7 +285,7 @@ export const getIndexingCandidatesTool = {
   config: {
     title: "Preview sitemap indexing candidates",
     description:
-      "Read the project's sitemaps now and compare them with the stored inventory: URLs that are new, whose <lastmod> moved (changed), and that disappeared (removed). This is what the daily sitemap check or the deploy hook would submit; nothing is recorded or sent. When the project has no inventory yet (baseline: true), the first check only records it and submits nothing. Lists are capped at 100; counts are exact. Uses no credits.",
+      "Read the project's sitemaps now and compare them with the stored inventory: URLs that are new, whose <lastmod> moved (changed), and that disappeared (removed). This is what the daily sitemap check or the deploy hook would submit (one check sends at most 500 changed URLs; the rest wait for the next); nothing is recorded or sent. When the project has no inventory yet (baseline: true), the first check only records it and submits nothing. When nearly every lastmod moved to the current time (lastmodUnreliable: true), the sitemap stamps its generation time, so changed is empty and only new URLs would be sent. Lists are capped at 100; counts are exact. Uses no credits.",
     inputSchema: projectOnlyInput,
     outputSchema: z.looseObject({
       ok: z.boolean(),
@@ -315,6 +315,7 @@ export const getIndexingCandidatesTool = {
         diff.baseline
           ? "No inventory yet: the first check records these as the baseline and submits nothing."
           : `${diff.newUrls.length} new, ${diff.changedUrls.length} changed (would be submitted), ${diff.removedUrls.length} removed.`,
+        ...(outcome.warning ? [outcome.warning] : []),
         ...[...diff.newUrls, ...diff.changedUrls]
           .slice(0, 20)
           .map((url) => `- ${url}`),
@@ -326,6 +327,7 @@ export const getIndexingCandidatesTool = {
         origin: diff.origin,
         totalUrls: diff.totalUrls,
         truncated: diff.truncated,
+        lastmodUnreliable: diff.lastmodUnreliable,
         newCount: diff.newUrls.length,
         changedCount: diff.changedUrls.length,
         removedCount: diff.removedUrls.length,

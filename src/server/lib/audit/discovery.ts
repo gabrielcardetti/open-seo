@@ -225,6 +225,14 @@ async function readBodyCapped(
   return new TextDecoder().decode(joined);
 }
 
+/** Answers that say the server could not serve the file right now. */
+const isTransientStatus = (status: number) => status === 429 || status >= 500;
+
+/**
+ * One sitemap document's page entries and nested sitemaps. `failed` marks a
+ * read that may succeed next time (network error, timeout, 429, 5xx); a
+ * missing or malformed document is a stable answer, not a failure.
+ */
 async function fetchSitemapDocumentWithRetry(
   sitemapUrl: string,
   access?: CrawlerAccess | null,
@@ -232,8 +240,14 @@ async function fetchSitemapDocumentWithRetry(
   nestedSitemaps: string[];
   pageEntries: SitemapEntry[];
   timedOut: boolean;
+  failed: boolean;
 }> {
-  const empty = { nestedSitemaps: [], pageEntries: [], timedOut: false };
+  const empty = {
+    nestedSitemaps: [],
+    pageEntries: [],
+    timedOut: false,
+    failed: false,
+  };
   const normalizedSitemapUrl = normalizeUrl(sitemapUrl);
   if (!normalizedSitemapUrl) {
     return empty;
@@ -242,6 +256,8 @@ async function fetchSitemapDocumentWithRetry(
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt <= SITEMAP_RETRIES; attempt++) {
+    let finalUrl: string;
+    let body: string;
     try {
       const fetched = await fetchFollowingRedirects(
         normalizedSitemapUrl,
@@ -253,56 +269,77 @@ async function fetchSitemapDocumentWithRetry(
       }
       const { response } = fetched;
 
-      const finalUrl = normalizeUrl(fetched.finalUrl, normalizedSitemapUrl);
-      if (!finalUrl || !isSameOrigin(finalUrl, normalizedSitemapUrl)) {
+      const resolvedUrl = normalizeUrl(fetched.finalUrl, normalizedSitemapUrl);
+      if (!resolvedUrl || !isSameOrigin(resolvedUrl, normalizedSitemapUrl)) {
+        await response.body?.cancel();
         return empty;
       }
+      finalUrl = resolvedUrl;
 
       if (!response.ok) {
-        return empty;
+        await response.body?.cancel();
+        return { ...empty, failed: isTransientStatus(response.status) };
       }
 
-      const body = await readBodyCapped(response, MAX_SITEMAP_BYTES);
+      const text = await readBodyCapped(response, MAX_SITEMAP_BYTES);
       if (
-        body === null ||
-        !isProbablySitemapXml(response.headers.get("content-type"), body)
+        text === null ||
+        !isProbablySitemapXml(response.headers.get("content-type"), text)
       ) {
         return empty;
       }
-
-      const parsed = xmlParser.parse(body) as unknown;
-      const sections = getParsedSitemapSections(parsed);
-      const nestedSitemaps = getSitemapEntries(sections.sitemap)
-        .map((entry) => normalizeUrl(entry.url, finalUrl))
-        .filter((loc): loc is string => loc !== null);
-      const pageEntries = getSitemapEntries(sections.url).flatMap((entry) => {
-        const url = normalizeUrl(entry.url, finalUrl);
-        return url ? [{ url, lastmod: entry.lastmod }] : [];
-      });
-
-      return { nestedSitemaps, pageEntries, timedOut: false };
+      body = text;
     } catch (error) {
       lastError = error;
       if (!isTimeoutError(error) || attempt === SITEMAP_RETRIES) {
         break;
       }
+      continue;
     }
+
+    let parsed: unknown;
+    try {
+      parsed = xmlParser.parse(body);
+    } catch {
+      return empty;
+    }
+    const sections = getParsedSitemapSections(parsed);
+    const nestedSitemaps = getSitemapEntries(sections.sitemap)
+      .map((entry) => normalizeUrl(entry.url, finalUrl))
+      .filter((loc): loc is string => loc !== null);
+    const pageEntries = getSitemapEntries(sections.url).flatMap((entry) => {
+      const url = normalizeUrl(entry.url, finalUrl);
+      return url ? [{ url, lastmod: entry.lastmod }] : [];
+    });
+
+    return { nestedSitemaps, pageEntries, timedOut: false, failed: false };
   }
 
-  return { ...empty, timedOut: isTimeoutError(lastError) };
+  return { ...empty, timedOut: isTimeoutError(lastError), failed: true };
 }
+
+type SitemapWalk = {
+  /** Page URL to its `<lastmod>`, in sitemap order. */
+  urls: Map<string, string | null>;
+  /** A URL or document cap stopped the walk before every sitemap was read. */
+  truncated: boolean;
+  /** Documents that could not be read this time (timeout, network, 429, 5xx). */
+  failedSitemaps: string[];
+};
 
 /**
  * Walk the given sitemaps (and the sitemap indexes they lead to) and collect
- * up to `maxUrls` same-origin page URLs with their lastmod, in discovery
- * order. Bounded by depth and document count as well.
+ * up to `maxUrls` same-origin page URLs with their lastmod, in sitemap order:
+ * documents are read a few at a time but merged in queue order, so the same
+ * sitemaps always give the same URLs at the cap. Bounded by depth and
+ * document count as well.
  */
 async function walkSitemaps(
   origin: string,
   sitemapSources: Iterable<string>,
   maxUrls: number,
   access?: CrawlerAccess | null,
-): Promise<Map<string, string | null>> {
+): Promise<SitemapWalk> {
   const allUrls = new Map<string, string | null>();
 
   const queue: Array<{ url: string; depth: number }> = Array.from(
@@ -313,69 +350,89 @@ async function walkSitemaps(
     .filter((url) => isSameOrigin(url, origin))
     .map((url) => ({ url, depth: MAX_SITEMAP_DEPTH }));
   const seenSitemapDocs = new Set<string>();
+  /** The entry as a document to read; null for a repeat or too deep. */
+  const unreadDoc = (item: { url: string; depth: number }) => {
+    const normalizedUrl = normalizeUrl(item.url);
+    if (
+      !normalizedUrl ||
+      !isSameOrigin(normalizedUrl, origin) ||
+      item.depth <= 0 ||
+      seenSitemapDocs.has(normalizedUrl)
+    ) {
+      return null;
+    }
+    return { url: normalizedUrl, depth: item.depth };
+  };
   let fetchedDocs = 0;
   let failedDocs = 0;
   let timedOutDocs = 0;
+  let truncated = false;
+  const failedSitemaps: string[] = [];
 
-  while (queue.length > 0 && allUrls.size < maxUrls) {
-    if (fetchedDocs >= MAX_SITEMAP_DOCS) {
-      break;
+  while (
+    queue.length > 0 &&
+    allUrls.size < maxUrls &&
+    fetchedDocs < MAX_SITEMAP_DOCS
+  ) {
+    const batch: Array<{ url: string; depth: number }> = [];
+    for (const item of queue.splice(0, SITEMAP_CONCURRENCY)) {
+      const doc = unreadDoc(item);
+      if (!doc) continue;
+      seenSitemapDocs.add(doc.url);
+      batch.push(doc);
     }
-    const batch = queue.splice(0, SITEMAP_CONCURRENCY);
-    await Promise.all(
-      batch.map(async ({ url, depth }) => {
-        const normalizedUrl = normalizeUrl(url);
-        if (
-          !normalizedUrl ||
-          !isSameOrigin(normalizedUrl, origin) ||
-          depth <= 0 ||
-          seenSitemapDocs.has(normalizedUrl)
-        ) {
-          return;
-        }
+    fetchedDocs += batch.length;
 
-        seenSitemapDocs.add(normalizedUrl);
-        fetchedDocs += 1;
-
-        const result = await fetchSitemapDocumentWithRetry(
-          normalizedUrl,
-          access,
-        );
-        if (
-          result.pageEntries.length === 0 &&
-          result.nestedSitemaps.length === 0
-        ) {
-          failedDocs += 1;
-          if (result.timedOut) {
-            timedOutDocs += 1;
-          }
-          return;
-        }
-
-        for (const entry of result.pageEntries) {
-          if (!isSameOrigin(entry.url, origin)) continue;
-          if (allUrls.size >= maxUrls) break;
-          if (!allUrls.has(entry.url)) allUrls.set(entry.url, entry.lastmod);
-        }
-
-        if (depth <= 1) return;
-
-        for (const nestedUrl of result.nestedSitemaps) {
-          if (!isSameOrigin(nestedUrl, origin)) continue;
-          if (!seenSitemapDocs.has(nestedUrl)) {
-            queue.push({ url: nestedUrl, depth: depth - 1 });
-          }
-        }
-      }),
+    const results = await Promise.all(
+      batch.map(async (doc) => ({
+        ...doc,
+        result: await fetchSitemapDocumentWithRetry(doc.url, access),
+      })),
     );
+
+    for (const { url, depth, result } of results) {
+      if (result.failed) failedSitemaps.push(url);
+      if (
+        result.pageEntries.length === 0 &&
+        result.nestedSitemaps.length === 0
+      ) {
+        failedDocs += 1;
+        if (result.timedOut) {
+          timedOutDocs += 1;
+        }
+        continue;
+      }
+
+      for (const entry of result.pageEntries) {
+        if (!isSameOrigin(entry.url, origin) || allUrls.has(entry.url)) {
+          continue;
+        }
+        if (allUrls.size >= maxUrls) {
+          truncated = true;
+          break;
+        }
+        allUrls.set(entry.url, entry.lastmod);
+      }
+
+      if (depth <= 1) continue;
+
+      for (const nestedUrl of result.nestedSitemaps) {
+        if (!isSameOrigin(nestedUrl, origin)) continue;
+        if (!seenSitemapDocs.has(nestedUrl)) {
+          queue.push({ url: nestedUrl, depth: depth - 1 });
+        }
+      }
+    }
   }
+  // Documents left unread because a cap stopped the walk.
+  if (queue.some((item) => unreadDoc(item) !== null)) truncated = true;
 
   if (failedDocs > 0) {
     console.warn(
       `Sitemap discovery completed with partial failures for ${origin}: fetched=${fetchedDocs}, failed=${failedDocs}, timedOut=${timedOutDocs}, discoveredUrls=${allUrls.size}`,
     );
   }
-  return allUrls;
+  return { urls: allUrls, truncated, failedSitemaps };
 }
 
 /** Sitemaps named in robots.txt, plus the default /sitemap.xml. */
@@ -398,7 +455,7 @@ export async function discoverUrls(
   const robots = parseRobotsTxt(origin, robotsText);
 
   const maxDiscoveredUrls = Math.min(Math.max(maxPages * 20, 500), 50_000);
-  const allUrls = await walkSitemaps(
+  const { urls: allUrls } = await walkSitemaps(
     origin,
     sitemapSourcesFor(origin, robots),
     maxDiscoveredUrls,
@@ -421,26 +478,33 @@ const MAX_INVENTORY_URLS = 50_000;
  * indexing inventory. Unlike `discoverUrls` there is no crawl budget, only
  * the walk's own depth, document and URL bounds. The site is resolved first
  * (validated, redirects followed) so an apex domain that redirects to www
- * reads the www sitemaps.
+ * reads the www sitemaps. `truncated` says a cap cut the walk short (the same
+ * sitemaps are always cut at the same place); `failedSitemaps` lists the
+ * documents that could not be read this time, whose URLs are missing from
+ * `entries`.
  */
-export async function collectSitemapEntries(
-  domain: string,
-): Promise<{ origin: string; entries: SitemapEntry[]; truncated: boolean }> {
+export async function collectSitemapEntries(domain: string): Promise<{
+  origin: string;
+  entries: SitemapEntry[];
+  truncated: boolean;
+  failedSitemaps: string[];
+}> {
   const startUrl = await normalizeAndValidateStartUrl(domain);
   const { url } = await resolveStartUrlRedirects(startUrl);
   const origin = new URL(url).origin;
   const robots = parseRobotsTxt(origin, await fetchRobotsTxtText(origin));
-  const found = await walkSitemaps(
+  const walk = await walkSitemaps(
     origin,
     sitemapSourcesFor(origin, robots),
     MAX_INVENTORY_URLS,
   );
   return {
     origin,
-    entries: Array.from(found, ([pageUrl, lastmod]) => ({
+    entries: Array.from(walk.urls, ([pageUrl, lastmod]) => ({
       url: pageUrl,
       lastmod,
     })),
-    truncated: found.size >= MAX_INVENTORY_URLS,
+    truncated: walk.truncated,
+    failedSitemaps: walk.failedSitemaps,
   };
 }
