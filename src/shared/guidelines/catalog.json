@@ -4,7 +4,7 @@
   "verdict_logic": {
     "reject": ">=1 critical fail backed by evidence (deterministic, or quoted by the judge); page-level answers to site-pattern rules cap at revise",
     "revise": ">=1 high fail and 0 critical",
-    "pass_with_warnings": "only medium/low fails",
+    "pass_with_warnings": "only medium/low fails or warnings; a fail on a rule that conflicts with another engine's (conflicts_with) counts as a warning",
     "pass": "0 fails"
   },
   "source_documents": {
