@@ -18,8 +18,10 @@
  *   row, and the page waves still run without a site view.
  */
 import {
+  DEFAULT_ENGINES,
   RULES_BY_ID,
   rulesForContext,
+  type Engine,
   type GuidelineRule,
   type RuleStatus,
 } from "@/shared/guidelines/catalog";
@@ -80,8 +82,8 @@ const BYLINED_PAGE_TYPES = new Set(["article", "review"]);
  * site precondition input is known here, so `{}` keeps the gated rules
  * (SITE-06 on Search Console) out, as on pages.
  */
-function siteRules(): GuidelineRule[] {
-  return rulesForContext({}, "site").filter(
+function siteRules(engines: readonly Engine[]): GuidelineRule[] {
+  return rulesForContext({}, "site", engines).filter(
     (rule) => rule.scope === "site" || SITE_PATTERN_RULES.has(rule.id),
   );
 }
@@ -148,13 +150,16 @@ export async function evaluateSite({
   facts,
   businessOverview,
   languageJudge,
+  engines = DEFAULT_ENGINES,
 }: {
   facts: SiteFacts;
   businessOverview?: string | null;
   /** The only site judge; without one the judged rules stay unknown. */
   languageJudge?: RuleJudge | null;
+  /** Whose guidelines to judge against; Google's by default. */
+  engines?: readonly Engine[];
 }): Promise<PageEvaluation> {
-  const applicable = siteRules();
+  const applicable = siteRules(engines);
   const settled = new Map<string, JudgedRule>();
 
   // 1. What the inventory proves outright.

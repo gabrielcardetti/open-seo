@@ -16,6 +16,8 @@ export type LaunchFormValues = {
   maxPagesInput: string;
   runLighthouse: boolean;
   evaluateContent: boolean;
+  /** Also judge the content against Bing's Webmaster Guidelines. */
+  includeBing: boolean;
   /** Sections to leave out, one path per line or separated by commas. */
   excludedPathsInput: string;
 };
@@ -33,5 +35,6 @@ export const DEFAULT_LAUNCH_FORM_VALUES: LaunchFormValues = {
   maxPagesInput: String(DEFAULT_AUDIT_PAGES),
   runLighthouse: false,
   evaluateContent: false,
+  includeBing: false,
   excludedPathsInput: "",
 };

@@ -88,10 +88,8 @@ import {
   getAgentReadinessTool,
   runAgentReadinessScanTool,
 } from "@/server/mcp/tools/agent-readiness-tools";
-import {
-  getGuidelinesEvaluationBatchTool,
-  submitGuidelinesEvaluationTool,
-} from "@/server/mcp/tools/guideline-judge-tools";
+import { getGuidelinesEvaluationBatchTool } from "@/server/mcp/tools/guideline-judge-tools";
+import { submitGuidelinesEvaluationTool } from "@/server/mcp/tools/guideline-submit-tool";
 import {
   deleteSiteAuditTool,
   listSiteAuditsTool,

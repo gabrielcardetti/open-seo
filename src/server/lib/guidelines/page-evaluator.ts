@@ -13,10 +13,12 @@
 import { sort } from "remeda";
 import {
   CATALOG_VERSION,
+  DEFAULT_ENGINES,
   RULES_BY_ID,
   computeVerdict,
   rulesForContext,
   verdictSeverity,
+  type Engine,
   type GuidelineRule,
   type RuleContext,
   type Verdict,
@@ -71,7 +73,10 @@ export interface EvaluatedRule {
   clusters?: string[];
 }
 
-function toRuleContext(classification: PageClassification): RuleContext {
+function toRuleContext(
+  classification: PageClassification,
+  context: Omit<EvaluationContext, "page"> | undefined,
+): RuleContext {
   return {
     ymyl: classification.ymyl,
     isReview: classification.isReview,
@@ -81,6 +86,9 @@ function toRuleContext(classification: PageClassification): RuleContext {
     // undefined keeps their rules out of the asked set instead of guessing.
     hasGsc: undefined,
     hasCoreWebVitals: undefined,
+    // Bing Webmaster Tools data rides in the context when the project has a
+    // connection; without it the bwt rules are not asked.
+    hasBwt: context?.bwt !== undefined,
   };
 }
 
@@ -107,9 +115,14 @@ interface EvaluationPlan {
 export function planEvaluation(
   page: FetchedPage,
   context?: Omit<EvaluationContext, "page">,
+  engines: readonly Engine[] = DEFAULT_ENGINES,
 ): EvaluationPlan {
   const classification = classifyPage(page);
-  const applicable = rulesForContext(toRuleContext(classification), "page");
+  const applicable = rulesForContext(
+    toRuleContext(classification, context),
+    "page",
+    engines,
+  );
 
   const evaluationContext: EvaluationContext = { page, ...context };
   const settled = new Map<string, JudgedRule>();
@@ -212,6 +225,8 @@ export function outcomesFromSubmission(
 interface EvaluatePageOptions {
   page: FetchedPage;
   context?: Omit<EvaluationContext, "page">;
+  /** Whose guidelines to judge against; Google's by default. */
+  engines?: readonly Engine[];
   businessOverview?: string | null;
   /** Cheap, calibrated, no prose. Skipped when unavailable. */
   decisionJudge?: RuleJudge | null;
@@ -224,6 +239,7 @@ interface EvaluatePageOptions {
 export async function evaluatePage({
   page,
   context,
+  engines,
   businessOverview,
   decisionJudge,
   languageJudge,
@@ -232,6 +248,7 @@ export async function evaluatePage({
   const { classification, applicable, settled, askable } = planEvaluation(
     page,
     context,
+    engines,
   );
   const askableIds = new Set(askable.map((rule) => rule.id));
 

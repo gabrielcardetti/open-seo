@@ -44,6 +44,7 @@ export function GuidelinesTab({
             <GuidelinesView
               evaluations={data?.evaluations ?? []}
               results={data?.results ?? []}
+              engines={data?.engines ?? ["google"]}
             />
           )}
         </QueryState>

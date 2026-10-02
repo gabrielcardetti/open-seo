@@ -8,6 +8,7 @@
  */
 import { sort } from "remeda";
 import { RULES_BY_ID, type Verdict } from "@/shared/guidelines/catalog";
+import { conflictNote } from "@/shared/guidelines/engine-verdicts";
 import type {
   GuidelineEvaluationRow,
   GuidelineResultRow,
@@ -58,14 +59,23 @@ export function judgeLabel(judge: string | null): string {
  * - `fail`: a failure the judge quoted from the page.
  * - `unconfirmed`: a failure no second judge confirmed, or whose quote is not
  *   on the page. It cannot block the page; it is a lead to check.
+ * - `conflict`: a rule that is one engine's preference against another's
+ *   (Bing prefers it, Google says it is not needed). Information, never a
+ *   failure.
  * - `warning`: everything else that did not pass.
  */
-export type FindingKind = "site" | "fail" | "unconfirmed" | "warning";
+export type FindingKind =
+  | "site"
+  | "fail"
+  | "unconfirmed"
+  | "conflict"
+  | "warning";
 
 const UNCONFIRMED_REASON =
   /no second judge has confirmed|without a quote from the page|quote is not on the page|not confirmed/i;
 
 export function findingKind(finding: GuidelineResultRow): FindingKind {
+  if (conflictNote(finding.ruleId)) return "conflict";
   if (finding.status === "fail") {
     return finding.evidence?.startsWith("One of the pages in cluster")
       ? "site"
@@ -149,8 +159,9 @@ export function groupByRule(
     if (SEVERITY_RANK[finding.severity] < SEVERITY_RANK[group.severity]) {
       group.severity = finding.severity;
     }
-    if (finding.status === "fail") group.fails += 1;
-    else group.warnings += 1;
+    if (finding.status === "fail" && findingKind(finding) !== "conflict") {
+      group.fails += 1;
+    } else group.warnings += 1;
     group.entries.push({ evaluation, finding });
   }
   return sort(

@@ -8,6 +8,8 @@
  */
 import { z } from "zod";
 import {
+  DEFAULT_ENGINES,
+  ENGINES,
   RULES_BY_ID,
   VERDICTS,
   type Verdict,
@@ -28,8 +30,12 @@ const pageSchema = z.object({
   canonical: z.string().nullable(),
   robotsMeta: z.string().nullable(),
   googlebotMeta: z.string().nullable(),
+  // Fields added after the first cases were written default to what a page
+  // without them would yield.
+  bingbotMeta: z.string().nullable().default(null),
   robotsHeader: z.string().nullable(),
   h1s: z.array(z.string()),
+  headingOrder: z.array(z.number()).default([]),
   wordCount: z.number(),
   bodyText: z.string(),
   structuredData: z.array(z.unknown()),
@@ -37,6 +43,9 @@ const pageSchema = z.object({
   imagesMissingAlt: z.number(),
   internalLinks: z.number(),
   externalLinks: z.number(),
+  pdfLinks: z.number().default(0),
+  dataNosnippet: z.number().default(0),
+  collapsedWords: z.number().default(0),
   isHttps: z.boolean(),
   // Read from raw HTML, which the cases do not carry; a case that needs a
   // signal states it.
@@ -46,6 +55,8 @@ const pageSchema = z.object({
       sneakyRedirects: z.array(z.string()),
       hiddenContent: z.array(z.string()),
       scamFacts: z.array(z.string()),
+      promptInjection: z.array(z.string()).default([]),
+      promptInjectionLeads: z.array(z.string()).default([]),
     })
     .default(emptySpamSignals),
 }) satisfies z.ZodType<FetchedPage>;
@@ -53,6 +64,11 @@ const pageSchema = z.object({
 const caseSchema = z.object({
   id: z.string(),
   kind: z.enum(["legit", "technical", "spam"]),
+  /** Whose guidelines the case is judged against. */
+  engines: z
+    .array(z.enum(ENGINES))
+    .min(1)
+    .default([...DEFAULT_ENGINES]),
   description: z.string(),
   notes: z.string().optional(),
   /** The bug this case would have caught. */

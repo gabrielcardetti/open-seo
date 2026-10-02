@@ -6,6 +6,11 @@ import { z } from "zod";
 import type { PageFetchClass } from "@/shared/audit-fetch-class";
 import { MIN_AUDIT_PAGES, PAID_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 import { jsonCodec } from "@/shared/json";
+import {
+  DEFAULT_ENGINES,
+  ENGINES,
+  type Engine,
+} from "@/shared/guidelines/engines";
 
 export type LighthouseStrategy = "auto" | "none";
 
@@ -20,6 +25,8 @@ export interface AuditConfig {
   maxPages: number;
   lighthouseStrategy: LighthouseStrategy;
   guidelinesStrategy: GuidelinesStrategy;
+  /** Whose guidelines the guideline phase judges against; Google's by default. */
+  guidelineEngines?: Engine[];
   /** When non-empty, the only path prefixes the crawl covers (see crawl-scope.ts). */
   includedPaths: string[];
   /** Path prefixes the crawl leaves out, e.g. "/archive" (see crawl-scope.ts). */
@@ -55,6 +62,12 @@ const auditConfigSchema = z.object({
   maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
   lighthouseStrategy: lighthouseStrategySchema,
   guidelinesStrategy: guidelinesStrategySchema.default("none"),
+  // Audits predating Bing's rules judged Google's only.
+  guidelineEngines: z
+    .array(z.enum(ENGINES))
+    .min(1)
+    .catch([...DEFAULT_ENGINES])
+    .default([...DEFAULT_ENGINES]),
   // Audits predating path scoping have no such keys: they crawled everything.
   includedPaths: z.array(z.string()).catch([]).default([]),
   excludedPaths: z.array(z.string()).catch([]).default([]),

@@ -4,8 +4,10 @@
  *
  * Issues are matched by (issue type, URL), so a fixed title on one page shows
  * as resolved even when the same issue type is still present elsewhere.
- * Guideline verdicts are matched by URL. The whole-site verdict is not a page,
- * so it is compared on its own and kept out of the page counts.
+ * Guideline verdicts are matched by URL, per search engine: Google's at the
+ * top level as before, Bing's beside them when either audit was judged for
+ * Bing. The whole-site verdict is not a page, so it is compared on its own and
+ * kept out of the page counts.
  *
  * Pages are matched by URL; a page whose body-text hash differs is "changed".
  *
@@ -24,15 +26,20 @@ const VERDICT_RANK: Record<string, number> = {
   pass: 3,
 };
 
-interface AuditSnapshot {
-  pageUrls: readonly string[];
-  /** Body-text fingerprint by URL, for pages that have one. */
-  contentHashes: ReadonlyMap<string, string>;
-  issues: ReadonlyArray<{ issueType: string; pageUrl: string | null }>;
+interface EngineVerdicts {
   /** Page verdicts by URL. */
   verdicts: ReadonlyMap<string, string>;
   /** The whole-site verdict, when the audit has one. */
   siteVerdict: string | null;
+}
+
+/** Google's verdicts at the top level; Bing's when the audit was judged for it. */
+interface AuditSnapshot extends EngineVerdicts {
+  pageUrls: readonly string[];
+  /** Body-text fingerprint by URL, for pages that have one. */
+  contentHashes: ReadonlyMap<string, string>;
+  issues: ReadonlyArray<{ issueType: string; pageUrl: string | null }>;
+  bing?: EngineVerdicts;
 }
 
 type Issue = { issueType: string; pageUrl: string | null };
@@ -107,16 +114,7 @@ function countVerdicts(verdicts: ReadonlyMap<string, string>) {
   return counts;
 }
 
-export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
-  const basePages = new Set(base.pageUrls);
-  const currentPages = new Set(current.pageUrls);
-  // Site-level issues (no page URL) belong to both crawls.
-  const inBoth = (issue: Issue) =>
-    issue.pageUrl === null ||
-    (basePages.has(issue.pageUrl) && currentPages.has(issue.pageUrl));
-  const commonBase = base.issues.filter(inBoth);
-  const commonCurrent = current.issues.filter(inBoth);
-
+function compareVerdicts(base: EngineVerdicts, current: EngineVerdicts) {
   const improved: VerdictChange[] = [];
   const worsened: VerdictChange[] = [];
   for (const [url, after] of current.verdicts) {
@@ -129,6 +127,26 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
       worsened.push(change);
     }
   }
+  return {
+    before: countVerdicts(base.verdicts),
+    after: countVerdicts(current.verdicts),
+    improved,
+    worsened,
+    site: { before: base.siteVerdict, after: current.siteVerdict },
+  };
+}
+
+const NO_VERDICTS: EngineVerdicts = { verdicts: new Map(), siteVerdict: null };
+
+export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
+  const basePages = new Set(base.pageUrls);
+  const currentPages = new Set(current.pageUrls);
+  // Site-level issues (no page URL) belong to both crawls.
+  const inBoth = (issue: Issue) =>
+    issue.pageUrl === null ||
+    (basePages.has(issue.pageUrl) && currentPages.has(issue.pageUrl));
+  const commonBase = base.issues.filter(inBoth);
+  const commonCurrent = current.issues.filter(inBoth);
 
   return {
     pages: {
@@ -158,11 +176,14 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
       },
     },
     guidelines: {
-      before: countVerdicts(base.verdicts),
-      after: countVerdicts(current.verdicts),
-      improved,
-      worsened,
-      site: { before: base.siteVerdict, after: current.siteVerdict },
+      ...compareVerdicts(base, current),
+      bing:
+        base.bing || current.bing
+          ? compareVerdicts(
+              base.bing ?? NO_VERDICTS,
+              current.bing ?? NO_VERDICTS,
+            )
+          : null,
     },
   };
 }

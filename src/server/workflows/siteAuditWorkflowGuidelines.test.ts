@@ -3,8 +3,6 @@ import type { JudgedRule, RuleJudge } from "@/server/lib/guidelines/judge";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
 import type { FetchedPage } from "@/server/lib/guidelines/page-fetch";
 import type { SiteFacts } from "@/server/lib/guidelines/site-facts";
-import type { GuidelinesStrategy } from "@/server/lib/audit/types";
-import { emptySpamSignals } from "@/server/lib/guidelines/spam-signals";
 
 const {
   pgStepMock,
@@ -34,6 +32,7 @@ vi.mock(
       getSiteInventory: getSiteInventoryMock,
       insertEvaluations: insertEvaluationsMock,
       insertFailedEvaluation: insertFailedEvaluationMock,
+      getBwtSnapshots: async () => null,
     },
   }),
 );
@@ -52,6 +51,8 @@ vi.mock("@/server/lib/guidelines/judge-config", () => ({
 }));
 
 import { runGuidelinesPhase } from "@/server/workflows/siteAuditWorkflowGuidelines";
+import { fetchedPageFixture } from "@/server/lib/guidelines/guideline-test-support";
+import { evaluatedEngines } from "@/shared/guidelines/catalog";
 
 const ORIGIN = "https://example.com";
 const SITE_URL = `${ORIGIN}/#site`;
@@ -88,27 +89,14 @@ const inventory = [
 }));
 
 function fetchedPage(url: string): FetchedPage {
-  return {
+  return fetchedPageFixture({
     url,
     finalUrl: url,
-    statusCode: 200,
     title: "Abogados",
-    metaDescription: "",
-    canonical: null,
-    robotsMeta: null,
-    googlebotMeta: null,
-    robotsHeader: null,
-    h1s: [],
     wordCount: 430,
     bodyText: "Abogados con experiencia.",
-    structuredData: [],
-    imagesTotal: 0,
-    imagesMissingAlt: 0,
     internalLinks: 5,
-    externalLinks: 0,
-    isHttps: true,
-    spamSignals: emptySpamSignals(),
-  };
+  });
 }
 
 /** Fails doorways on the site, citing every cluster; passes everything else. */
@@ -127,19 +115,20 @@ const judge: RuleJudge = {
   },
 };
 
-const PARAMS = {
+const PARAMS: Parameters<typeof runGuidelinesPhase>[1] = {
   auditId: "audit-1",
   workflowInstanceId: "workflow-1",
   projectId: "project-1",
   startUrl: `${ORIGIN}/`,
   config: {
     maxPages: 50,
-    lighthouseStrategy: "none" as const,
-    guidelinesStrategy: "all" as GuidelinesStrategy,
+    lighthouseStrategy: "none",
+    guidelinesStrategy: "all",
     includedPaths: [],
     excludedPaths: [],
   },
   crawlCompleted: true,
+  robotsText: null,
 };
 
 // pgStep is mocked, so the opaque WorkflowStep object is never read.
@@ -259,6 +248,26 @@ describe("runGuidelinesPhase site pass", () => {
     expect(added.length).toBeLessThanOrEqual(2 * 2); // two clusters, two each
     for (const evaluation of added) {
       expect(finding(evaluation, "SPAM-02")).toMatchObject({ status: "fail" });
+    }
+  });
+
+  // Bing's rules ride the same phase when the audit asked for them, and every
+  // stored row says which engines it covers (see `evaluatedEngines`).
+  it("judges Bing's rules too when the audit was started with Bing", async () => {
+    await run({
+      ...PARAMS,
+      config: { ...PARAMS.config, guidelineEngines: ["google", "bing"] },
+      robotsText:
+        "User-agent: *\nDisallow:\n\nUser-agent: bingbot\nDisallow: /\n",
+    });
+
+    const site = stored().find((evaluation) => evaluation.url === SITE_URL);
+    expect(finding(site, "BING-01")).toMatchObject({ status: "fail" });
+    for (const evaluation of stored()) {
+      expect(evaluatedEngines(evaluation.findings, [])).toEqual([
+        "google",
+        "bing",
+      ]);
     }
   });
 

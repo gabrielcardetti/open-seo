@@ -11,7 +11,7 @@ import {
   optionalMetaOutputSchema,
 } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
-import { projectIdSchema } from "@/server/mcp/schemas";
+import { guidelineEnginesSchema, projectIdSchema } from "@/server/mcp/schemas";
 
 const auditIdSchema = z
   .string()
@@ -59,8 +59,11 @@ const runInputSchema = {
     .boolean()
     .optional()
     .describe(
-      "Also judge a sample of pages against Google's official content guidelines (people-first, E-E-A-T, spam policies, AI guidance) and give each a verdict (default false). Read the result with get_guideline_results. To judge with your own model instead, leave this off and use get_guidelines_evaluation_batch.",
+      "Also judge a sample of pages against the search engines' official content guidelines (Google's by default: people-first, E-E-A-T, spam policies, AI guidance; add Bing's with `engines`) and give each a verdict (default false). Read the result with get_guideline_results. To judge with your own model instead, leave this off and use get_guidelines_evaluation_batch.",
     ),
+  engines: guidelineEnginesSchema.describe(
+    'With evaluateContent: whose guidelines to judge against, ["google"] (default), ["google","bing"] or ["bing"]. Bing adds its Webmaster Guidelines (robots.txt for Bingbot, Copilot citation eligibility, sitemap and redirect hygiene, grounding, prompt injection); get_guideline_results then reports a verdict per engine. Ignored without evaluateContent.',
+  ),
   includePaths: z
     .array(z.string().max(2048))
     .max(20)
@@ -118,6 +121,7 @@ export const runSiteAuditTool = {
         maxPages: args.maxPages,
         lighthouseStrategy,
         guidelinesStrategy,
+        guidelineEngines: args.engines,
         includedPaths: args.includePaths,
         excludedPaths: args.excludePaths,
         limitTier,

@@ -31,6 +31,7 @@ import {
 } from "@/server/lib/audit/url-policy";
 import { reconcileRunningAudit } from "@/server/features/audit/services/auditReconciler";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
+import { DEFAULT_ENGINES, type Engine } from "@/shared/guidelines/engines";
 
 // Plan-tier limits are the abuse bound in hosted mode: free accounts get small
 // audits with a bounded burst, paid keeps the full limits, and customers with
@@ -79,6 +80,7 @@ async function startAudit(input: {
   maxPages?: number;
   lighthouseStrategy?: LighthouseStrategy;
   guidelinesStrategy?: GuidelinesStrategy;
+  guidelineEngines?: Engine[];
   includedPaths?: string[];
   excludedPaths?: string[];
   limitTier: AuditLimitTier;
@@ -147,6 +149,10 @@ async function startAudit(input: {
     maxPages,
     lighthouseStrategy,
     guidelinesStrategy,
+    // Google's guidelines unless Bing's were asked for too (or instead).
+    guidelineEngines: input.guidelineEngines?.length
+      ? [...new Set(input.guidelineEngines)]
+      : [...DEFAULT_ENGINES],
     includedPaths,
     excludedPaths,
     // Shopify storefronts answer with `powered-by: Shopify`; knowing this is

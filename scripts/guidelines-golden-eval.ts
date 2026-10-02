@@ -1,6 +1,11 @@
 import process from "node:process";
 import { chunk, sort } from "remeda";
-import { CATALOG_VERSION } from "@/shared/guidelines/catalog";
+import { z } from "zod";
+import {
+  CATALOG_VERSION,
+  ENGINES,
+  type Engine,
+} from "@/shared/guidelines/catalog";
 import {
   GOLDEN_CASES,
   caseProblems,
@@ -25,7 +30,10 @@ import { loadLocalEnv, parseArgs } from "./cli-utils";
  * to check the harness with the deterministic rules only.
  *
  * Usage:
- *   pnpm tsx scripts/guidelines-golden-eval.ts [--runs 3] [--case legit-] [--json] [--dry-run]
+ *   pnpm tsx scripts/guidelines-golden-eval.ts [--runs 3] [--case legit-] [--engines google,bing] [--json] [--dry-run]
+ *
+ * Each case is judged against its own engines (Google's unless it says
+ * otherwise); --engines judges every case against the given ones instead.
  *
  * Exits 1 when a gate fails or an evaluation errors. See
  * docs/maintainers/guidelines-evals.md.
@@ -63,6 +71,9 @@ async function main() {
     throw new Error("--runs must be a positive integer");
   }
   const dryRun = args["dry-run"] === "true";
+  const engineOverride = args.engines
+    ? z.array(z.enum(ENGINES)).min(1).parse(args.engines.split(","))
+    : null;
   const cases = GOLDEN_CASES.filter((goldenCase) =>
     goldenCase.id.includes(args.case ?? ""),
   );
@@ -87,6 +98,7 @@ async function main() {
           try {
             const evaluation = await evaluatePage({
               page: goldenCase.page,
+              engines: engineOverride ?? goldenCase.engines,
               decisionJudge,
               languageJudge,
             });
@@ -111,7 +123,7 @@ async function main() {
     );
   }
 
-  const report = score({ cases, results, judged, runs });
+  const report = score({ cases, results, judged, runs, engineOverride });
   const failedGates = [
     report.falseRejectRate !== null &&
     report.falseRejectRate > MAX_FALSE_REJECT_RATE
@@ -153,11 +165,13 @@ function score({
   results,
   judged,
   runs,
+  engineOverride,
 }: {
   cases: GoldenCase[];
   results: RunResult[];
   judged: boolean;
   runs: number;
+  engineOverride: Engine[] | null;
 }) {
   const caseById = new Map(
     cases.map((goldenCase) => [goldenCase.id, goldenCase]),
@@ -218,7 +232,11 @@ function score({
   let quotes = 0;
   const ungrounded: UngroundedQuote[] = [];
   for (const { goldenCase, evaluation, run } of completed) {
-    const settled = planEvaluation(goldenCase.page).settled;
+    const settled = planEvaluation(
+      goldenCase.page,
+      undefined,
+      engineOverride ?? goldenCase.engines,
+    ).settled;
     for (const finding of evaluation.findings) {
       if (settled.has(finding.ruleId) || !finding.evidence?.trim()) continue;
       if (finding.status !== "fail" && finding.status !== "warn") continue;

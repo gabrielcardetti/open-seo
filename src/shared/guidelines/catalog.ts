@@ -1,13 +1,20 @@
 /**
- * The Google Search guidelines rule catalog.
+ * The search-engine guidelines rule catalog.
  *
  * `catalog.json` started as the research pack's rule set and is now maintained
  * here: atomic rules distilled from Google's official documentation
  * (people-first content, spam policies, generative-AI guidance, Search
- * Essentials, the Quality Rater Guidelines). It is data, not code: it gets
- * versioned and re-checked against the source documents when Google updates
- * one, and the parse below is what catches a malformed edit at module load
- * instead of mid-audit.
+ * Essentials, the Quality Rater Guidelines) and Bing's (the Webmaster
+ * Guidelines, "How Bing delivers search results", the robots help articles).
+ * It is data, not code: it gets versioned and re-checked against the source
+ * documents when an engine updates one, and the parse below is what catches a
+ * malformed edit at module load instead of mid-audit.
+ *
+ * A rule names the engine behind each of its sources, and its `engines` are
+ * derived from them: a concept both engines state (cloaking, scraped content)
+ * is one rule with two sources, judged once for both. Where the engines
+ * disagree, the Bing rule names the Google rule in `conflicts_with`, and its
+ * failures can only warn (see `computeVerdict`).
  *
  * Severity follows how Google frames each source. `critical` is for what Google
  * calls a violation or a blocker (spam policies, pages it cannot index, YMYL
@@ -20,22 +27,26 @@
  */
 import { z } from "zod";
 import catalogJson from "./catalog.json";
+import { DEFAULT_ENGINES, ENGINES, type Engine } from "./engines";
 
 /**
  * Who can answer a rule. This is the routing key for the whole evaluation:
  * `binary` and `heuristic` rules are settled in TypeScript against data the
  * crawl already has, `llm` rules need a judge, `gsc` rules need a Search
- * Console connection, and `human`/`hybrid` rules cannot be closed by a model
- * alone.
+ * Console connection, `bwt` rules the Bing Webmaster Tools snapshots, and
+ * `human`/`hybrid` rules cannot be closed by a model alone.
  */
 const RULE_CHECKS = [
   "binary",
   "heuristic",
   "llm",
   "gsc",
+  "bwt",
   "hybrid",
   "human",
 ] as const;
+
+export { DEFAULT_ENGINES, ENGINES, type Engine } from "./engines";
 
 /** Page-level, site-level, or judged at both levels. */
 const RULE_SCOPES = ["page", "site", "both"] as const;
@@ -53,6 +64,7 @@ const RULE_PRECONDITIONS = [
   "is_review",
   "has_schema",
   "has_gsc",
+  "has_bwt",
   "has_cwv",
   "ai_suspected",
   "wants_ai_features",
@@ -82,30 +94,69 @@ export const VERDICTS = [
 export type RuleStatus = (typeof RULE_STATUSES)[number];
 export type Verdict = (typeof VERDICTS)[number];
 
-const ruleSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  category: z.string().min(1),
-  scope: z.enum(RULE_SCOPES),
-  severity: z.enum(RULE_SEVERITIES),
-  check: z.enum(RULE_CHECKS),
-  applies_if: z.enum(RULE_PRECONDITIONS),
-  question: z.string().min(1),
-  pass_if: z.string(),
-  fail_if: z.string(),
-  remediation: z.string(),
-  source: z.string(),
+/** One official document a rule rests on, with the words it says. */
+const ruleSourceSchema = z.object({
+  engine: z.enum(ENGINES),
+  /** Source id, e.g. `SRC-SPAM` or `SRC-BWG`. */
+  source: z.string().min(1),
   source_url: z.string(),
   official_quote: z.string(),
+});
+
+const ruleSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    category: z.string().min(1),
+    scope: z.enum(RULE_SCOPES),
+    severity: z.enum(RULE_SEVERITIES),
+    check: z.enum(RULE_CHECKS),
+    applies_if: z.enum(RULE_PRECONDITIONS),
+    question: z.string().min(1),
+    pass_if: z.string(),
+    fail_if: z.string(),
+    remediation: z.string(),
+    sources: z.array(ruleSourceSchema).min(1),
+    /**
+     * Rules of another engine that say the opposite, and how. A rule that
+     * names one is that engine's preference, not a requirement every engine
+     * shares, so its failure is reported but never blocks a page.
+     */
+    conflicts_with: z
+      .array(z.object({ rule_id: z.string().min(1), note: z.string().min(1) }))
+      .optional(),
+  })
+  .transform((rule) => ({
+    ...rule,
+    /** The engines the rule's sources come from, in `ENGINES` order. */
+    engines: ENGINES.filter((engine) =>
+      rule.sources.some((source) => source.engine === engine),
+    ),
+  }));
+
+/**
+ * The documents a source id points at, for the ones that are re-checked by
+ * script (see scripts/check-bing-guideline-quotes.ts). `fetch_url` is where
+ * the text can be read when the human-facing page is a JavaScript app, and
+ * `checked` the date the quotes were last matched against it: Bing's pages
+ * carry no date of their own, so the version is kept per source.
+ */
+const sourceDocumentSchema = z.object({
+  engine: z.enum(ENGINES),
+  title: z.string().min(1),
+  url: z.string().min(1),
+  fetch_url: z.string().min(1),
+  checked: z.string().min(1),
 });
 
 const catalogSchema = z.object({
   catalog_version: z.string().min(1),
   rule_count: z.number().int().positive(),
+  source_documents: z.record(z.string(), sourceDocumentSchema).default({}),
   rules: z.array(ruleSchema).min(1),
 });
 
-export type GuidelineRule = z.infer<typeof ruleSchema>;
+export type GuidelineRule = z.output<typeof ruleSchema>;
 
 /**
  * Parsed at module load. A bad catalog is a deploy-time problem, not something
@@ -133,6 +184,15 @@ export const GUIDELINE_RULES: readonly GuidelineRule[] = catalog.rules;
 export const RULES_BY_ID: ReadonlyMap<string, GuidelineRule> = new Map(
   catalog.rules.map((rule) => [rule.id, rule]),
 );
+export const SOURCE_DOCUMENTS = catalog.source_documents;
+
+/** Whether a rule is one of the given engines' guidelines. */
+export function ruleIsForEngines(
+  rule: GuidelineRule,
+  engines: readonly Engine[],
+): boolean {
+  return rule.engines.some((engine) => engines.includes(engine));
+}
 
 /**
  * What we know about a page before any rule is judged. Every field is a
@@ -144,6 +204,8 @@ export interface RuleContext {
   isReview?: boolean;
   hasSchema?: boolean;
   hasGsc?: boolean;
+  /** The project has a Bing Webmaster Tools connection. */
+  hasBwt?: boolean;
   hasCoreWebVitals?: boolean;
   aiSuspected?: boolean;
   wantsAiFeatures?: boolean;
@@ -162,6 +224,8 @@ function preconditionHolds(rule: GuidelineRule, ctx: RuleContext): boolean {
       return ctx.hasSchema === true;
     case "has_gsc":
       return ctx.hasGsc === true;
+    case "has_bwt":
+      return ctx.hasBwt === true;
     case "has_cwv":
       return ctx.hasCoreWebVitals === true;
     case "ai_suspected":
@@ -182,14 +246,19 @@ function preconditionHolds(rule: GuidelineRule, ctx: RuleContext): boolean {
  * there produces a confident, useless `pass` — one doorway page in isolation
  * looks ordinary. Site rules are judged once per domain against the URL
  * inventory instead.
+ *
+ * `engines` picks whose guidelines are asked: a rule is in when any of its
+ * sources is one of them.
  */
 export function rulesForContext(
   ctx: RuleContext,
   scope: "page" | "site",
+  engines: readonly Engine[] = DEFAULT_ENGINES,
 ): GuidelineRule[] {
   return catalog.rules.filter(
     (rule) =>
       (rule.scope === scope || rule.scope === "both") &&
+      ruleIsForEngines(rule, engines) &&
       preconditionHolds(rule, ctx),
   );
 }
@@ -236,21 +305,16 @@ interface VerdictSummary {
   publishAllowed: boolean;
 }
 
-/**
- * Rolls per-rule outcomes into one verdict, using the catalog's own
- * `verdict_logic`: any critical failure rejects (see `verdictSeverity` for
- * pattern rules judged from one page, and `RuleOutcome.level` for the ones
- * the site pass confirmed), any high failure sends the page back
- * for revision, and medium/low failures are warnings you can publish
- * with. Only `fail` can block a page. A `warn` — a detector hit, a judge's
- * unquoted or unconfirmed failure — cannot, but it keeps the page from reading
- * as a clean pass; `unknown` is the absence of an answer and counts for
- * nothing.
- */
-export function computeVerdict(
-  outcomes: readonly RuleOutcome[],
-  level: "page" | "site" = "page",
-): VerdictSummary {
+/** One answer as the verdict arithmetic reads it. */
+interface TalliedOutcome {
+  status: RuleStatus;
+  /** Null for a rule the catalog no longer carries. */
+  severity: GuidelineRule["severity"] | null;
+  /** The rule is one engine's preference against another's (`conflicts_with`). */
+  conflicting: boolean;
+}
+
+function tally(outcomes: Iterable<TalliedOutcome>): VerdictSummary {
   let criticalFails = 0;
   let highFails = 0;
   let mediumFails = 0;
@@ -260,8 +324,13 @@ export function computeVerdict(
   for (const outcome of outcomes) {
     if (outcome.status === "warn") warnings += 1;
     if (outcome.status !== "fail") continue;
-    const rule = RULES_BY_ID.get(outcome.id);
-    switch (rule && verdictSeverity(rule, outcome.level ?? level)) {
+    // Where the engines disagree, failing one engine's preference is worth
+    // knowing but never blocks a page the other engine's guidance accepts.
+    if (outcome.conflicting) {
+      warnings += 1;
+      continue;
+    }
+    switch (outcome.severity) {
       case "critical":
         criticalFails += 1;
         break;
@@ -298,4 +367,93 @@ export function computeVerdict(
     lowFails,
     publishAllowed: verdict === "pass" || verdict === "pass_with_warnings",
   };
+}
+
+const isConflicting = (rule: GuidelineRule | undefined) =>
+  (rule?.conflicts_with?.length ?? 0) > 0;
+
+/**
+ * Rolls per-rule outcomes into one verdict, using the catalog's own
+ * `verdict_logic`: any critical failure rejects (see `verdictSeverity` for
+ * pattern rules judged from one page, and `RuleOutcome.level` for the ones
+ * the site pass confirmed), any high failure sends the page back
+ * for revision, and medium/low failures are warnings you can publish
+ * with. Only `fail` can block a page. A `warn` — a detector hit, a judge's
+ * unquoted or unconfirmed failure — cannot, but it keeps the page from reading
+ * as a clean pass; `unknown` is the absence of an answer and counts for
+ * nothing. A failure on a rule that conflicts with another engine's counts as
+ * a warning.
+ */
+export function computeVerdict(
+  outcomes: readonly RuleOutcome[],
+  level: "page" | "site" = "page",
+): VerdictSummary {
+  return tally(
+    outcomes.map((outcome) => {
+      const rule = RULES_BY_ID.get(outcome.id);
+      return {
+        status: outcome.status,
+        severity: rule ? verdictSeverity(rule, outcome.level ?? level) : null,
+        conflicting: isConflicting(rule),
+      };
+    }),
+  );
+}
+
+/** A stored non-passing rule result, as `audit_rule_results` keeps it. */
+interface StoredRuleResult {
+  ruleId: string;
+  status: "fail" | "warn" | "unknown";
+  /** Already weighed at the level it was confirmed at (`verdictSeverity`). */
+  severity: GuidelineRule["severity"];
+}
+
+/**
+ * One engine's verdict, recomputed from an evaluation's stored results: the
+ * rules of other engines are left out, and the rest weigh as they did when
+ * the evaluation was stored. Only non-passing rules are stored, so the rules
+ * the engine passed are simply absent, as they would be from the verdict.
+ */
+export function engineVerdictFromResults(
+  results: readonly StoredRuleResult[],
+  engine: Engine,
+): VerdictSummary & { unknownCount: number } {
+  const own = results.flatMap((result) => {
+    const rule = RULES_BY_ID.get(result.ruleId);
+    return rule && rule.engines.includes(engine) ? [{ result, rule }] : [];
+  });
+  return {
+    ...tally(
+      own.map(({ result, rule }) => ({
+        status: result.status,
+        severity: result.severity,
+        conflicting: isConflicting(rule),
+      })),
+    ),
+    unknownCount: own.filter(({ result }) => result.status === "unknown")
+      .length,
+  };
+}
+
+/**
+ * The engines an evaluation was judged for, read back from its stored
+ * results: an engine counts when a result names a rule only that engine has.
+ *
+ * It works because every evaluation stores at least one such row per engine:
+ * the human-review rules no evaluator can close (PF-W10 and SPAM-03 for
+ * Google, BING-30's reviewer fallback and BING-03 for Bing) are recorded as
+ * `unknown` on every page and site row. A row with no results at all (one
+ * that failed to evaluate) falls back to `fallback`.
+ */
+export function evaluatedEngines(
+  results: readonly Pick<StoredRuleResult, "ruleId">[],
+  fallback: readonly Engine[],
+): Engine[] {
+  if (results.length === 0) return [...fallback];
+  const found = new Set<Engine>();
+  for (const result of results) {
+    const engines = RULES_BY_ID.get(result.ruleId)?.engines;
+    if (engines?.length === 1) found.add(engines[0]);
+  }
+  return ENGINES.filter((engine) => found.has(engine));
 }

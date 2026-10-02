@@ -31,6 +31,10 @@ export interface SpamSignals {
   hiddenContent: string[];
   /** SPAM-17: facts for the judge to weigh; never a verdict on their own. */
   scamFacts: string[];
+  /** BING-30: text hidden from visitors that gives orders to a language model. */
+  promptInjection: string[];
+  /** BING-30: the same orders in HTML comments, which no visitor sees either. */
+  promptInjectionLeads: string[];
 }
 
 export function emptySpamSignals(): SpamSignals {
@@ -39,6 +43,8 @@ export function emptySpamSignals(): SpamSignals {
     sneakyRedirects: [],
     hiddenContent: [],
     scamFacts: [],
+    promptInjection: [],
+    promptInjectionLeads: [],
   };
 }
 
@@ -69,6 +75,21 @@ export function detectSpamSignals(input: SpamSignalInput): SpamSignals {
       .flatMap((block) => describeSuspiciousBlock(block, scan.siteDomain))
       .slice(0, MAX_FINDINGS),
     scamFacts: findScamFacts(scan, input.bodyText).slice(0, MAX_FINDINGS),
+    promptInjection: scan.hiddenBlocks
+      .flatMap((block) =>
+        findModelInstructions(block.text).map(
+          (text) =>
+            `Hidden by inline ${block.technique} on <${block.tag}>: "${text}"`,
+        ),
+      )
+      .slice(0, MAX_FINDINGS),
+    promptInjectionLeads: scan.comments
+      .flatMap((comment) =>
+        findModelInstructions(comment).map(
+          (text) => `In an HTML comment: "${text}"`,
+        ),
+      )
+      .slice(0, MAX_FINDINGS),
   };
 }
 
@@ -411,4 +432,55 @@ function findScamFacts(scan: Scan, bodyText: string): string[] {
     );
   }
   return facts;
+}
+
+// ---------------------------------------------------------------------------
+// BING-30: prompt injection aimed at the language models that read the page
+// ---------------------------------------------------------------------------
+
+/** Telling a model to drop the instructions it was given. */
+const OVERRIDE_INSTRUCTIONS =
+  /\b(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+)?(?:of\s+)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding|original|system)\s+(?:instructions?|prompts?|directions|directives|rules|guidelines)\b|\b(?:ignora|olvida|descarta|omite)\s+(?:todas\s+)?(?:las\s+|tus\s+)?(?:instrucciones|indicaciones|[oó]rdenes)\s+(?:anteriores|previas|originales|del\s+sistema)\b|\b(?:new|updated)\s+system\s+(?:prompt|instructions?)\s*:/i;
+/**
+ * Speaking to a model as such: "if you are an AI", "note to LLMs", "AI
+ * assistants:". A page that only mentions AI ("our AI assistant chat") is not
+ * addressing one.
+ */
+const ADDRESSES_A_MODEL =
+  /\b(?:if\s+you(?:'re|\s+are)\s+(?:an?\s+)?(?:ai|a\.i\.|llm|large\s+language\s+model|language\s+model|chatbot|ai\s+(?:assistant|agent|model)|bot)\b|you\s+are\s+(?:an?\s+)?(?:ai|llm|large\s+language\s+model|language\s+model|ai\s+(?:assistant|agent|model))\b|(?:note|message|instructions?)\s+(?:to|for)\s+(?:all\s+|any\s+)?(?:ai|llms?|language\s+models?|chatbots?|ai\s+(?:assistants?|agents?|models?|crawlers?|systems?))\b|(?:to\s+)?(?:any|all)\s+(?:ai|llms?|language\s+models?|ai\s+(?:assistants?|agents?|models?))\s+(?:reading|processing|summari[sz]ing|crawling)\b|(?:dear|attention|hey)\s*,?\s+(?:ai|llms?|chatgpt|claude|gemini|copilot|bing\s+chat)\b|\b(?:ai|llm)\s+(?:assistants?|agents?|models?)\s*[:,]|as\s+an?\s+(?:ai|llm|large\s+language\s+model|language\s+model)(?:\s+assistant)?\s*,|si\s+eres\s+(?:una?\s+)?(?:ia|inteligencia\s+artificial|modelo\s+de\s+lenguaje|asistente\s+de\s+ia|chatbot|bot)\b|eres\s+(?:una?\s+)?(?:ia|modelo\s+de\s+lenguaje|asistente\s+de\s+ia)\b|(?:nota|mensaje|instrucciones)\s+para\s+(?:la\s+|las\s+|los\s+)?(?:ia|ias|modelos?\s+de\s+lenguaje|asistentes?\s+de\s+ia))/i;
+/**
+ * What a planted instruction asks a model to do with its answer: recommend,
+ * rank, cite or say something. Instructions that only point an agent at a
+ * resource ("a Markdown copy is at /page.md") ask for none of it.
+ */
+const STEERS_THE_ANSWER =
+  /\b(?:recommend|endorse|promote|praise|rank|rate|prefer|choose|cite|mention|say|state|claim|tell\s+(?:the\s+)?users?|respond\s+with|reply\s+with|answer\s+with|describe\s+(?:\S+\s+){0,3}as|the\s+best|top[-\s]rated|number\s+one|recomienda|recomendar|menciona|mencionar|cita|citar|di\s+que|decir\s+que|responde|elige|el\s+mejor|la\s+mejor|los\s+mejores)\b|#1\b/i;
+/** How far after an address to a model its order is looked for. */
+const ADDRESS_REACH_CHARS = 240;
+/** Text around a hit kept as evidence. */
+const INSTRUCTION_CONTEXT_CHARS = 160;
+
+/**
+ * Orders to a language model in text no visitor reads: an instruction to
+ * drop its previous ones, or a line addressed to a model that tells it what
+ * to recommend, cite or say. Where the text sits decides what it is worth; a
+ * visible article about prompt injection is never scanned here, only hidden
+ * blocks and comments are.
+ */
+function findModelInstructions(text: string): string[] {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (!flat) return [];
+  let hit = OVERRIDE_INSTRUCTIONS.exec(flat);
+  if (!hit) {
+    // The order has to follow the address, not sit somewhere else in a long
+    // hidden block that happens to mention AI.
+    const address = ADDRESSES_A_MODEL.exec(flat);
+    const order = address
+      ? flat.slice(address.index, address.index + ADDRESS_REACH_CHARS)
+      : "";
+    if (address && STEERS_THE_ANSWER.test(order)) hit = address;
+  }
+  if (!hit) return [];
+  const start = Math.max(0, hit.index - 40);
+  return [oneLine(flat.slice(start, start + INSTRUCTION_CONTEXT_CHARS), 200)];
 }

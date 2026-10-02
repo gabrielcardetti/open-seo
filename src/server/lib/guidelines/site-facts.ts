@@ -15,6 +15,11 @@
 import { sort } from "remeda";
 import { canonicalUrlKey, detectUrlTemplate } from "../audit/url-utils";
 import {
+  buildBingSiteFacts,
+  type BingInventoryPage,
+  type BingSiteFacts,
+} from "./bing-site-facts";
+import {
   normalizeText,
   skeletonGroups,
   templateTitleSkeleton,
@@ -34,8 +39,11 @@ import {
   type SiteLink,
 } from "./site-trust";
 
-/** One `audit_pages` row, slim. */
-export interface SiteInventoryPage {
+/**
+ * One `audit_pages` row, slim. The optional columns are read only by the Bing
+ * facts (see bing-site-facts.ts).
+ */
+export interface SiteInventoryPage extends BingInventoryPage {
   id: string;
   url: string;
   statusCode: number | null;
@@ -127,6 +135,8 @@ export interface SiteFacts {
   ugcSurfaces: string[];
   /** Up to 10 leads for a reviewer; never a verdict on their own. */
   tripwires: SiteTripwire[];
+  /** What Bing's site rules read: robots.txt, sitemap, redirects, duplicates. */
+  bing: BingSiteFacts;
 }
 
 /** A cluster smaller than this is a coincidence, not a pattern. */
@@ -422,6 +432,11 @@ export function buildSiteFacts(input: {
   /** The project's business overview, used by the SPAM-12 tripwire. */
   businessOverview?: string | null;
   /**
+   * robots.txt as the crawl read it, for Bing's robots rules: null when it
+   * was missing or unreadable, undefined when nobody fetched it.
+   */
+  robotsText?: string | null;
+  /**
    * The only URLs `clusterMembership` will be asked about (the pages the
    * judge reviews). Cluster member lists then keep just those, uncapped.
    */
@@ -478,6 +493,12 @@ export function buildSiteFacts(input: {
       url: clip(tripwire.url),
       title: clipOrNull(tripwire.title),
     })),
+    bing: buildBingSiteFacts({
+      pages: input.pages,
+      startUrl: input.startUrl,
+      robotsText: input.robotsText,
+      memberUrlFilter: input.memberUrlFilter,
+    }),
   };
 }
 
