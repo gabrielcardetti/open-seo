@@ -46,6 +46,7 @@ import { Route as STokenRawRouteImport } from './routes/s/$token/raw'
 import { Route as AppPProjectIdIndexRouteImport } from './routes/_app/p/$projectId/index'
 import { Route as AppPProjectIdAgentReadinessRouteImport } from './routes/_app/p/$projectId/agent-readiness'
 import { Route as AppPProjectIdBacklinksRouteImport } from './routes/_app/p/$projectId/backlinks'
+import { Route as AppPProjectIdBingRouteImport } from './routes/_app/p/$projectId/bing'
 import { Route as AppPProjectIdBrandLookupRouteImport } from './routes/_app/p/$projectId/brand-lookup'
 import { Route as AppPProjectIdContextRouteImport } from './routes/_app/p/$projectId/context'
 import { Route as AppPProjectIdDomainRouteImport } from './routes/_app/p/$projectId/domain'
@@ -255,6 +256,11 @@ const AppPProjectIdBacklinksRoute = AppPProjectIdBacklinksRouteImport.update({
   path: '/backlinks',
   getParentRoute: () => AppPProjectIdRouteRoute,
 } as any)
+const AppPProjectIdBingRoute = AppPProjectIdBingRouteImport.update({
+  id: '/bing',
+  path: '/bing',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
 const AppPProjectIdBrandLookupRoute =
   AppPProjectIdBrandLookupRouteImport.update({
     id: '/brand-lookup',
@@ -413,6 +419,7 @@ export interface FileRoutesByFullPath {
   '/s/$token/': typeof STokenIndexRoute
   '/p/$projectId/agent-readiness': typeof AppPProjectIdAgentReadinessRoute
   '/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
+  '/p/$projectId/bing': typeof AppPProjectIdBingRoute
   '/p/$projectId/brand-lookup': typeof AppPProjectIdBrandLookupRoute
   '/p/$projectId/context': typeof AppPProjectIdContextRoute
   '/p/$projectId/domain': typeof AppPProjectIdDomainRoute
@@ -469,6 +476,7 @@ export interface FileRoutesByTo {
   '/s/$token': typeof STokenIndexRoute
   '/p/$projectId/agent-readiness': typeof AppPProjectIdAgentReadinessRoute
   '/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
+  '/p/$projectId/bing': typeof AppPProjectIdBingRoute
   '/p/$projectId/brand-lookup': typeof AppPProjectIdBrandLookupRoute
   '/p/$projectId/context': typeof AppPProjectIdContextRoute
   '/p/$projectId/domain': typeof AppPProjectIdDomainRoute
@@ -529,6 +537,7 @@ export interface FileRoutesById {
   '/s/$token/': typeof STokenIndexRoute
   '/_app/p/$projectId/agent-readiness': typeof AppPProjectIdAgentReadinessRoute
   '/_app/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
+  '/_app/p/$projectId/bing': typeof AppPProjectIdBingRoute
   '/_app/p/$projectId/brand-lookup': typeof AppPProjectIdBrandLookupRoute
   '/_app/p/$projectId/context': typeof AppPProjectIdContextRoute
   '/_app/p/$projectId/domain': typeof AppPProjectIdDomainRoute
@@ -589,6 +598,7 @@ export interface FileRouteTypes {
     | '/s/$token/'
     | '/p/$projectId/agent-readiness'
     | '/p/$projectId/backlinks'
+    | '/p/$projectId/bing'
     | '/p/$projectId/brand-lookup'
     | '/p/$projectId/context'
     | '/p/$projectId/domain'
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/s/$token'
     | '/p/$projectId/agent-readiness'
     | '/p/$projectId/backlinks'
+    | '/p/$projectId/bing'
     | '/p/$projectId/brand-lookup'
     | '/p/$projectId/context'
     | '/p/$projectId/domain'
@@ -704,6 +715,7 @@ export interface FileRouteTypes {
     | '/s/$token/'
     | '/_app/p/$projectId/agent-readiness'
     | '/_app/p/$projectId/backlinks'
+    | '/_app/p/$projectId/bing'
     | '/_app/p/$projectId/brand-lookup'
     | '/_app/p/$projectId/context'
     | '/_app/p/$projectId/domain'
@@ -1011,6 +1023,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPProjectIdBacklinksRouteImport
       parentRoute: typeof AppPProjectIdRouteRoute
     }
+    '/_app/p/$projectId/bing': {
+      id: '/_app/p/$projectId/bing'
+      path: '/bing'
+      fullPath: '/p/$projectId/bing'
+      preLoaderRoute: typeof AppPProjectIdBingRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
     '/_app/p/$projectId/brand-lookup': {
       id: '/_app/p/$projectId/brand-lookup'
       path: '/brand-lookup'
@@ -1220,6 +1239,7 @@ const AppPProjectIdSettingsRouteWithChildren =
 interface AppPProjectIdRouteRouteChildren {
   AppPProjectIdAgentReadinessRoute: typeof AppPProjectIdAgentReadinessRoute
   AppPProjectIdBacklinksRoute: typeof AppPProjectIdBacklinksRoute
+  AppPProjectIdBingRoute: typeof AppPProjectIdBingRoute
   AppPProjectIdBrandLookupRoute: typeof AppPProjectIdBrandLookupRoute
   AppPProjectIdContextRoute: typeof AppPProjectIdContextRoute
   AppPProjectIdDomainRoute: typeof AppPProjectIdDomainRoute
@@ -1241,6 +1261,7 @@ interface AppPProjectIdRouteRouteChildren {
 const AppPProjectIdRouteRouteChildren: AppPProjectIdRouteRouteChildren = {
   AppPProjectIdAgentReadinessRoute: AppPProjectIdAgentReadinessRoute,
   AppPProjectIdBacklinksRoute: AppPProjectIdBacklinksRoute,
+  AppPProjectIdBingRoute: AppPProjectIdBingRoute,
   AppPProjectIdBrandLookupRoute: AppPProjectIdBrandLookupRoute,
   AppPProjectIdContextRoute: AppPProjectIdContextRoute,
   AppPProjectIdDomainRoute: AppPProjectIdDomainRoute,
