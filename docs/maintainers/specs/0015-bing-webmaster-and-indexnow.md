@@ -44,9 +44,9 @@ Every URL gets a ledger row per announcement: channel, source (manual, MCP, site
 
 URLs reach the ledger from four automatic or manual paths:
 
-- **Sitemap watch.** OpenSEO keeps an inventory of every URL the project's sitemaps list, with its `<lastmod>`. A daily check, for projects with auto-submit on, submits URLs that are new and URLs whose `<lastmod>` moved forward. Removed URLs are recorded, not announced. The first inventory is a baseline that records everything and submits nothing. When no channel is set up, the check leaves the inventory unchanged so those URLs are still new once one is. A walk that hits its URL cap does not count the URLs past the cap as removed. Connecting a Bing site starts the watch.
-- **Deploy hook.** `POST /api/indexing/hook/{projectId}`, authenticated with a per-project bearer secret. OpenSEO shows the secret once and stores only its SHA-256; rotating it invalidates the old one. An unknown project and a wrong secret get the same 401. With a `urls` list in the body (at most 2,000) those URLs are submitted; with no list, the hook runs the sitemap check. The dedupe window makes a repeated deploy a no-op.
-- **After a site audit.** When an audit completes, pages that are new or whose content hash changed since the previous completed audit of the same origin (indexable 200s only) are submitted over IndexNow, if auto-submit is on and the key is verified. The first audit of a site is a baseline. `compare_audits` reports the same changed pages as `pages.changed`.
+- **Sitemap watch.** OpenSEO keeps an inventory of every URL the project's sitemaps list, with its `<lastmod>`. A daily check, for projects with auto-submit on, submits URLs that are new and URLs whose `<lastmod>` moved forward. Removed URLs are recorded, not announced. The first inventory is a baseline that records everything and submits nothing. When no channel is set up, the check leaves the inventory unchanged so those URLs are still new once one is. A walk that hits its URL cap does not count the URLs past the cap as removed. Any indexing setup starts the watch: connecting a Bing site, generating or importing an IndexNow key, or saving indexing settings.
+- **Deploy hook.** `POST /api/indexing/hook/{projectId}`, authenticated with a per-project bearer secret. OpenSEO shows the secret once and stores only its SHA-256; rotating it invalidates the old one. An unknown project and a wrong secret get the same 401. With a `urls` list in the body (at most 2,000, in a body of at most 64 KB) those URLs are submitted; with no list, the hook runs the sitemap check. The dedupe window makes a repeated deploy a no-op.
+- **After a site audit.** When an audit completes, pages that are new or whose content hash changed since the previous completed audit of the same origin (indexable 200s only) are submitted over IndexNow, if auto-submit is on and the key is verified. The first audit of a site is a baseline. `compare_audits` reports content-changed pages as `pages.changed`, without the indexable-200 filter.
 - **Manual and MCP.** Users paste URLs on the Indexing page, and agents call `submit_urls_for_indexing`.
 
 ### MCP tools
@@ -77,9 +77,9 @@ The tools that change state (`sync_bing_now`, `verify_indexnow_key`, `submit_url
 ## Consequences
 
 - Stored history starts with the first sync (which holds Bing's current window) and grows from there; it cannot recover months Bing had already dropped before the project was connected.
-- Bing data in OpenSEO is up to a day old. Deployments that run no scheduled jobs depend on syncing on demand and on the deploy hook.
+- Bing data in OpenSEO is up to a day old. Deployments that run no scheduled jobs depend on syncing Bing on demand, and on the deploy hook for sitemap checks.
 - Bing reports no device or country split. Query and page figures are weekly buckets, and positions are impression-weighted averages over the weeks in a range, so they do not line up exactly with Search Console's daily figures.
 - Some Bing methods answer unreliably: the crawl-issue list is often empty even when problems exist, and keyword statistics are marked experimental in their tool description.
-- Rotating `BETTER_AUTH_SECRET` makes saved Bing keys unreadable; affected users save their key again and projects reconnect.
+- Rotating `BETTER_AUTH_SECRET` makes saved Bing keys unreadable; affected users save their key again, and the projects they connected resume syncing on the next scheduled run.
 - The indexing ledger records announcements, not indexing. Google is not reached by either channel; Search Console and URL inspection remain the tools for Google.
 - New Bing capabilities should extend the Bing services and read from the stored history where Bing's API allows, keeping reads free and project-scoped.

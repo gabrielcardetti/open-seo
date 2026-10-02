@@ -32,7 +32,7 @@ Search Console is optional and works in self-hosted deployments using your own G
 
 ### Bing Webmaster Tools and IndexNow
 
-Bing Webmaster Tools and IndexNow are optional and need no new environment variables. Paste a Bing Webmaster API key to keep a daily history of your Bing traffic and crawl health, and publish an IndexNow key file to announce new and changed pages to Bing and other IndexNow engines. Saved API keys are encrypted with `BETTER_AUTH_SECRET`, so set it first. See the [Bing Webmaster Tools guide on GitHub](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md).
+Bing Webmaster Tools and IndexNow are optional. Paste a Bing Webmaster API key to keep a history of your Bing traffic and crawl health, and publish an IndexNow key file to announce new and changed pages to Bing and other IndexNow engines. Saved API keys are encrypted with `BETTER_AUTH_SECRET`, the only environment variable this needs. Daily syncs and sitemap checks run only on Cloudflare deployments; on Docker you sync on demand. See the [Bing Webmaster Tools guide on GitHub](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md).
 
 ### AI features (SAM)
 

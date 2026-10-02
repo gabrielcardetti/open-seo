@@ -136,11 +136,11 @@ OpenSEO MCP exposes tools for SEO research workflows:
 - Check backlink and referring-domain overview data.
 - Read first-party Google Search Console performance (clicks, impressions, CTR, position).
 - Inspect index status, crawl, and canonical for specific URLs (up to 10 per call).
-- Read Bing Webmaster Tools data from OpenSEO's stored daily history: clicks, impressions, CTR, and position by query, page, or day, plus crawl health, crawl issues, sitemaps, and inbound links (free, no credits). Sync it on demand when you need fresher data.
+- Read Bing Webmaster Tools data, mostly from OpenSEO's stored daily history: clicks, impressions, CTR, and position by query, page, or day, plus crawl health, crawl issues, sitemaps, and inbound links (free, no credits). Organization owners and admins can sync it on demand for fresher data.
 - Compare Search Console and Bing performance side by side for the same queries or pages.
 - Read Copilot and Bing AI answer citations from an imported AI Performance export.
 - Look up Bing keyword impressions and related keywords (free, experimental).
-- Announce new and changed URLs to Bing and other IndexNow engines, verify the IndexNow key file, preview what the next sitemap check would send, and read the per-URL submission log (free, no credits). Google does not take part in IndexNow.
+- Announce new and changed URLs to Bing and other IndexNow engines, verify the IndexNow key file, preview what the next sitemap check would send, and read the per-URL submission log (free, no credits). Announcing URLs and verifying the key need an owner or admin. Google does not take part in IndexNow.
 - Read and update a project's shared context: business, goal, positioning, writing preferences, competitors, key pages, and a research log (free, no credits).
 - Save and read HTML reports on a project (free, no credits). New reports are private. On hosted OpenSEO, explicitly ask the agent to publish with `set_report_sharing` (`public: true`) or revoke the link (`public: false`). `get_report` returns `report.shareUrl` for an existing public link, or `null` when unavailable.
 - List a project's report templates, and save a reusable report brief to the project (free, no credits).

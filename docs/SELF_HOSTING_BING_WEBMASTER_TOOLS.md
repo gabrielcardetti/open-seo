@@ -22,8 +22,8 @@ these calls. Google takes part in neither; use Search Console for Google.
   ```
 
   Set it in `.env` for Docker (then run
-  `docker compose up -d --force-recreate open-seo`), as a Worker secret on
-  Cloudflare, or in `.env.local` for local development.
+  `docker compose up -d --force-recreate open-seo`), in `.env.selfhost` on
+  Cloudflare (then redeploy), or in `.env.local` for local development.
 
 There are no other environment variables. IndexNow on its own needs no Bing
 account and no secret, only a key file on your site.
@@ -48,40 +48,44 @@ owner or admin.
 ## 3) Syncing
 
 On Cloudflare deployments, a scheduled job syncs each connected project once a
-day. The first sync stores the roughly six months Bing still serves; after that
-the history keeps growing, even after Bing drops older data. You can also sync
+day. The first sync stores the roughly six months of data Bing serves. After
+that the history keeps growing, and OpenSEO keeps the days Bing drops. You can also sync
 on demand from the app or with the `sync_bing_now` MCP tool, at most once every
 ten minutes per project.
 
-Docker deployments don't run scheduled jobs, so nothing syncs by itself. Sync
-on demand, and use the deploy hook (below) to check your sitemaps after each
+Docker deployments don't run scheduled jobs, so nothing syncs by itself, not
+even the first sync after you pick a site. Sync on demand, and use the deploy hook (below) to check your sitemaps after each
 deploy.
 
 ## 4) Set up IndexNow
 
 On the project's **Indexing** page, generate a key, or import the key your site
-already publishes. Then publish the key file:
+already publishes. The project needs a website domain, and everything on this
+page except reading it needs an organization owner or admin. Then publish the
+key file:
 
 - By default the file lives at `https://your-domain/<key>.txt`.
 - It must contain the key and nothing else.
 - If you serve it somewhere else, enter that location when importing the key.
-  It must be an https URL on the project's domain.
+  It must be an https URL on the project's domain, and IndexNow then accepts
+  only URLs in that file's folder and below.
 
 Click **Verify key file**. OpenSEO fetches the file the way IndexNow will. Once
-it's verified, OpenSEO sends URLs through IndexNow. Until then it uses Bing's
-URL submission API if Bing is connected, which has a daily quota.
+it's verified, OpenSEO sends URLs through IndexNow. Until then, if Bing is
+connected, it uses Bing's URL submission API, which has daily and monthly
+quotas.
 
-New and changed URLs are announced automatically (you can turn this off on the
-same page):
+New and changed URLs are announced automatically. To stop it, turn off **Check
+sitemaps daily and after audits** on the same page.
 
 - A daily check of your sitemaps sends URLs that are new or whose `<lastmod>`
-  moved. The first check only records what's there and sends nothing. Like the
+  moved to a later date. The first check only records what's there and sends nothing. Like the
   sync, this check only runs on Cloudflare deployments; on Docker, use **Check
   and submit now** or the deploy hook.
 - After a site audit, pages that are new or whose content changed since the
   previous audit are sent over IndexNow, once the key is verified.
-- A URL sent successfully in the last 24 hours (configurable) isn't sent
-  again.
+- A URL sent successfully in the last 24 hours isn't sent again. Change the
+  window with **Skip URLs sent in the last** on the same page.
 
 ## 5) Call the deploy hook from CI
 
@@ -96,14 +100,15 @@ curl -X POST https://your-openseo-domain/api/indexing/hook/<projectId> \
 ```
 
 With an empty body, OpenSEO checks your sitemaps and sends what's new or
-changed. To send specific pages instead, pass them (up to 2,000):
+changed. To send specific pages instead, pass them (up to 2,000 URLs in a body of at most 64 KB):
 
 ```json
 { "urls": ["https://example.com/new-page", "https://example.com/pricing"] }
 ```
 
-The JSON response gives the channel used and a count per status. Calling the hook twice in a row is safe: URLs sent recently are skipped.
-Rotating the secret makes the old one stop working.
+The JSON response gives the channel used and a count per status. Calling the
+hook twice in a row is safe because URLs sent recently are skipped. **Rotate
+secret** on the Indexing page makes the old secret stop working.
 
 Your CI has to reach OpenSEO for this to work. A Docker deployment that only
 listens on `127.0.0.1` can't be called from a hosted CI runner.
@@ -137,10 +142,10 @@ this site"**: the site isn't verified in the Bing account that owns the key.
 Verify it in Bing Webmaster Tools, or save a key from the account that did.
 
 **Rate limit reached**: Bing throttles each key and each host. Wait and sync
-again later; the daily sync retries on its own.
+again later. On Cloudflare, the next daily sync retries on its own.
 
-**URLs come back `skipped_quota`**: Bing's URL submission quota is used up for
-the day. Verify an IndexNow key to stop depending on it; IndexNow has no daily
+**URLs come back `skipped_quota` (Over quota in the log)**: Bing's daily or
+monthly URL submission quota is used up. Verify an IndexNow key to stop depending on it; IndexNow has no daily
 quota.
 
 **IndexNow answers `pending` or `rejected`**: `pending` means IndexNow is still
@@ -153,4 +158,5 @@ you fix the file and verify again.
 the old secret can't be read. The member who connected the project saves their
 API key again, and the projects they connected pick it up on the next sync.
 
-`received` means the engine got the notice, not that the page is indexed.
+**A URL shows `received` but isn't indexed**: `received` and `pending` only
+mean the engine got the notice. Whether to index the page is the engine's call.
