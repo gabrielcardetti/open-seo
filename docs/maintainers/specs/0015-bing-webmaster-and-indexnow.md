@@ -32,7 +32,7 @@ Reads in the app and over MCP come from this history. Only three things call Bin
 
 ### AI Performance
 
-Bing reports how often Copilot and its AI answers cite a site, but offers no API for it. Users import the report's CSV export instead: citations per day, cited pages, and grounding queries. Imports upsert by natural key, so importing the same file twice changes nothing.
+Bing reports how often Copilot and its AI answers cite a site, but offers no API for it. Users import the report's CSV export instead: citations per day, cited pages, and grounding queries. Bing documents no format for the export, so the import recognises columns by their header names, detects which of the three reports a file holds (or takes the user's choice), asks for the exported period when a file has no date column, and reports the rows it skipped. Imports upsert by natural key, so importing the same file twice changes nothing. Importing needs permission to manage integrations.
 
 ### Indexing
 
@@ -48,6 +48,26 @@ URLs reach the ledger from four automatic or manual paths:
 - **Deploy hook.** `POST /api/indexing/hook/{projectId}`, authenticated with a per-project bearer secret. OpenSEO shows the secret once and stores only its SHA-256; rotating it invalidates the old one. An unknown project and a wrong secret get the same 401. With a `urls` list in the body (at most 2,000, in a body of at most 64 KB) those URLs are submitted; with no list, the hook runs the sitemap check. The dedupe window makes a repeated deploy a no-op.
 - **After a site audit.** When an audit completes, pages that are new or whose content hash changed since the previous completed audit of the same origin (indexable 200s only) are submitted over IndexNow, if auto-submit is on and the key is verified. The first audit of a site is a baseline. `compare_audits` reports content-changed pages as `pages.changed`, without the indexable-200 filter.
 - **Manual and MCP.** Users paste URLs on the Indexing page, and agents call `submit_urls_for_indexing`.
+
+### In the app
+
+The connection lives in a Bing Webmaster Tools card on the project's integrations settings, next to Search Console and Google Analytics. There a member saves or replaces their key, picks a site, pauses the daily sync, syncs on demand, or disconnects the project. Members who cannot manage integrations see the connection read-only.
+
+Each project has a Bing Insights page that reads the stored history. A range picker (7, 28 or 90 days, 6 or 12 months) is anchored on the newest stored day, because Bing's data lags a few days, and every range is compared with the period before it. Clicks, impressions and CTR sit above a daily chart and six tabs:
+
+- Queries and pages, sortable and filterable. Clicking a row opens a live drill-down from Bing for the same dates: the queries one page appeared for, or the pages that appeared for one query.
+- Striking distance: queries whose average position is 5 to 20, with the same drill-down.
+- Crawl health: Bingbot's daily crawl counts, the open and recently resolved crawl issues, and the sitemaps Bing knows.
+- Backlinks: inbound link counts per page from the weekly snapshot. Clicking a page lists the pages linking to it, live from Bing.
+- AI citations: the imported AI Performance data and the CSV import itself.
+
+A project without a connection sees the connection card in place of the data.
+
+### Site audits
+
+When a project has a Bing connection, a site audit adds the crawl problems Bing reported in its last sync as three issue types: `bing-malware` (critical), `bing-crawl-error` (a 4xx or 5xx status, a timeout or a DNS failure when Bingbot fetched the URL) and `bing-blocked-by-robots`. They come from the stored crawl issues; the audit never calls Bing. An issue is attached to the audit's page when the crawl reached the same URL, and reported on the URL alone when it did not. Redirect-only rows are left out, an audit lists at most 500 of Bing's URLs, and a failure reading the snapshots leaves the Bing issues out without failing the audit.
+
+Bing's Webmaster Guidelines can also be part of an audit's content evaluation; spec 0016 covers that.
 
 ### MCP tools
 
@@ -72,6 +92,10 @@ The tools that change state (`sync_bing_now`, `verify_indexnow_key`, `submit_url
 
 **IndexNow only after audits.** The audit engine runs isolated from the application's secrets because it parses untrusted HTML, so it cannot decrypt a Bing API key. An IndexNow key is not a secret (it is published on the site), so audits can use it. Projects that rely on Bing's API still get their new pages through the daily sitemap check.
 
+**Bing's crawl report inside the audit.** Bingbot can see a different site from OpenSEO's crawler: bot protection that lets one through may block the other, and a `bingbot` group in robots.txt replaces the `*` group for Bing. Adding Bing's report to the audit puts both views in one issue list that `compare_audits` tracks across audits. Reading the snapshot keeps the audit away from the Bing key (see "IndexNow only after audits") and from Bing's rate limits; the cost is that the issues are as old as the last sync.
+
+**A Bing page beside Search Console's rather than one merged view.** Bing's query and page figures are weekly buckets with no device or country split, so a merged table would mix granularities that do not line up. Each engine gets its own page with the same layout, and `compare_search_engines` sets the two side by side for agents, matched per query or page.
+
 **AI Performance by CSV.** Bing has no API for AI citations. Importing the export now gives users the data and a place to keep its history; an API can replace the import if Bing ships one.
 
 ## Consequences
@@ -82,4 +106,5 @@ The tools that change state (`sync_bing_now`, `verify_indexnow_key`, `submit_url
 - Some Bing methods answer unreliably: the crawl-issue list is often empty even when problems exist, and keyword statistics are marked experimental in their tool description.
 - Rotating `BETTER_AUTH_SECRET` makes saved Bing keys unreadable; affected users save their key again, and the projects they connected resume syncing on the next scheduled run.
 - The indexing ledger records announcements, not indexing. Google is not reached by either channel; Search Console and URL inspection remain the tools for Google.
+- Bing issues in a site audit are as fresh as the last Bing sync. On deployments without scheduled jobs that is the last on-demand sync.
 - New Bing capabilities should extend the Bing services and read from the stored history where Bing's API allows, keeping reads free and project-scoped.

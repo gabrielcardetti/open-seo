@@ -21,6 +21,7 @@ pnpm vitest run src/server/lib/guidelines/golden
 pnpm eval:guidelines --dry-run                             # no judges, no cost
 pnpm tsx scripts/guidelines-golden-eval.ts --runs 3        # stability across runs
 pnpm tsx scripts/guidelines-golden-eval.ts --case spam- --json > eval.json
+pnpm eval:guidelines --engines google,bing                 # every case against both engines
 ```
 
 The Workers AI `gateway` route needs the Worker's `AI` binding, so from Node it resolves to no decision model. To evaluate Jev, use `GUIDELINES_DECISION_MODEL=classifier`.
@@ -51,6 +52,8 @@ Run the live eval before merging a change to a prompt, the judge model, or a cri
 | `must_not_pass` | Rules no evaluator may close, such as ones that need rendering                            |
 | `ymyl`          | The expected `classifyPage(page).ymyl`                                                    |
 
+`engines` says whose guidelines the case is judged against and defaults to `["google"]`. The Bing cases (ids containing `bing`) set `["google", "bing"]`.
+
 `notes`, `regression_for` and `known_gap` are prose for the next reader. `known_gap_checks: ["ymyl"]` marks a classification the code still gets wrong. The suite asserts that the gap is still open, so the case fails once someone fixes it. Then update `ymyl` and remove the gap.
 
 ## What the deterministic suite asserts
@@ -70,3 +73,17 @@ A separate test lists the judged rules whose failure alone rejects a page. Each 
 - **Only clear-cut rules go in `must_fail`.** Put anything arguable in `notes`, or in `must_not_pass` if a `fail`, `warn` or `unknown` result would all be acceptable.
 - **Removed or renamed rules fail the case** with "is not in the catalog". Update the case in the same PR as the catalog change.
 - **Pattern rules** (`scope: "both"`, such as SPAM-02 doorways) are capped at `high` when judged on one page, so a single page can only reach `revise` on them. Site-level expectations need a site-scope pass, and none exists yet.
+
+## Bing
+
+Cases are judged against their own `engines`. `--engines google,bing` (or `bing`) overrides that for every case in a run, so Google-only cases are checked against Bing's rules too. Use it to see whether a change to a Bing rule or the judge prompt starts failing pages that Bing's guidance accepts. Without the flag, the run measures what audits do by default: Google's rules, plus Bing's on the cases that ask for them.
+
+Bing's quotes have their own check, because Bing's help pages are a JavaScript app with no visible date and a rewrite shows up only as quotes that stop matching:
+
+```sh
+pnpm check:bing-quotes
+```
+
+It fetches each Bing source document in `source_documents` from its `fetch_url`, reduces it to text, and checks that every Bing `official_quote` appears in it after whitespace is collapsed. Nothing else is normalized, so quotes keep Bing's typography (non-breaking hyphens, curly apostrophes). It exits 1 when a quote no longer matches, a source document can't be fetched, or a rule cites a source with no document. It needs network access and no keys.
+
+Run it before editing a Bing rule, before a release that touches the catalog, and every month or so otherwise. When a quote stops matching, read the new text, update the rule's quote and, if the guidance changed, its question and criteria, then set that document's `checked` date to the day you matched it. Re-run the live eval on the Bing cases after any change to a Bing rule's criteria.
