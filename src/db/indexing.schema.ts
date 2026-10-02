@@ -11,6 +11,10 @@ import {
   URL_SUBMISSION_SOURCES,
   URL_SUBMISSION_STATUSES,
 } from "@/shared/indexing";
+import {
+  PROJECT_SITEMAP_SOURCES,
+  PROJECT_SITEMAP_STATUSES,
+} from "@/shared/sitemaps";
 import { projects } from "./app.schema";
 
 // ============================================================================
@@ -94,6 +98,27 @@ export const sitemapUrls = sqliteTable(
     firstSeenAt: text("first_seen_at").notNull(),
     lastSeenAt: text("last_seen_at").notNull(),
     removedAt: text("removed_at"),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.url] })],
+);
+
+// The project's own list of sitemaps. Detected ones (robots.txt, /sitemap.xml)
+// start as suggestions the user confirms; tracked ones are what OpenSEO
+// compares with Search Console and Bing, and what the sitemap watch reads.
+export const projectSitemaps = sqliteTable(
+  "project_sitemaps",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Absolute https URL, stored verbatim: engines match sitemaps byte for byte.
+    url: text("url").notNull(),
+    source: text("source", { enum: PROJECT_SITEMAP_SOURCES }).notNull(),
+    status: text("status", { enum: PROJECT_SITEMAP_STATUSES }).notNull(),
+    // ISO-8601, always written by the service.
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    confirmedAt: text("confirmed_at"),
   },
   (table) => [primaryKey({ columns: [table.projectId, table.url] })],
 );
