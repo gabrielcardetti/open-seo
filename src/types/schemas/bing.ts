@@ -2,14 +2,14 @@ import { z } from "zod";
 
 export const bingDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-export const BING_STATS_DIMENSIONS = ["query", "page"] as const;
+const BING_STATS_DIMENSIONS = ["query", "page"] as const;
 export const BING_STATS_SORTS = [
   "clicks",
   "impressions",
   "ctr",
   "position",
 ] as const;
-export const BING_AI_CSV_KINDS = ["daily", "pages", "queries"] as const;
+const BING_AI_CSV_KINDS = ["daily", "pages", "queries"] as const;
 
 const projectScoped = { projectId: z.string().min(1) };
 

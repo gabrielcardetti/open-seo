@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bingApiKeys } from "@/db/schema";
 
-export type BingApiKeyRow = typeof bingApiKeys.$inferSelect;
+type BingApiKeyRow = typeof bingApiKeys.$inferSelect;
 
 async function getByUserId(userId: string): Promise<BingApiKeyRow | null> {
   const rows = await db
