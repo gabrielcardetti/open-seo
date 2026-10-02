@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BingApiError } from "@/server/lib/bing/bingErrors";
 import { resetBingTestDb } from "@/server/features/bing/bing-test-db";
+import { BingService } from "./BingService";
 import { BingSyncService } from "./BingSyncService";
 
 const testDb = await vi.hoisted(async () => {
@@ -17,6 +18,7 @@ const client = vi.hoisted(() => ({
   getFeeds: vi.fn(),
   getUrlSubmissionQuota: vi.fn(),
   getLinkCounts: vi.fn(),
+  getUserSites: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: { DATABASE_PROVIDER: "d1" } }));
@@ -28,6 +30,7 @@ vi.mock("@/db/runBatch", () => ({
 }));
 vi.mock("@/server/lib/secretBox", () => ({
   openSecret: async (value: string) => value,
+  sealSecret: async (value: string) => value,
 }));
 vi.mock("@/server/lib/bing/bingClient", () => ({
   createBingClient: () => client,
@@ -91,6 +94,7 @@ describe("BingSyncService", () => {
       monthly: 900,
     });
     client.getLinkCounts.mockResolvedValue({ links: [], totalPages: 0 });
+    client.getUserSites.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -130,7 +134,7 @@ describe("BingSyncService", () => {
 
     const result = await BingSyncService.syncProject("proj_1");
 
-    expect(result.stoppedEarly).toBe(true);
+    expect(result.stoppedBy).toBe("key");
     expect(client.getQueryStats).not.toHaveBeenCalled();
     expect(await connection()).toMatchObject({
       last_synced_at: null,
@@ -195,8 +199,72 @@ describe("BingSyncService", () => {
     vi.setSystemTime(new Date("2026-09-10T08:05:00.000Z"));
     expect(await BingSyncService.syncNow("proj_1")).toEqual({
       status: "too_soon",
-      lastSyncedAt: "2026-09-10T08:00:00.000Z",
+      lastAttemptAt: "2026-09-10T08:00:00.000Z",
       retryAfterSeconds: 300,
     });
+  });
+
+  it("starts one sync when two manual syncs race", async () => {
+    await seedConnection();
+
+    const results = await Promise.all([
+      BingSyncService.syncNow("proj_1"),
+      BingSyncService.syncNow("proj_1"),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      "synced",
+      "too_soon",
+    ]);
+    expect(client.getRankAndTrafficStats).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops a throttled sync and still counts it against the manual limit", async () => {
+    await seedConnection();
+    client.getRankAndTrafficStats.mockRejectedValue(
+      new BingApiError("throttled", "Bing is throttling this key.", 429),
+    );
+
+    const result = await BingSyncService.syncNow("proj_1");
+    expect(result).toMatchObject({ status: "synced", stoppedBy: "throttled" });
+    expect(client.getQueryStats).not.toHaveBeenCalled();
+
+    vi.setSystemTime(new Date("2026-09-10T08:01:00.000Z"));
+    expect(await BingSyncService.syncNow("proj_1")).toMatchObject({
+      status: "too_soon",
+    });
+  });
+
+  it("allows a manual sync right after the connector saves a new key", async () => {
+    await seedConnection();
+    await BingSyncService.syncNow("proj_1");
+
+    vi.setSystemTime(new Date("2026-09-10T08:01:00.000Z"));
+    await BingService.saveApiKey("user_1", "new-api-key");
+
+    expect(await BingSyncService.syncNow("proj_1")).toMatchObject({
+      status: "synced",
+    });
+  });
+
+  it("drops the result of a sync that finishes after the site was switched", async () => {
+    await seedConnection();
+    client.getRankAndTrafficStats.mockImplementation(async () => {
+      await testDb.client.execute(
+        "UPDATE bing_connections SET site_url = 'https://other.example/'",
+      );
+      return [{ date: "2026-09-01", clicks: 3, impressions: 40 }];
+    });
+
+    await BingSyncService.syncProject("proj_1");
+
+    expect(await connection()).toMatchObject({
+      last_synced_at: null,
+      daily_quota_remaining: null,
+    });
+    const stored = await testDb.client.execute(
+      "SELECT site_url FROM bing_traffic_daily",
+    );
+    expect(stored.rows).toEqual([expect.objectContaining({ site_url: SITE })]);
   });
 });

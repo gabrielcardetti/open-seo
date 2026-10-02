@@ -1044,7 +1044,7 @@ export const syncBingNowTool = {
       );
       if (result.status === "too_soon") {
         return mcpResponse({
-          text: `Bing was synced at ${result.lastSyncedAt}. Try again in ${Math.ceil(result.retryAfterSeconds / 60)} min.`,
+          text: `A Bing sync started at ${result.lastAttemptAt}. Try again in ${Math.ceil(result.retryAfterSeconds / 60)} min.`,
           meta,
           structuredContent: {
             ok: false,

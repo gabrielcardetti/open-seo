@@ -40,11 +40,15 @@ export function BingSyncNowButton({
         );
       } else if (result.status === "too_soon") {
         toast.info(
-          `Bing data was synced a moment ago. Try again in ${minutesLabel(result.retryAfterSeconds)}.`,
+          `A Bing sync started a moment ago. Try again in ${minutesLabel(result.retryAfterSeconds)}.`,
         );
-      } else if (result.stoppedEarly) {
+      } else if (result.stoppedBy === "key") {
         toast.error(
           "Bing stopped accepting the API key for this site, so the sync stopped. Save a new key in Settings → Integrations.",
+        );
+      } else if (result.stoppedBy === "throttled") {
+        toast.error(
+          "Bing is limiting requests for this API key right now, so the sync stopped. Try again later.",
         );
       } else if (result.errors.length > 0) {
         toast.warning(
