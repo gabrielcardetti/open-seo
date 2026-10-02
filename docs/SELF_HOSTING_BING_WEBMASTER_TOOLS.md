@@ -179,10 +179,13 @@ sitemaps daily and after audits** on the same page.
 
 - A daily check of your sitemaps sends URLs that are new or whose `<lastmod>`
   moved to a later date. The first check only records what's there and sends
-  nothing. Like the sync, this check only runs on Cloudflare deployments; on
-  Docker, use **Check and submit now** or the deploy hook.
-- After a site audit, pages that are new or whose content changed since the
-  previous audit are sent over IndexNow, once the key is verified.
+  nothing. If your sitemap gives every URL the current time as `<lastmod>`,
+  only new URLs are sent and the Indexing page tells you. Like the
+  sync, this check only runs on Cloudflare deployments; on Docker, use **Check
+  and submit now** or the deploy hook.
+- After a site audit, pages whose content changed since the previous audit
+  are sent over IndexNow, once the key is verified. New pages come from the
+  sitemap check, not from audits.
 - A URL sent successfully in the last 24 hours isn't sent again. Change the
   window with **Skip URLs sent in the last** on the same page.
 

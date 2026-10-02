@@ -1,12 +1,15 @@
 /**
- * After a site audit completes, announce the pages that are new or whose
- * content changed since the project's previous completed audit of the same
- * origin.
+ * After a site audit completes, announce the pages whose content changed
+ * since the project's previous completed audit of the same origin.
+ *
+ * Only pages both audits crawled count. A page only the new audit reached is
+ * not necessarily new: two crawls of one site rarely cover the same pages, so
+ * new pages are left to the sitemap watch, which compares full inventories.
  *
  * This runs inside the audit worker, which deliberately gets no
  * BETTER_AUTH_SECRET and so cannot open a Bing API key. It therefore uses
  * IndexNow only, and only once the key is verified; projects that rely on
- * Bing's API get their new pages through the daily sitemap check instead.
+ * Bing's API get their changed pages through the daily sitemap check instead.
  */
 import { AuditComparisonRepository } from "@/server/features/audit/repositories/AuditComparisonRepository";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
@@ -61,7 +64,6 @@ export async function submitAuditChanges(input: {
   const urls = after
     .filter((page) => {
       if (page.statusCode !== 200 || !page.isIndexable) return false;
-      if (!hashBefore.has(page.url)) return true;
       const previousHash = hashBefore.get(page.url);
       return Boolean(
         previousHash && page.contentHash && previousHash !== page.contentHash,

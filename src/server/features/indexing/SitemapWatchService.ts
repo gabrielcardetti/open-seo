@@ -5,6 +5,11 @@
  * The first inventory of a project is a baseline: everything is recorded and
  * nothing is submitted, so connecting a site never blasts thousands of URLs
  * that search engines already know.
+ *
+ * A URL's inventory row only moves forward (inserted, or its new lastmod
+ * stored) once its announcement got an answer that resending would not
+ * change. Failed, throttled and over-quota sends, and those IndexNow refused
+ * for a key file problem, leave it new or changed for the next check.
  */
 import { collectSitemapEntries } from "@/server/lib/audit/discovery";
 import { AppError } from "@/server/lib/errors";
@@ -19,6 +24,24 @@ import {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CHECKS_PER_TICK = 3;
 const TICK_DEADLINE_MS = 3 * 60 * 1000;
+/** Changed URLs one check sends at most; the rest stay changed for the next. */
+const MAX_CHANGED_PER_CHECK = 500;
+
+/**
+ * Some sitemaps stamp every URL with the time they were generated (Next.js
+ * `lastModified: new Date()`, many CMS plugins), so every URL looks changed
+ * on every check. A check reads its lastmods as unreliable when at least
+ * UNRELIABLE_LASTMOD_MIN_URLS URLs carry a lastmod in both the stored and the
+ * new inventory, and at least 90% of them moved forward to within 36 hours of
+ * now. 36 hours, not 24, so a date-only lastmod written in any time zone
+ * still counts. Such a check sends only new URLs.
+ */
+const UNRELIABLE_LASTMOD_MIN_URLS = 10;
+const UNRELIABLE_LASTMOD_SHARE = 0.9;
+const FRESH_LASTMOD_MS = 36 * 60 * 60 * 1000;
+
+const UNRELIABLE_LASTMOD_WARNING =
+  "Your sitemap gives nearly every URL a <lastmod> of right now, so it can't tell which pages changed. Only new URLs are sent. Set <lastmod> to when each page's content last changed to have changed pages sent too.";
 
 type StoredUrl = {
   url: string;
@@ -32,16 +55,25 @@ type SitemapDiff = {
   baseline: boolean;
   origin: string;
   totalUrls: number;
-  /** The walk stopped at its URL cap; URLs past it are neither new nor removed. */
+  /** The walk stopped at a cap; URLs past it are neither new nor removed. */
   truncated: boolean;
+  /** The lastmods look stamped at generation time; `changedUrls` is empty. */
+  lastmodUnreliable: boolean;
   newUrls: string[];
+  /** Every changed URL; one check sends the first MAX_CHANGED_PER_CHECK. */
   changedUrls: string[];
   removedUrls: string[];
 };
 
 type CheckOutcome =
   | { ok: false; problem: string }
-  | { ok: true; diff: SitemapDiff; submission: SubmissionResult | null };
+  | {
+      ok: true;
+      diff: SitemapDiff;
+      submission: SubmissionResult | null;
+      /** Something the user should fix, though the check went through. */
+      warning: string | null;
+    };
 
 /** `next` is a later date than `previous`. Unparseable or missing never is. */
 function isNewer(next: string | null, previous: string | null): boolean {
@@ -55,36 +87,58 @@ function isNewer(next: string | null, previous: string | null): boolean {
   );
 }
 
-function computeDiff(stored: StoredUrl[], entries: Entry[]) {
+function computeDiff(stored: StoredUrl[], entries: Entry[], nowMs: number) {
   const byUrl = new Map(stored.map((row) => [row.url, row]));
   const seen = new Set(entries.map((entry) => entry.url));
   const inserted: Entry[] = [];
-  const updated: Entry[] = [];
+  const updated: Array<{ entry: Entry; row: StoredUrl; changed: boolean }> = [];
   const changedUrls: string[] = [];
+  let comparable = 0;
+  let movedToNow = 0;
   for (const entry of entries) {
     const row = byUrl.get(entry.url);
     if (!row) {
       inserted.push(entry);
       continue;
     }
+    if (entry.lastmod && row.lastmod) comparable += 1;
     const changed = isNewer(entry.lastmod, row.lastmod);
-    if (changed) changedUrls.push(entry.url);
+    if (changed) {
+      changedUrls.push(entry.url);
+      const lastmodMs = Date.parse(entry.lastmod ?? "");
+      if (Math.abs(nowMs - lastmodMs) <= FRESH_LASTMOD_MS) movedToNow += 1;
+    }
     // A URL coming back is recorded but not re-announced on that alone: a
     // shard that failed to load yesterday is not news.
     if (changed || row.removedAt || (entry.lastmod && !row.lastmod)) {
-      updated.push(entry);
+      updated.push({ entry, row, changed });
     }
   }
   const removedUrls = stored
     .filter((row) => !row.removedAt && !seen.has(row.url))
     .map((row) => row.url);
-  return { inserted, updated, changedUrls, removedUrls };
+  const lastmodUnreliable =
+    comparable >= UNRELIABLE_LASTMOD_MIN_URLS &&
+    movedToNow >= comparable * UNRELIABLE_LASTMOD_SHARE;
+  return {
+    inserted,
+    updated,
+    changedUrls: lastmodUnreliable ? [] : changedUrls,
+    removedUrls,
+    lastmodUnreliable,
+  };
 }
 
 /** Fetch the sitemaps and diff them against the stored inventory. */
 async function diffSitemaps(projectId: string) {
   const project = await ProjectRepository.getProjectById(projectId);
-  if (!project?.domain) {
+  if (!project) {
+    throw new AppError(
+      "NOT_FOUND",
+      "This project is archived or no longer exists.",
+    );
+  }
+  if (!project.domain) {
     throw new AppError(
       "VALIDATION_ERROR",
       "This project has no website domain. Set one in the project settings.",
@@ -94,20 +148,45 @@ async function diffSitemaps(projectId: string) {
     collectSitemapEntries(project.domain),
     IndexingRepository.listSitemapUrls(projectId),
   ]);
-  const changes = computeDiff(stored, collected.entries);
+  const changes = computeDiff(stored, collected.entries, Date.now());
   // Past the walk's cap the inventory is partial: don't read the rest as removed.
   const removedUrls = collected.truncated ? [] : changes.removedUrls;
-  const baseline = stored.length === 0;
   const diff: SitemapDiff = {
-    baseline,
+    baseline: stored.length === 0,
     origin: collected.origin,
     totalUrls: collected.entries.length,
     truncated: collected.truncated,
+    lastmodUnreliable: changes.lastmodUnreliable,
     newUrls: changes.inserted.map((entry) => entry.url),
     changedUrls: changes.changedUrls,
     removedUrls,
   };
-  return { diff, changes: { ...changes, removedUrls }, collected };
+  return {
+    diff,
+    changes: { ...changes, removedUrls },
+    problem: readProblem(collected),
+  };
+}
+
+/**
+ * Why this sitemap read can't be used. A read that missed a document would
+ * make the URLs it lists look removed now and new again later, so it is
+ * neither recorded nor submitted; the next check reads everything again.
+ */
+function readProblem(collected: {
+  origin: string;
+  entries: unknown[];
+  failedSitemaps: string[];
+}): string | null {
+  const [failed, ...others] = collected.failedSitemaps;
+  if (failed) {
+    const more = others.length > 0 ? ` and ${others.length} more` : "";
+    return `Could not read ${failed}${more} just now (timeout or server error), so this check recorded and sent nothing. The next check tries again.`;
+  }
+  if (collected.entries.length === 0) {
+    return `No sitemap URLs found for ${collected.origin}. List your sitemap in robots.txt or serve it at /sitemap.xml.`;
+  }
+  return null;
 }
 
 /**
@@ -117,18 +196,18 @@ async function diffSitemaps(projectId: string) {
  */
 async function previewCandidates(projectId: string): Promise<CheckOutcome> {
   try {
-    const { diff, collected } = await diffSitemaps(projectId);
-    if (collected.entries.length === 0) {
-      return { ok: false, problem: noSitemapProblem(diff.origin) };
-    }
-    return { ok: true, diff, submission: null };
+    const { diff, problem } = await diffSitemaps(projectId);
+    if (problem) return { ok: false, problem };
+    return {
+      ok: true,
+      diff,
+      submission: null,
+      warning: diff.lastmodUnreliable ? UNRELIABLE_LASTMOD_WARNING : null,
+    };
   } catch (error) {
     return { ok: false, problem: describeError(error) };
   }
 }
-
-const noSitemapProblem = (origin: string) =>
-  `No sitemap URLs found for ${origin}. List your sitemap in robots.txt or serve it at /sitemap.xml.`;
 
 function describeError(error: unknown): string {
   if (error instanceof AppError) {
@@ -143,9 +222,9 @@ function describeError(error: unknown): string {
 }
 
 /**
- * Fetch the sitemaps, record the inventory, and submit the new and changed
- * URLs. A baseline records without submitting. An empty sitemap read leaves
- * the inventory untouched (the site was down, not emptied).
+ * Fetch the sitemaps, submit the new and changed URLs, and record the
+ * inventory. A baseline records without submitting. A sitemap read that came
+ * back empty or missed a document leaves the inventory untouched.
  */
 async function runSitemapCheck(
   projectId: string,
@@ -159,48 +238,71 @@ async function runSitemapCheck(
   }
   await IndexingRepository.recordSitemapCheck(
     projectId,
-    outcome.ok ? (outcome.submission?.problem ?? null) : outcome.problem,
+    outcome.ok
+      ? (outcome.submission?.problem ?? outcome.warning)
+      : outcome.problem,
   );
   return outcome;
+}
+
+/**
+ * Outcomes a later check should send again: the engine never answered, was
+ * throttling, the Bing quota ran out, or IndexNow could not read the key file
+ * (fixing the file makes the same URLs go through).
+ */
+function needsResend(row: SubmissionResult["results"][number]): boolean {
+  return (
+    row.status === "failed" ||
+    row.status === "throttled" ||
+    row.status === "skipped_quota" ||
+    (row.status === "rejected" && row.httpStatus === 403)
+  );
+}
+
+/** URLs whose announcement is done: answered, recently sent, or unsendable. */
+function settledUrls(submission: SubmissionResult | null): Set<string> {
+  const settled = new Set<string>();
+  for (const row of submission?.results ?? []) {
+    if (!needsResend(row)) settled.add(row.url);
+  }
+  // Not on the project's site: no later check could send these either.
+  for (const { url } of submission?.dropped ?? []) settled.add(url);
+  return settled;
 }
 
 async function checkAndSubmit(
   projectId: string,
   source: UrlSubmissionSource,
 ): Promise<CheckOutcome> {
-  const { diff, changes, collected } = await diffSitemaps(projectId);
-  if (collected.entries.length === 0) {
-    return { ok: false, problem: noSitemapProblem(diff.origin) };
-  }
-  const settings = await IndexingRepository.getSettings(projectId);
-  const toSubmit = [...diff.newUrls, ...diff.changedUrls];
-  if (!diff.baseline && toSubmit.length > 0) {
-    const channel = await UrlSubmissionService.resolveAutoChannel(
-      projectId,
-      settings,
-    );
-    // Without a channel, keep the inventory as it was so these URLs are
-    // still new or changed once IndexNow or Bing is set up.
-    if (!channel) {
-      return {
-        ok: false,
-        problem:
-          "Found new or changed URLs but nothing to send them with: set up IndexNow or connect Bing Webmaster Tools.",
-      };
-    }
-  }
-  await IndexingRepository.applySitemapInventory({
-    projectId,
-    nowIso: new Date().toISOString(),
-    inserted: changes.inserted,
-    updated: changes.updated,
-    removed: changes.removedUrls,
-  });
+  const { diff, changes, problem } = await diffSitemaps(projectId);
+  if (problem) return { ok: false, problem };
+  const toSubmit = [
+    ...diff.newUrls,
+    ...diff.changedUrls.slice(0, MAX_CHANGED_PER_CHECK),
+  ];
   const submission =
     diff.baseline || toSubmit.length === 0
       ? null
       : await UrlSubmissionService.submitUrls(projectId, toSubmit, source);
-  return { ok: true, diff, submission };
+  const settled = settledUrls(submission);
+  const isSettled = (url: string) => diff.baseline || settled.has(url);
+  await IndexingRepository.applySitemapInventory({
+    projectId,
+    nowIso: new Date().toISOString(),
+    inserted: changes.inserted.filter((entry) => isSettled(entry.url)),
+    updated: changes.updated.flatMap(({ entry, row, changed }) => {
+      if (!changed || isSettled(entry.url)) return [entry];
+      // Keep the old lastmod so the URL is still changed next time.
+      return row.removedAt ? [{ url: entry.url, lastmod: row.lastmod }] : [];
+    }),
+    removed: changes.removedUrls,
+  });
+  return {
+    ok: true,
+    diff,
+    submission,
+    warning: diff.lastmodUnreliable ? UNRELIABLE_LASTMOD_WARNING : null,
+  };
 }
 
 /**

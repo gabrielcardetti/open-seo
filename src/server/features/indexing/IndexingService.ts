@@ -187,22 +187,64 @@ async function verifyKey(projectId: string): Promise<{
   return { verified: !error, verifiedAt, error };
 }
 
-/** Null when the file at `url` holds exactly `key`; otherwise why not. */
-async function checkKeyFile(url: string, key: string): Promise<string | null> {
+const isRedirect = (status: number) => status >= 300 && status < 400;
+
+/** One GET of a validated URL, redirects not followed; a string says why not. */
+async function fetchKeyFile(url: string) {
   try {
     await normalizeAndValidateStartUrl(url);
   } catch {
     return `OpenSEO is not allowed to fetch ${url}.`;
   }
-  const response = await createProbe()(url);
-  if (!response) {
-    return `Could not reach ${url}: the request failed or timed out.`;
+  const response = await createProbe(fetch, { followRedirects: false })(url);
+  return response ?? `Could not reach ${url}: the request failed or timed out.`;
+}
+
+/** `location` when it is the same https URL on the other www/apex host. */
+function wwwTwin(url: string, location: string | null): string | null {
+  if (!location) return null;
+  try {
+    const from = new URL(url);
+    const to = new URL(location, url);
+    const twin =
+      to.protocol === "https:" &&
+      to.hostname !== from.hostname &&
+      isSameSite(to.hostname, from.hostname) &&
+      to.pathname === from.pathname &&
+      to.search === from.search;
+    return twin ? to.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Null when the file at `url` holds exactly `key`; otherwise why not.
+ * Redirects are not followed: IndexNow reads the key file at its URL. The one
+ * exception is a redirect to the same path on the site's other www/apex host,
+ * which is checked in turn (validated like the first), because the site's
+ * URLs live on that host and IndexNow reads the key file there.
+ */
+async function checkKeyFile(url: string, key: string): Promise<string | null> {
+  let target = url;
+  let response = await fetchKeyFile(target);
+  if (typeof response === "string") return response;
+  const twin = isRedirect(response.status)
+    ? wwwTwin(target, response.headers.get("location"))
+    : null;
+  if (twin) {
+    target = twin;
+    response = await fetchKeyFile(target);
+    if (typeof response === "string") return response;
+  }
+  if (isRedirect(response.status)) {
+    return `${target} redirects elsewhere. IndexNow reads the key file at that exact URL, so serve it there directly, without a redirect.`;
   }
   if (response.status !== 200) {
-    return `${url} answered HTTP ${response.status}. Publish the key file there, then verify again.`;
+    return `${target} answered HTTP ${response.status}. Publish the key file there, then verify again.`;
   }
   if (response.body.trim() !== key) {
-    return `The file at ${url} must contain only the key (${key}), nothing else.`;
+    return `The file at ${target} must contain only the key (${key}), nothing else.`;
   }
   return null;
 }

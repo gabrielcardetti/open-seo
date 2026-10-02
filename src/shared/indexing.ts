@@ -15,7 +15,7 @@ export const URL_SUBMISSION_STATUSES = [
   "pending",
   // 400/403/422: the engine refused it; resubmitting unchanged won't help.
   "rejected",
-  // Network or 5xx after retries.
+  // Network or 5xx after retries, or a Bing connection that needs fixing.
   "failed",
   // 429 after retries.
   "throttled",

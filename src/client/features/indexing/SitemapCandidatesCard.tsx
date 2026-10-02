@@ -77,6 +77,7 @@ export function SitemapCandidatesCard({
       } else {
         toast.success(summarizeCounts(result.counts));
       }
+      if (result.ok && result.warning) toast.warning(result.warning);
       void queryClient.invalidateQueries({
         queryKey: indexingQueryKeys.all(projectId),
       });
@@ -131,6 +132,12 @@ export function SitemapCandidatesCard({
           <Alert variant="warning">
             <TriangleAlert aria-hidden />
             <AlertTitle className="font-normal">{data.problem}</AlertTitle>
+          </Alert>
+        )}
+        {data?.ok && data.warning && (
+          <Alert variant="warning">
+            <TriangleAlert aria-hidden />
+            <AlertTitle className="font-normal">{data.warning}</AlertTitle>
           </Alert>
         )}
         {data?.ok && (

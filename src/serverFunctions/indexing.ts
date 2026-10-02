@@ -113,6 +113,7 @@ export const getIndexingCandidates = createServerFn({ method: "POST" })
       origin: diff.origin,
       totalUrls: diff.totalUrls,
       truncated: diff.truncated,
+      warning: outcome.warning,
       newCount: diff.newUrls.length,
       changedCount: diff.changedUrls.length,
       removedCount: diff.removedUrls.length,
@@ -140,6 +141,7 @@ export const runIndexingSitemapCheck = createServerFn({ method: "POST" })
       newCount: outcome.diff.newUrls.length,
       changedCount: outcome.diff.changedUrls.length,
       problem: outcome.submission?.problem ?? null,
+      warning: outcome.warning,
       counts: outcome.submission?.counts ?? {},
     };
   });

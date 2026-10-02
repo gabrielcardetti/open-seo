@@ -115,6 +115,7 @@ export async function handleDeployHookRequest(
     mode: "sitemap",
     baseline: diff.baseline,
     problem: submission?.problem ?? null,
+    warning: outcome.warning,
     sitemapUrls: diff.totalUrls,
     newUrls: diff.newUrls.length,
     changedUrls: diff.changedUrls.length,

@@ -2,7 +2,7 @@
  * Indexing settings, the sitemap URL inventory, and the cached Bing URL
  * submission quota. Written once for D1 and Postgres.
  */
-import { and, asc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { chunk } from "remeda";
 import { db } from "@/db";
 import { executeInBatches } from "@/db/runBatch";
@@ -90,28 +90,35 @@ async function updateBingQuota(
     .where(eq(bingConnections.projectId, projectId));
 }
 
-/** Projects whose daily sitemap check is due, oldest first. */
+/** Projects whose daily sitemap check is due: never checked, then oldest. */
 async function getDueSitemapChecks(nowIso: string, limit: number) {
-  return db
-    .select({
-      projectId: indexingSettings.projectId,
-      nextSitemapCheckAt: indexingSettings.nextSitemapCheckAt,
-      domain: projects.domain,
-    })
-    .from(indexingSettings)
-    .innerJoin(projects, eq(indexingSettings.projectId, projects.id))
-    .where(
-      and(
-        eq(indexingSettings.autoSubmitEnabled, true),
-        or(
-          isNull(indexingSettings.nextSitemapCheckAt),
-          lte(indexingSettings.nextSitemapCheckAt, nowIso),
+  return (
+    db
+      .select({
+        projectId: indexingSettings.projectId,
+        nextSitemapCheckAt: indexingSettings.nextSitemapCheckAt,
+        domain: projects.domain,
+      })
+      .from(indexingSettings)
+      .innerJoin(projects, eq(indexingSettings.projectId, projects.id))
+      .where(
+        and(
+          eq(indexingSettings.autoSubmitEnabled, true),
+          or(
+            isNull(indexingSettings.nextSitemapCheckAt),
+            lte(indexingSettings.nextSitemapCheckAt, nowIso),
+          ),
+          isNull(projects.archivedAt),
         ),
-        isNull(projects.archivedAt),
-      ),
-    )
-    .orderBy(asc(indexingSettings.nextSitemapCheckAt))
-    .limit(limit);
+      )
+      // Never-checked projects first. SQLite sorts NULL first and Postgres
+      // last, so the null test is spelled out for both.
+      .orderBy(
+        sql`${indexingSettings.nextSitemapCheckAt} is null desc`,
+        asc(indexingSettings.nextSitemapCheckAt),
+      )
+      .limit(limit)
+  );
 }
 
 /**

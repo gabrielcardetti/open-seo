@@ -161,12 +161,15 @@ async function sendViaIndexNow(
 function bingFailure(error: unknown): Outcome {
   if (error instanceof BingApiError) {
     return {
+      // Only `invalid` is Bing refusing the URLs themselves. A revoked key or
+      // lost site access is the connection failing: fixing it lets the same
+      // URLs through, so they are not recorded as refused.
       status:
         error.kind === "throttled"
           ? "throttled"
-          : error.kind === "other"
-            ? "failed"
-            : "rejected",
+          : error.kind === "invalid"
+            ? "rejected"
+            : "failed",
       channel: "bing_api",
       httpStatus: error.status,
       errorMessage: error.message,
@@ -266,8 +269,16 @@ async function submitUrls(
     results: [],
     counts: {},
   };
+  // Archived projects are not found here, so they never send anything.
   const project = await ProjectRepository.getProjectById(projectId);
-  const siteHost = projectHost(project?.domain);
+  if (!project) {
+    return {
+      ...empty,
+      dropped: [],
+      problem: "This project is archived or no longer exists.",
+    };
+  }
+  const siteHost = projectHost(project.domain);
   if (!siteHost) {
     return {
       ...empty,
