@@ -68,6 +68,11 @@ const QUERY_HEADERS = [
 ];
 // Preamble lines (report title, date range) may precede the header row.
 const HEADER_SEARCH_ROWS = 10;
+// Bing's AI Performance report starts in 2023; a later date than tomorrow
+// (UTC, so any timezone's today fits) is a misread, not a citation day.
+const EARLIEST_DATE = "2023-01-01";
+// Counts are stored as 32-bit integers on Postgres.
+const MAX_COUNT = 2 ** 31 - 1;
 
 const MONTHS = [
   "jan",
@@ -141,7 +146,14 @@ function parseNumber(value: string): number | null {
     text = text.replace(/\./g, "").replace(",", ".");
   } else text = text.replace(",", ".");
   const number = Number(text);
-  return Number.isFinite(number) && number >= 0 ? number : null;
+  return Number.isFinite(number) ? number : null;
+}
+
+function countProblem(label: string, value: number | null): string | null {
+  if (value === null) return null;
+  return value < 0 || Math.round(value) > MAX_COUNT
+    ? `${label} ${value} is out of range`
+    : null;
 }
 
 function findColumn(header: string[], names: string[]): number {
@@ -212,6 +224,9 @@ export function parseAiPerformanceCsv(
     };
   }
 
+  const latestDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   const skipped: SkippedRow[] = [];
   const valid = dataRows.flatMap(({ cells, line }) => {
     const citations = parseNumber(cells[columns.citations] ?? "");
@@ -223,6 +238,10 @@ export function parseAiPerformanceCsv(
     const date = rawDate.trim() ? parseDate(rawDate) : null;
     if (rawDate.trim() && !date) {
       skipped.push({ line, reason: `Unrecognized date "${rawDate.trim()}"` });
+      return [];
+    }
+    if (date && (date < EARLIEST_DATE || date > latestDate)) {
+      skipped.push({ line, reason: `Date ${date} is out of range` });
       return [];
     }
     const key = keyColumn === -1 ? "" : (cells[keyColumn] ?? "").trim();
@@ -237,6 +256,13 @@ export function parseAiPerformanceCsv(
       columns.citedPages === -1
         ? null
         : parseNumber(cells[columns.citedPages] ?? "");
+    const outOfRange =
+      countProblem("Citations", citations) ??
+      countProblem("Cited pages", citedPages);
+    if (outOfRange) {
+      skipped.push({ line, reason: outOfRange });
+      return [];
+    }
     return [
       {
         date,
