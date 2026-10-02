@@ -47,8 +47,8 @@ Then pick the site under **Choose the Bing site** and click **Connect site**.
 Only sites verified in that Bing account are listed. The one matching the
 project's domain is marked **Matches this project** and selected for you.
 
-The key is saved to your OpenSEO account, not to the project, and the projects
-you connect sync with it. **Replace** swaps it for a new one; **Remove** deletes
+OpenSEO saves the key to your account, not to the project, and the projects you
+connect sync with it. **Replace** swaps it for a new one; **Remove** deletes
 it, and the projects you connected stop syncing until someone reconnects them.
 
 Connecting, changing the site, pausing the sync, syncing on demand, and
@@ -120,8 +120,9 @@ found:
 - **Bing can't crawl this URL**: Bingbot got a 4xx or 5xx status, a timeout, or
   a DNS failure. Bing can see a different answer than OpenSEO's crawler, for
   example when a firewall blocks Bingbot.
-- **Blocked for Bingbot by robots.txt**: a `User-agent: bingbot` group in
-  robots.txt replaces the `*` group for Bing, so check both.
+- **Blocked for Bingbot by robots.txt**: Bing reports that robots.txt stops
+  Bingbot from crawling the URL. A `User-agent: bingbot` group replaces the `*`
+  group for Bing, so check both.
 
 The audit reads these from the last sync and never calls Bing. On Docker, sync
 before you start the audit.
@@ -129,7 +130,7 @@ before you start the audit.
 When you start an audit with **Evaluate content against Google's guidelines**
 turned on, **Also check Bing's Webmaster Guidelines** adds Bing's rules:
 robots.txt as Bingbot reads it, directives that keep a page out of Copilot
-answers, sitemap and redirect hygiene, content an AI answer can ground on, and
+answers or limit how Copilot cites it, sitemap and redirect hygiene, content an AI answer can ground on, and
 prompt injection. The audit's guidelines tab then shows Google's and Bing's
 verdicts side by side. A Bing rule that contradicts Google's guidance only ever
 warns. Bing's rules work without a Bing connection, except one that checks each
@@ -241,10 +242,10 @@ their own key if they haven't, and chooses the site again.
 Docker it never runs by itself; click **Sync now**.
 
 **"OpenSEO couldn't read this as an AI Performance export"**: OpenSEO needs a
-Citations column next to a Date column (citations per day), a URL or Page
-column (cited pages), or a Query column (grounding queries). The rest of the
-message says what was missing. Check that you exported an AI Performance report
-as CSV.
+Citations column plus a Date column (citations per day), a URL or Page column
+(cited pages), or a Query column (grounding queries). The rest of the message
+says which columns it expected. Check that you exported an AI Performance
+report as CSV.
 
 **Syncing stopped after changing `BETTER_AUTH_SECRET`**: keys encrypted with
 the old secret can't be read. The member who connected the project saves their

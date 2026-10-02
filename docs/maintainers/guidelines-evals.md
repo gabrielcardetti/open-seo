@@ -84,6 +84,6 @@ Bing's quotes have their own check, because Bing's help pages are a JavaScript a
 pnpm check:bing-quotes
 ```
 
-It fetches each Bing source document in `source_documents` from its `fetch_url`, reduces it to text, and checks that every Bing `official_quote` appears in it after whitespace is collapsed. Nothing else is normalized, so quotes keep Bing's typography (non-breaking hyphens, curly apostrophes). It exits 1 when a quote no longer matches or a rule cites a source with no document. It needs network access and no keys.
+It fetches each Bing source document in `source_documents` from its `fetch_url`, reduces it to text, and checks that every Bing `official_quote` appears in it after whitespace is collapsed. Nothing else is normalized, so quotes keep Bing's typography (non-breaking hyphens, curly apostrophes). It exits 1 when a quote no longer matches, a source document can't be fetched, or a rule cites a source with no document. It needs network access and no keys.
 
 Run it before editing a Bing rule, before a release that touches the catalog, and every month or so otherwise. When a quote stops matching, read the new text, update the rule's quote and, if the guidance changed, its question and criteria, then set that document's `checked` date to the day you matched it. Re-run the live eval on the Bing cases after any change to a Bing rule's criteria.
