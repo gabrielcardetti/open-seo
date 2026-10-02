@@ -1,6 +1,7 @@
 /**
- * An in-memory SQLite database with the real indexing and Bing migration, for
- * testing the indexing services against actual SQL. Tests swap it in with
+ * An in-memory SQLite database with the real indexing, Bing and sitemap
+ * registry migrations, for testing the indexing services against actual SQL.
+ * Tests swap it in with
  *
  *   vi.mock("@/db", async () => ({ db: (await import("./indexing-test-db")).testDb }));
  *   vi.mock("@/db/runBatch", async () => ({
@@ -52,6 +53,7 @@ export function resetTestDatabase() {
   database.exec(
     readFileSync("drizzle/sqlite/0053_cynical_roughhouse.sql", "utf8"),
   );
+  database.exec(readFileSync("drizzle/sqlite/0054_fixed_midnight.sql", "utf8"));
 }
 
 /** Stand-in for runBatch's executeInBatches: one statement at a time. */

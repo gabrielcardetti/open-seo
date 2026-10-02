@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ProjectContextService } from "@/server/features/project-context/services/ProjectContextService";
+import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import {
@@ -40,7 +41,7 @@ export const getProjectContextTool = {
   config: {
     title: "Get project context",
     description:
-      "Reads a project's shared memory: business overview, current goal, positioning, writing preferences, custom sections, competitors, key pages, and the recent research log. Uses no credits. Call this before SEO work to ground it in what the user already told OpenSEO, and check the research log before re-buying research. Sections listed as missing are the ones worth filling with update_project_context.",
+      "Reads a project's shared memory: business overview, current goal, positioning, writing preferences, custom sections, competitors, key pages, and the recent research log. Uses no credits. Call this before SEO work to ground it in what the user already told OpenSEO, and check the research log before re-buying research. Sections listed as missing are the ones worth filling with update_project_context; 'sitemaps' among them means no sitemaps are tracked yet, which get_sitemaps and update_sitemaps fix.",
     inputSchema: getInputSchema,
     outputSchema: contextOutputSchema,
     annotations: {
@@ -51,19 +52,33 @@ export const getProjectContextTool = {
   },
   handler: withMcpProjectAuth(
     async (args: z.infer<z.ZodObject<typeof getInputSchema>>, context) => {
-      const projectContext = await ProjectContextService.getProjectContext(
-        args.projectId,
-      );
+      const [projectContext, trackedSitemaps] = await Promise.all([
+        ProjectContextService.getProjectContext(args.projectId),
+        SitemapRegistryService.trackedUrls(args.projectId),
+      ]);
+      // Sitemaps live in their own registry, not in a context section, but
+      // agents setting up a project should be prompted to register them.
+      const noSitemaps = trackedSitemaps.length === 0;
       return mcpResponse({
-        text: ProjectContextService.renderProjectContextMarkdown(
-          projectContext,
-        ),
+        text: [
+          ProjectContextService.renderProjectContextMarkdown(projectContext),
+          ...(noSitemaps
+            ? [
+                "Sitemaps: none tracked yet. Call get_sitemaps, confirm the suggested sitemaps with the user (update_sitemaps), then submit missing ones with submit_sitemaps.",
+              ]
+            : []),
+        ].join("\n"),
         meta: buildProjectMeta(
           context,
           args.projectId,
           contextPath(args.projectId),
         ),
-        structuredContent: projectContext,
+        structuredContent: {
+          ...projectContext,
+          missingSections: noSitemaps
+            ? [...projectContext.missingSections, "sitemaps"]
+            : projectContext.missingSections,
+        },
       });
     },
   ),

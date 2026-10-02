@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   listTemplates: vi.fn(),
   deleteSection: vi.fn(),
   deleteResearchLogEntries: vi.fn(),
+  listTrackedUrls: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
@@ -36,6 +37,9 @@ vi.mock(
   "@/server/features/project-context/repositories/ProjectContextRepository",
   () => ({ ProjectContextRepository: mocks }),
 );
+vi.mock("@/server/features/sitemaps/SitemapRegistryRepository", () => ({
+  SitemapRegistryRepository: mocks,
+}));
 // The digest lists the project's report templates, which live in the reports
 // feature's own store.
 vi.mock(
@@ -50,6 +54,7 @@ beforeEach(() => {
   mocks.listKeyPages.mockResolvedValue([]);
   mocks.listResearchLog.mockResolvedValue([]);
   mocks.listTemplates.mockResolvedValue([]);
+  mocks.listTrackedUrls.mockResolvedValue([]);
 });
 
 describe("update_project_context", () => {
@@ -136,5 +141,23 @@ describe("get_project_context", () => {
     expect(textContent(result)).toContain(
       "- Monthly client check-in: The monthly update we send retainer clients.",
     );
+  });
+
+  // Sitemaps have their own registry; the setup hint is how agents learn to
+  // register them.
+  it("lists sitemaps as missing until one is tracked", async () => {
+    const missing = async () => {
+      const result = await getProjectContextTool.handler(
+        { projectId: "project_1" },
+        makeToolContext(),
+      );
+      return result.structuredContent?.missingSections;
+    };
+
+    expect(await missing()).toContain("sitemaps");
+    mocks.listTrackedUrls.mockResolvedValue([
+      "https://example.com/sitemap.xml",
+    ]);
+    expect(await missing()).not.toContain("sitemaps");
   });
 });

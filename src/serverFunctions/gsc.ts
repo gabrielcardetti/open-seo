@@ -3,6 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { waitUntil } from "cloudflare:workers";
 import { z } from "zod";
 import { GscService } from "@/server/features/gsc/services/GscService";
+import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import { hasGoogleOAuthConfig } from "@/server/features/google/oauth-config";
 import {
   createGoogleAuthorizationUrl,
@@ -46,6 +47,11 @@ export const getGscConnection = createServerFn({ method: "POST" })
         hasGoogleOAuthConfig(),
       ]);
     return {
+      // Grants from before OpenSEO asked for write access can't submit
+      // sitemaps until the connector reconnects.
+      canSubmitSitemaps: connection
+        ? await GscService.canSubmitSitemaps(connection)
+        : false,
       connected: Boolean(connection),
       canManage: hasOrgPermission(context.role, { integration: ["manage"] }),
       currentUserHasGrant,
@@ -106,6 +112,12 @@ export const setGscSite = createServerFn({ method: "POST" })
       siteUrl: data.siteUrl,
       userId: context.userId,
     });
+    // Suggest the site's sitemaps so they can be compared with Google's.
+    waitUntil(
+      SitemapRegistryService.detect(context.projectId).catch((error) =>
+        console.warn("Sitemap detection after connecting failed", error),
+      ),
+    );
     waitUntil(
       captureServerEvent({
         distinctId: context.userId,

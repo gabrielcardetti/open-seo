@@ -101,6 +101,11 @@ import {
   submitUrlsForIndexingTool,
   verifyIndexNowKeyTool,
 } from "@/server/mcp/tools/indexing-tools";
+import {
+  getSitemapsTool,
+  submitSitemapsTool,
+  updateSitemapsTool,
+} from "@/server/mcp/tools/sitemap-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 import {
   compareSearchEnginesTool,
@@ -272,6 +277,9 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(submitUrlsForIndexingTool);
   register(getIndexingLogTool);
   register(getIndexingCandidatesTool);
+  register(getSitemapsTool);
+  register(updateSitemapsTool);
+  register(submitSitemapsTool);
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);

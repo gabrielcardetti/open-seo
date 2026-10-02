@@ -1,7 +1,8 @@
 # Self-hosted Google Search Console
 
 Connecting Google Search Console (GSC) lets OpenSEO pull your real clicks,
-impressions, positions, and URL inspection data, straight from Google.
+impressions, positions, and URL inspection data, straight from Google, and
+submit your sitemaps to it.
 
 It's **optional**: OpenSEO runs fine without it, just without Search Console data.
 
@@ -27,6 +28,10 @@ Under **APIs & Services → OAuth consent screen**:
 - Fill in the app name, support email, and developer contact email.
 - While the app is in **Testing**, add the Google accounts that will connect as
   **test users** — otherwise Google blocks the sign-in with `access_denied`.
+- Under **Data access** (or **Scopes**), add both Search Console scopes:
+  `https://www.googleapis.com/auth/webmasters.readonly` and
+  `https://www.googleapis.com/auth/webmasters`. The read-only one covers every
+  report; the second lets OpenSEO submit sitemaps to Search Console.
 
 For personal or internal use you don't need to submit for verification; testing
 mode is enough.
@@ -91,6 +96,11 @@ project.
   grant in its database, with the access and refresh tokens **encrypted at rest**
   (keyed by `BETTER_AUTH_SECRET`).
 - Access tokens are minted and refreshed on demand — you only authorize once.
+- OpenSEO asks for write access to Search Console only to submit sitemaps. It
+  never submits them on its own schedule: it compares the sitemaps you track
+  with the ones Search Console lists, and sends the missing ones when you click
+  **Submit missing to Google** on the Indexing page (or an agent calls
+  `submit_sitemaps`).
 - Search Console data comes from your own Google account, so OpenSEO never meters credits for it.
 
 ## Troubleshooting
@@ -112,6 +122,14 @@ docker compose up -d --force-recreate open-seo
 **`access_denied` during sign-in** — the Google account isn't listed as a test
 user on the OAuth consent screen (while the app is in Testing mode). Add it under
 **OAuth consent screen → Test users**.
+
+**"Reconnect Search Console to let OpenSEO submit sitemaps"** — the
+connection was made before OpenSEO asked for write access, or the write scope
+was declined on Google's consent screen. Reports keep working. To submit
+sitemaps, click **Reconnect Search Console** on the Search Console card with
+the Google account that connected the project, and allow Search Console
+access. On self-hosted deployments, add the `webmasters` scope to the OAuth
+consent screen first (see [step 2](#2-configure-the-oauth-consent-screen)).
 
 **Connected, but no properties to pick** — the Google account you authorized
 doesn't have a verified property in Search Console. Verify the site in

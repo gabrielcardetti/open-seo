@@ -33,6 +33,8 @@ export type GoogleConnection = {
   connectedByEmail: string | null;
   property: string | null;
   propertyDetail: string | null;
+  /** Search Console only: false when the grant is read-only. */
+  canSubmitSitemaps?: boolean;
 };
 
 type PickerOptions = {

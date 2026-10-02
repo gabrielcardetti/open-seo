@@ -8,6 +8,7 @@ import { indexingQueryKeys } from "./indexingShared";
 import { IndexNowKeyCard } from "./IndexNowKeyCard";
 import { SitemapCandidatesCard } from "./SitemapCandidatesCard";
 import { SubmitUrlsCard } from "./SubmitUrlsCard";
+import { SitemapsCard } from "@/client/features/sitemaps/SitemapsCard";
 
 export function IndexingPage({ projectId }: { projectId: string }) {
   const setup = useQuery({
@@ -19,8 +20,9 @@ export function IndexingPage({ projectId }: { projectId: string }) {
     <div className="space-y-8">
       <PageHeader
         title="Indexing"
-        description="Tell Bing and the other IndexNow engines about new and changed pages, and keep a record of every notice. Google does not take part in IndexNow."
+        description="Keep Google and Bing registered with your sitemaps, tell Bing and the other IndexNow engines about new and changed pages, and keep a record of every notice. Google does not take part in IndexNow."
       />
+      <SitemapsCard projectId={projectId} />
       <QueryState query={setup} errorFallback="Could not load indexing setup.">
         {(data) => (
           <div className="space-y-6">

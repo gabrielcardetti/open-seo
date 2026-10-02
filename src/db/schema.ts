@@ -150,4 +150,5 @@ export const {
   indexingSettings,
   urlSubmissions,
   sitemapUrls,
+  projectSitemaps,
 } = schema;

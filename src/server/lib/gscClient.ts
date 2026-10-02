@@ -42,6 +42,24 @@ export type GscSearchAnalyticsRequest = {
   aggregationType?: string;
 };
 
+/** A sitemap as Search Console reports it (`sitemaps.list`). Counts come as
+ *  strings on the wire. */
+export type GscSitemap = {
+  path: string;
+  lastSubmitted?: string;
+  lastDownloaded?: string;
+  isPending?: boolean;
+  isSitemapsIndex?: boolean;
+  type?: string;
+  warnings?: string | number;
+  errors?: string | number;
+  contents?: Array<{
+    type?: string;
+    submitted?: string | number;
+    indexed?: string | number;
+  }>;
+};
+
 /** Subset of the URL Inspection API `inspectionResult` we surface. The wire
  *  shape is richer; extra fields are ignored. */
 export type UrlInspectionResult = {
@@ -99,10 +117,11 @@ export function createGscClient(opts: {
     }
   }
 
-  async function request<T>(
+  /** One authenticated call; throws GscApiError on a non-2xx answer. */
+  async function send(
     url: string,
     init?: { method?: string; body?: unknown },
-  ): Promise<T> {
+  ): Promise<Response> {
     const token = await getToken();
     const hasBody = init?.body !== undefined;
     const response = await fetch(url, {
@@ -121,7 +140,14 @@ export function createGscClient(opts: {
         body,
       );
     }
-    return (await response.json()) as T;
+    return response;
+  }
+
+  async function request<T>(
+    url: string,
+    init?: { method?: string; body?: unknown },
+  ): Promise<T> {
+    return (await send(url, init)).json<T>();
   }
 
   return {
@@ -148,6 +174,25 @@ export function createGscClient(opts: {
         { method: "POST", body },
       );
       return data.rows ?? [];
+    },
+
+    /** Webmasters API `sitemaps.list`: the sitemaps submitted for a property. */
+    async listSitemaps(siteUrl: string): Promise<GscSitemap[]> {
+      const data = await request<{ sitemap?: GscSitemap[] }>(
+        `${GSC_API_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps`,
+      );
+      return data.sitemap ?? [];
+    },
+
+    /** Webmasters API `sitemaps.submit`. Needs the grant's write scope;
+     *  with only the read-only scope Google answers 403. */
+    async submitSitemap(siteUrl: string, feedpath: string): Promise<void> {
+      // Answers 204 with no body.
+      const response = await send(
+        `${GSC_API_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(feedpath)}`,
+        { method: "PUT" },
+      );
+      await response.body?.cancel();
     },
 
     /** URL Inspection API `urlInspection.index.inspect`. This lives on a

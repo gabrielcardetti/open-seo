@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScanSearch } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +26,14 @@ import { deleteBingApiKey, setBingSite } from "@/serverFunctions/bing";
  * the account's verified sites, then watch the daily sync. Members who can't
  * manage integrations see the connection read-only.
  */
-export function BingConnectionCard({ projectId }: { projectId: string }) {
+export function BingConnectionCard({
+  projectId,
+  notice,
+}: {
+  projectId: string;
+  /** Shown under the connected site, such as a sitemap coverage alert. */
+  notice?: ReactNode;
+}) {
   const queryClient = useQueryClient();
   const connectionQuery = useQuery(bingConnectionOptions(projectId));
   const connection = connectionQuery.data;
@@ -77,14 +84,17 @@ export function BingConnectionCard({ projectId }: { projectId: string }) {
           isRetrying={connectionQuery.isFetching}
         />
       ) : connection.connected && !changing ? (
-        <BingConnectedState
-          projectId={projectId}
-          connection={connection}
-          onChangeSite={() => {
-            setSite.reset();
-            setChanging(true);
-          }}
-        />
+        <>
+          <BingConnectedState
+            projectId={projectId}
+            connection={connection}
+            onChangeSite={() => {
+              setSite.reset();
+              setChanging(true);
+            }}
+          />
+          {notice}
+        </>
       ) : !connection.canManage ? (
         <p className="text-sm text-muted-foreground">
           Bing Webmaster Tools isn&rsquo;t connected to this project yet.

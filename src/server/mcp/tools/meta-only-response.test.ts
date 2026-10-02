@@ -37,6 +37,7 @@ import * as runRankTracker from "./run-rank-tracker";
 import * as saveKeywords from "./save-keywords";
 import * as searchConsoleTools from "./search-console-tools";
 import * as siteAuditTools from "./site-audit-tools";
+import * as sitemapTools from "./sitemap-tools";
 import * as whoami from "./whoami";
 
 const toolExports: Record<string, unknown> = {
@@ -66,6 +67,7 @@ const toolExports: Record<string, unknown> = {
   ...saveKeywords,
   ...searchConsoleTools,
   ...siteAuditTools,
+  ...sitemapTools,
   ...whoami,
 };
 

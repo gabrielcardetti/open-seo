@@ -71,4 +71,23 @@ describe("collectSitemapEntries", () => {
       "https://example.com/b",
     ]);
   });
+
+  it("walks the tracked sitemaps on the site instead of robots.txt and /sitemap.xml", async () => {
+    serve({
+      "/robots.txt": () =>
+        Promise.resolve(new Response("Sitemap: https://example.com/old.xml")),
+      "/old.xml": () => Promise.resolve(urlset("/old")),
+      "/sitemap.xml": () => Promise.resolve(urlset("/default")),
+      "/news.xml": () => Promise.resolve(urlset("/news")),
+    });
+
+    const collected = await collectSitemapEntries("example.com", [
+      "https://example.com/news.xml",
+      "https://elsewhere.example/news.xml",
+    ]);
+
+    expect(collected.entries.map((entry) => entry.url)).toEqual([
+      "https://example.com/news",
+    ]);
+  });
 });

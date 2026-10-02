@@ -6,10 +6,8 @@ import {
   BingApiError,
   BingNotConnectedError,
 } from "@/server/lib/bing/bingErrors";
-import {
-  fetchRobotsTxtText,
-  parseRobotsTxt,
-} from "@/server/lib/audit/discovery";
+import { isSameSite } from "@/server/features/indexing/site";
+import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Link counts change slowly and page through many calls: refresh weekly.
@@ -22,8 +20,8 @@ const TICK_DEADLINE_MS = 3 * 60 * 1000;
 // sync of any kind starts per project in this window.
 const MIN_MANUAL_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 2000;
-// Sitemaps robots.txt names but Bing doesn't know are registered with it;
-// a few per sync is plenty for a real site and bounds a hostile robots.txt.
+// Tracked sitemaps Bing doesn't list are registered with it; a few per sync
+// is plenty for a real site and bounds the calls a sync spends on it.
 const MAX_SITEMAP_SUBMISSIONS_PER_SYNC = 5;
 
 const NOT_CONNECTED_SYNC_ERROR =
@@ -49,46 +47,22 @@ function daysBetween(fromDate: string, toDate: string): number {
 }
 
 /**
- * Download everything the Bing Webmaster API serves for the project's site
- * into the snapshot tables. Each dataset is best-effort: one failing method
- * is recorded and the others still run. A rejected or throttled key (or a key
- * that lost the site) stops the sync, since every later call would fail the
- * same way. Throws BingNotConnectedError when there's no usable connection.
- *
- * The snapshot writes are keyed by the site read at the start, so a sync that
- * is still running when the project switches sites only adds to the old
- * site's history, and its status is dropped (see recordSyncResult).
- */
-/**
- * Register with Bing the sitemaps the site's robots.txt names that Bing doesn't
- * list yet (a new sitemap added to the site, say). Only sitemaps on the
- * connected site's own origin are sent. Best-effort: an unreadable robots.txt
- * or a refused submission never fails the sync. Returns how many were sent.
+ * Register with Bing the project's tracked sitemaps that Bing doesn't list
+ * yet (a sitemap the user just tracked, say). Only sitemaps on the connected
+ * site are sent. Best-effort: a refused submission never fails the sync.
+ * Returns how many were sent.
  */
 async function submitMissingSitemaps(
   client: BingClient,
+  projectId: string,
   siteUrl: string,
   knownFeeds: string[],
 ): Promise<number> {
-  const origin = new URL(siteUrl).origin;
-  let declared: string[];
-  try {
-    declared = parseRobotsTxt(
-      origin,
-      await fetchRobotsTxtText(origin),
-    ).sitemapUrls;
-  } catch (error) {
-    console.warn("[bing] could not read robots.txt for sitemaps", error);
-    return 0;
-  }
+  const siteHost = new URL(siteUrl).hostname;
   const known = new Set(knownFeeds);
-  const missing = [...new Set(declared)].filter((url) => {
-    try {
-      return new URL(url).origin === origin && !known.has(url);
-    } catch {
-      return false;
-    }
-  });
+  const missing = (await SitemapRegistryService.trackedUrls(projectId)).filter(
+    (url) => isSameSite(new URL(url).hostname, siteHost) && !known.has(url),
+  );
   let submitted = 0;
   for (const feedUrl of missing.slice(0, MAX_SITEMAP_SUBMISSIONS_PER_SYNC)) {
     try {
@@ -103,6 +77,17 @@ async function submitMissingSitemaps(
   return submitted;
 }
 
+/**
+ * Download everything the Bing Webmaster API serves for the project's site
+ * into the snapshot tables. Each dataset is best-effort: one failing method
+ * is recorded and the others still run. A rejected or throttled key (or a key
+ * that lost the site) stops the sync, since every later call would fail the
+ * same way. Throws BingNotConnectedError when there's no usable connection.
+ *
+ * The snapshot writes are keyed by the site read at the start, so a sync that
+ * is still running when the project switches sites only adds to the old
+ * site's history, and its status is dropped (see recordSyncResult).
+ */
 async function syncProject(projectId: string): Promise<BingSyncResult> {
   const { connection, client } = await openBingClientForProject(projectId);
   const siteUrl = connection.siteUrl;
@@ -160,6 +145,7 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
         let feeds = await client.getFeeds(siteUrl);
         const submitted = await submitMissingSitemaps(
           client,
+          projectId,
           siteUrl,
           feeds.map((feed) => feed.url),
         );
