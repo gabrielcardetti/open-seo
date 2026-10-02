@@ -35,19 +35,24 @@ describe("catalog", () => {
   });
 
   it("gives every rule a source to trace a finding back to", () => {
-    const untraceable = GUIDELINE_RULES.filter(
-      (rule) => !rule.source_url.startsWith("http"),
+    const untraceable = GUIDELINE_RULES.filter((rule) =>
+      rule.sources.some((source) => !source.source_url.startsWith("http")),
     );
     expect(untraceable).toEqual([]);
   });
 
   // A rule that can reject or send back a page has to show the words it rests
-  // on. A truncated quote hides whether the rule says more than Google does.
+  // on, in every engine's source. A truncated quote hides whether the rule
+  // says more than the engine does.
   it("quotes the official text in full for every critical and high rule", () => {
     const unquoted = GUIDELINE_RULES.filter(
       (rule) =>
         (rule.severity === "critical" || rule.severity === "high") &&
-        (!rule.official_quote.trim() || /\.\.\.|…/.test(rule.official_quote)),
+        rule.sources.some(
+          (source) =>
+            !source.official_quote.trim() ||
+            /\.\.\.|…/.test(source.official_quote),
+        ),
     ).map((rule) => rule.id);
     expect(unquoted).toEqual([]);
   });

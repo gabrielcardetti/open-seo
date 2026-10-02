@@ -105,7 +105,7 @@ export const getGuidelineResultsTool = {
           evidence: result.evidence,
           reason: result.reason,
           how_to_fix: result.remediation,
-          source: RULES_BY_ID.get(result.ruleId)?.source_url,
+          source: RULES_BY_ID.get(result.ruleId)?.sources[0]?.source_url,
         })),
     });
 
