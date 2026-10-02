@@ -240,6 +240,14 @@ export default {
     } catch (err) {
       console.error("[cron] Agent-readiness scans failed:", err);
     }
+    // Daily Bing Webmaster snapshots, isolated and lazy for the same reasons.
+    try {
+      const { BingSyncService } =
+        await import("@/server/features/bing/services/BingSyncService");
+      await withPgClient(() => BingSyncService.runScheduledSyncs());
+    } catch (err) {
+      console.error("[cron] Bing Webmaster syncs failed:", err);
+    }
     if (watchdogError) throw watchdogError;
   },
 };

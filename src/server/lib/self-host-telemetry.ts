@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { getDatabaseProvider } from "@/db/provider";
 import {
   audits,
+  bingConnections,
   gscConnections,
   projects,
   rankTrackingKeywords,
@@ -66,6 +67,7 @@ type HeartbeatCounts = {
   rankTrackingKeywordCount: number;
   savedKeywordCount: number;
   gscConnected: boolean;
+  bingConnected: boolean;
   samChatUsed: boolean;
 };
 
@@ -204,6 +206,7 @@ async function collectCounts(): Promise<HeartbeatCounts> {
     [rankKeywordRow],
     [savedKeywordRow],
     [gscRow],
+    [bingRow],
     [samRow],
   ] = await Promise.all([
     db.select({ value: count() }).from(user),
@@ -212,6 +215,7 @@ async function collectCounts(): Promise<HeartbeatCounts> {
     db.select({ value: count() }).from(rankTrackingKeywords),
     db.select({ value: count() }).from(savedKeywords),
     db.select({ value: count() }).from(gscConnections),
+    db.select({ value: count() }).from(bingConnections),
     db.select({ value: count() }).from(samSessions),
   ]);
 
@@ -222,6 +226,7 @@ async function collectCounts(): Promise<HeartbeatCounts> {
     rankTrackingKeywordCount: rankKeywordRow?.value ?? 0,
     savedKeywordCount: savedKeywordRow?.value ?? 0,
     gscConnected: (gscRow?.value ?? 0) > 0,
+    bingConnected: (bingRow?.value ?? 0) > 0,
     samChatUsed: (samRow?.value ?? 0) > 0,
   };
 }

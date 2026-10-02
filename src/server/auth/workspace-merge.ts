@@ -6,6 +6,7 @@ import { runBatch } from "@/db/runBatch";
 import { getAuthMode } from "@/lib/auth-mode";
 import { AppError } from "@/server/lib/errors";
 import {
+  bingConnections,
   ga4Connections,
   gscConnections,
   organization,
@@ -137,6 +138,10 @@ async function mergeLegacyWorkspaces() {
       .update(ga4Connections)
       .set(repointToShared)
       .where(inArray(ga4Connections.organizationId, legacyIds)),
+    tx
+      .update(bingConnections)
+      .set(repointToShared)
+      .where(inArray(bingConnections.organizationId, legacyIds)),
     ...(activationRows.length > 0
       ? [
           tx
