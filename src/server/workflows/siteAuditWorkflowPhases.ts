@@ -138,7 +138,7 @@ export async function runAuditPhases(
 }
 
 /**
- * Announce the pages that are new or changed since the previous audit, via
+ * Announce the pages whose content changed since the previous audit, via
  * IndexNow (see auditChanges.ts for why not Bing). Its own step with no
  * retries so a replay never re-sends, and every failure is swallowed: the
  * audit is already complete and indexing must never fail it.

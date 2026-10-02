@@ -45,7 +45,7 @@ function curlExample(url: string, secret: string) {
 
 /**
  * What runs without anyone clicking: the daily sitemap check, the deploy
- * hook, and announcing pages an audit found new or changed.
+ * hook, and announcing pages whose content an audit found changed.
  */
 export function IndexingAutomationCard({
   projectId,
