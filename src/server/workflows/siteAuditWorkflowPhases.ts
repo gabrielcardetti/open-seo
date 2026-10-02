@@ -20,6 +20,7 @@ import {
   type CrawlScope,
 } from "@/server/lib/audit/crawl-scope";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { collectBingAuditIssues } from "@/server/features/bing/bingAuditIssues";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import { runMultipageChecks } from "@/server/lib/audit/issues/multipage";
@@ -444,6 +445,7 @@ async function finalizeAudit(args: {
         pageUrl: startUrl,
       });
     }
+    issues.push(...(await bingIssuesForAudit(projectId, auditId)));
     const persistStartedAt = Date.now();
     await AuditRepository.insertIssues(auditId, issues);
     console.info("Audit finalization issues persisted", {
@@ -486,6 +488,22 @@ async function finalizeAudit(args: {
     // Crawl scratch state (frontier, links, mirror) is no longer needed.
     await getAuditScratchpad(auditId).destroy();
   });
+}
+
+/**
+ * What Bing's last sync reported about the site's URLs. A failed read never
+ * fails the audit: the Bing issues are left out and the error logged.
+ */
+async function bingIssuesForAudit(
+  projectId: string,
+  auditId: string,
+): Promise<DetectedIssue[]> {
+  try {
+    return await collectBingAuditIssues({ projectId, auditId });
+  } catch (error) {
+    console.warn("Audit Bing issues skipped", { auditId, error });
+    return [];
+  }
 }
 
 /**
