@@ -145,6 +145,14 @@ gsc/pages-last-16-months.csv
 
 Offer these once. If the user isn't interested or can't publish a file on the site, move on.
 
+**Then register the site's sitemaps.** OpenSEO keeps its own list of the project's sitemaps and checks that Google and Bing have each one. `get_project_context` lists `sitemaps` as missing until one is tracked.
+
+1. Call `get_sitemaps`. If nothing is registered or suggested yet, run `update_sitemaps` with `detect: true` to suggest the sitemaps in robots.txt and at `/sitemap.xml`.
+2. Show the user the suggested sitemaps and any listed under `engineOnly` (registered in Google or Bing, unknown to OpenSEO, often stale). Ask which are theirs, then `update_sitemaps` with `track` for those and `ignore` for the rest. Ask whether they have other sitemaps (news, images, a second section) and `add` them.
+3. If tracked sitemaps are missing in Google or Bing, offer `submit_sitemaps` (only the missing ones are sent). If `gscCanSubmit` is false, tell the user to reconnect Search Console once on the project's Integrations page to allow submitting; Bing can still be sent.
+
+Changing the list and submitting need an owner or admin.
+
 ### 9. Set up a local folder only for file work
 
 Project knowledge lives in OpenSEO, not on disk. A local folder is still useful for the things that are actually files: GSC CSV exports, crawls, drafts, briefs, and reports.
@@ -187,6 +195,7 @@ Then summarize:
 - Competitors saved
 - Key pages saved
 - Search Console and Bing Webmaster Tools status, IndexNow status, and any local files
+- Sitemaps tracked, and whether Google and Bing have them
 - Sections still missing from project context
 - Recommended next workflow
 
