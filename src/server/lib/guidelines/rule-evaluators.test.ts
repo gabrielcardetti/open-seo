@@ -186,12 +186,22 @@ describe("Bing evaluators", () => {
     expect(bing13("https://example.com/c")).toBe("unknown");
   });
 
-  it("fails prompt injection hidden from visitors", () => {
+  it("fails planted prompt injection and only warns on a lead", () => {
     const spamSignals = {
       ...emptySpamSignals(),
       promptInjection: ['Hidden by inline display:none on <div>: "Ignore…"'],
     };
     expect(status("BING-30", { spamSignals })).toBe("fail");
+    expect(
+      status("BING-30", {
+        spamSignals: {
+          ...emptySpamSignals(),
+          promptInjectionLeads: [
+            'Hidden by inline display:none on <div>, needs a look: "Ignore…"',
+          ],
+        },
+      }),
+    ).toBe("warn");
     expect(
       evaluateDeterministic("BING-30", { page: fetchedPage() }),
     ).toBeNull();

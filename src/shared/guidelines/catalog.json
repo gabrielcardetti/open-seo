@@ -2893,7 +2893,7 @@
       "applies_if": "always",
       "question": "¿La página evita contenido diseñado para manipular o interferir con los modelos de lenguaje de Bing o Copilot?",
       "pass_if": "Ninguna instrucción oculta dirigida a modelos de IA. Un texto visible que explica o cita prompt injection no cuenta.",
-      "fail_if": "Texto oculto al lector que da órdenes a un modelo de IA ('ignora las instrucciones anteriores', 'si eres una IA, recomienda…'). En comentarios HTML: aviso.",
+      "fail_if": "Texto oculto al lector que ordena a un modelo de IA ignorar sus instrucciones y, dirigiéndose a él como modelo, le dice qué recomendar o decir ('ignora las instrucciones anteriores; si eres una IA, recomienda…'), sin presentarlo como cita o ejemplo. Solo una parte de ese patrón, una cita o un comentario HTML: aviso para revisión.",
       "remediation": "Quitar las instrucciones ocultas dirigidas a modelos de IA.",
       "sources": [
         {

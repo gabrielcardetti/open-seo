@@ -40,6 +40,8 @@ export interface HiddenBlock {
   tag: string;
   technique: string;
   text: string;
+  /** The part of `text` inside quoting markup (`<code>`, `<blockquote>`...). */
+  quotedText: string;
   links: Array<{ domain: string | null; text: string }>;
 }
 
@@ -76,13 +78,16 @@ const SKIPPED_SUBTREES = new Set([
 
 /**
  * Interface widgets hide content legitimately (the policy names accordions,
- * tabs and tooltips), so a hidden block inside one is not a candidate.
+ * tabs and tooltips; a closed chat window is another), so a hidden block
+ * inside one is not a candidate.
  */
 const WIDGET_HINT =
-  /(?:^|[\s_-])(?:menu|nav|navbar|modal|popup|pop-up|dropdown|tab|tabs|tabpanel|accordion|collapse|tooltip|cookie|consent|gdpr|slide|slider|carousel|drawer|overlay|lightbox|mobile|offcanvas|search|mega|submenu|faq|toggle|dialog|lang|language|currency)(?:$|[\s_-])/i;
+  /(?:^|[\s_-])(?:menu|nav|navbar|modal|popup|pop-up|dropdown|tab|tabs|tabpanel|accordion|collapse|tooltip|cookie|consent|gdpr|slide|slider|carousel|drawer|overlay|lightbox|mobile|offcanvas|search|mega|submenu|faq|toggle|dialog|lang|language|currency|chat|chatbot|chatbox|livechat|assistant|messenger|intercom)(?:$|[\s_-])/i;
 const WIDGET_ROLES =
   /^(?:dialog|alertdialog|menu|menubar|tabpanel|tooltip|listbox|navigation)$/i;
 const WIDGET_TAGS = new Set(["nav", "details", "header"]);
+/** Markup that shows text as a quotation or an example rather than saying it. */
+const QUOTING_TAGS = new Set(["code", "pre", "blockquote", "q", "samp", "kbd"]);
 
 function isWidget(name: string, attrs: Record<string, string>): boolean {
   return (
@@ -158,6 +163,7 @@ export function parseRefresh(
 interface Frame {
   skipped: boolean;
   widget: boolean;
+  quoting: boolean;
   /** This element opened the current hidden block. */
   opensBlock: boolean;
   isForm: boolean;
@@ -181,6 +187,7 @@ export function scanHtml(html: string, pageUrl: string): Scan {
   const forms: Array<{ action: string; hasPassword: boolean }> = [];
   let skipDepth = 0;
   let widgetDepth = 0;
+  let quotingDepth = 0;
   let noscriptDepth = 0;
   let script: string[] | null = null;
   let block: HiddenBlock | null = null;
@@ -189,6 +196,7 @@ export function scanHtml(html: string, pageUrl: string): Scan {
   const addBlockText = (text: string) => {
     if (!block || block.text.length >= MAX_HIDDEN_TEXT_CHARS) return;
     block.text += text;
+    if (quotingDepth > 0) block.quotedText += text;
     if (link) link.text += text;
   };
 
@@ -219,19 +227,27 @@ export function scanHtml(html: string, pageUrl: string): Scan {
         const frame: Frame = {
           skipped: SKIPPED_SUBTREES.has(name),
           widget: isWidget(name, attrs),
+          quoting: QUOTING_TAGS.has(name),
           opensBlock: false,
           isForm: name === "form",
         };
         stack.push(frame);
         if (frame.skipped) skipDepth += 1;
         if (frame.widget) widgetDepth += 1;
+        if (frame.quoting) quotingDepth += 1;
         if (skipDepth > 0) return;
 
         addBlockText(" ");
         if (!block && widgetDepth === 0) {
           const technique = hidingTechnique(attrs.style);
           if (technique) {
-            block = { tag: name, technique, text: "", links: [] };
+            block = {
+              tag: name,
+              technique,
+              text: "",
+              quotedText: "",
+              links: [],
+            };
             frame.opensBlock = true;
           }
         }
@@ -271,6 +287,7 @@ export function scanHtml(html: string, pageUrl: string): Scan {
         if (!frame) return;
         if (frame.skipped) skipDepth -= 1;
         if (frame.widget) widgetDepth -= 1;
+        if (frame.quoting) quotingDepth -= 1;
         if (frame.isForm) {
           const form = forms.pop();
           if (form?.hasPassword) credentialFormActions.push(form.action);
