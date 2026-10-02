@@ -264,9 +264,10 @@ export async function fetchPageForEvaluation(
     bodyText: analysis.bodyText,
     structuredData: extractJsonLd(html),
     imagesTotal: analysis.images.length,
-    imagesMissingAlt: analysis.images.filter(
-      (image) => !image.alt || !image.alt.trim(),
-    ).length,
+    // Same count as the crawl: an empty alt marks a decorative image, which is
+    // correct, so only a missing attribute counts.
+    imagesMissingAlt: analysis.images.filter((image) => image.alt === null)
+      .length,
     internalLinks: analysis.links.filter((link) => link.isInternal).length,
     externalLinks: analysis.links.filter((link) => !link.isInternal).length,
     pdfLinks: analysis.links.filter((link) => isPdfLink(link.targetUrl)).length,

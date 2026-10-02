@@ -48,6 +48,10 @@ Judging externo: la herramienta entrega páginas y reglas, un modelo nuestro juz
 
 Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivinar; citar las palabras de la página en cada fail; no inventar políticas fuera del catálogo.
 
+Cosas a tener en cuenta con los jueces:
+- **Lista explícita.** Pasale a cada juez su lista de URLs dentro del prompt y confirmá que esté. Un marcador sin reemplazar lo deja sin páginas o lo hace pedir las de otro.
+- **Datos de terceros.** Un fail sobre un precio, plazo o política de un tercero (Meta, Google, una pasarela de pago) se verifica contra la página oficial **renderizada en un navegador** (Playwright), no con WebFetch: puede devolver una versión archivada. En maxagente.com, dos jueces marcaron como error "hasta 7 días" porque leyeron una copia vieja que decía 72 horas. Si el juez se equivocó, reenviá el veredicto corregido de esa página.
+
 ## Fase 3 — Agent readiness
 
 `run_agent_readiness_scan` por dominio, `get_agent_readiness` para leer. Separá lo que aplica (robots con reglas para bots de IA, Content Signals, `llms.txt`, markdown negotiation) de lo que no aplica al sitio (OAuth discovery, A2A, comercio si no vende por API).
@@ -69,6 +73,8 @@ Reglas para los jueces: responder solo lo que no pasa; `unknown` en vez de adivi
 
 - Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log, o `list_site_audits`) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron (los de Bing, aparte, en `guidelines.bing`). Si los dos crawls no cubrieron las mismas URLs, mirá `issues.common` (solo URLs presentes en ambas, también por plantilla): lo demás mezcla arreglos con cambios de muestra. Agent readiness guarda su propio historial en `get_agent_readiness`.
 - Anotá el resultado de cada ronda en el research log, para que la evolución quede en un solo lugar.
+- **Después de un lanzamiento de contenido**, seguí la fase 7 de `content-build`: indexación en Search Console (cuota de unas 10 a 12 por día), Bing, IndexNow y la línea base de medición.
+- **Lighthouse.** El MCP no devuelve los puntajes de Lighthouse. Para medir rendimiento, corré Lighthouse en local contra producción y mirá las peticiones más pesadas de cada página (comandos en `content-build/checks.md`).
 
 ## Guardrails
 
