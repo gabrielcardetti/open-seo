@@ -27,6 +27,30 @@ describe("robots.txt as Bingbot reads it", () => {
     expect(facts?.droppedRules).toEqual(["Disallow: /cart/"]);
   });
 
+  it("reads a versioned Bingbot group as Bingbot's", () => {
+    const facts = robots(
+      "User-agent: *\nDisallow: /admin\n\nUser-agent: bingbot/2.0\nCrawl-delay: 5\n",
+    );
+    expect(facts).toMatchObject({
+      hasBingbotGroup: true,
+      droppedRules: ["Disallow: /admin"],
+    });
+  });
+
+  // An allowlist blocks every bot and lets Bingbot in on purpose; repeating
+  // the `*` rules in Bingbot's group would undo it.
+  it.each([
+    "User-agent: *\nDisallow: /\n\nUser-agent: bingbot\nAllow: /\n",
+    "User-agent: *\nDisallow: /\n\nUser-agent: Bingbot\nDisallow:\n",
+    "User-agent: Googlebot\nUser-agent: bingbot\nDisallow:\n\nUser-agent: *\nDisallow: /\n",
+    "User-agent: *\nDisallow: /admin\n\nUser-agent: bingbot\nAllow: /\n",
+  ])(
+    "does not count rules an allow-all Bingbot group drops on purpose: %j",
+    (text) => {
+      expect(robots(text)?.droppedRules).toEqual([]);
+    },
+  );
+
   it("does not count rules a stricter Bingbot group already covers", () => {
     const facts = robots(
       "User-agent: *\nDisallow: /cart/\n\nUser-agent: Bingbot\nDisallow: /\n",

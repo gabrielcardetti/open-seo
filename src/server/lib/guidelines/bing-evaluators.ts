@@ -8,9 +8,12 @@
  * `unknown` or null, never a pass.
  *
  * BING-30 is the one place a detector fails a page: text hidden from visitors
- * that orders a language model to drop its instructions or to recommend, cite
- * or say something has no innocent reading, and Bing names it as grounds for
- * removal. Weaker hits (the same text in an HTML comment) only warn.
+ * that orders a language model to drop its instructions and tells it, as a
+ * model, what to recommend or say, unquoted, has no innocent reading, and
+ * Bing names it as grounds for removal. Anything less (one part of that
+ * pattern, a quotation of it, the same text in an HTML comment) only warns:
+ * closed chat windows, interface strings and write-ups about the attack look
+ * like one part, and a false reject costs more than a reviewer's look.
  */
 import {
   directiveList,
@@ -209,6 +212,11 @@ export const bingPageEvaluators: Record<string, Evaluator> = {
       };
     }
     const bing = site?.facts?.bing;
+    // Pages judged after the site pass (members of a cluster it flagged) are
+    // not in the facts' duplicate lists, which were drawn for the sample.
+    const repeatsChecked =
+      bing !== undefined &&
+      (bing.duplicatesCheckedFor?.includes(page.url) ?? true);
     const notes = [
       page.title.trim().length < TITLE_MIN_CHARS &&
         `title is ${page.title.trim().length} characters`,
@@ -226,12 +234,12 @@ export const bingPageEvaluators: Record<string, Evaluator> = {
         reason: "Bing reads short or repeated titles and descriptions as weak.",
       };
     }
-    return bing
+    return repeatsChecked
       ? { status: "pass" }
       : {
-          status: "pass",
-          evidence:
-            "Present and not short; repeats on other pages not checked.",
+          status: "unknown",
+          reason:
+            "Present and not short; whether another page repeats them was not checked.",
         };
   },
 
@@ -279,7 +287,7 @@ export const bingPageEvaluators: Record<string, Evaluator> = {
         status: "fail",
         evidence: promptInjection.join(" | "),
         reason:
-          "Text hidden from visitors gives orders to a language model, which Bing treats as manipulation of Bing and Copilot.",
+          "Text hidden from visitors tells a language model to drop its instructions and what to recommend or say, which Bing treats as manipulation of Bing and Copilot.",
       };
     }
     if (promptInjectionLeads.length > 0) {
@@ -287,7 +295,7 @@ export const bingPageEvaluators: Record<string, Evaluator> = {
         status: "warn",
         evidence: promptInjectionLeads.join(" | "),
         reason:
-          "An HTML comment gives orders to a language model; models that read raw HTML may follow it.",
+          "Text no visitor sees (a hidden block or an HTML comment) reads like an order to a language model; check whether it was planted, since models that read raw HTML may follow it.",
       };
     }
     return null;

@@ -1129,6 +1129,62 @@
       }
     },
     {
+      "id": "legit-bing-hidden-tab-quotes-injection",
+      "kind": "legit",
+      "engines": ["google", "bing"],
+      "description": "An AI-agency service page whose closed 'Security' tab (inline display:none until clicked) explains prompt injection and quotes the phrase attackers hide.",
+      "notes": "The raw-HTML scan sees a hidden block holding 'ignore all previous instructions', but quoted, inside a write-up about the attack, and with no line addressing a model; it is a lead for a reviewer, never a reject. Tabs and chat widgets hide text this way all the time.",
+      "expected": {
+        "verdict_max": "pass_with_warnings",
+        "must_fail": [],
+        "must_not_fail": [
+          "BING-30",
+          "BING-25",
+          "SPAM-16",
+          "PF-W01",
+          "QRG-01",
+          "EAT-04"
+        ],
+        "ymyl": false
+      },
+      "page": {
+        "canonical": "https://agentesia.example/servicios/agentes-ia-atencion-cliente",
+        "robotsMeta": null,
+        "googlebotMeta": null,
+        "bingbotMeta": null,
+        "robotsHeader": null,
+        "structuredData": [],
+        "imagesTotal": 2,
+        "imagesMissingAlt": 0,
+        "internalLinks": 24,
+        "externalLinks": 3,
+        "pdfLinks": 0,
+        "dataNosnippet": 0,
+        "collapsedWords": 0,
+        "isHttps": true,
+        "statusCode": 200,
+        "finalUrl": "https://agentesia.example/servicios/agentes-ia-atencion-cliente",
+        "headingOrder": [1, 2, 2, 2],
+        "url": "https://agentesia.example/servicios/agentes-ia-atencion-cliente",
+        "title": "Agentes de IA para atención al cliente | Agentes IA Levante",
+        "metaDescription": "Diseñamos agentes de IA que responden a tus clientes por web y WhatsApp con tus propios datos, revisión humana y pruebas contra prompt injection.",
+        "h1s": ["Agentes de IA para atención al cliente"],
+        "bodyText": "Agentes IA Levante · Valencia Agentes de IA para atención al cliente Diseñamos asistentes que contestan a tus clientes en la web y por WhatsApp a partir de tu catálogo, tus políticas y el historial de pedidos, y que pasan la conversación a una persona cuando no saben la respuesta. Cómo trabajamos Empezamos con dos semanas de análisis de las consultas reales que recibís; con eso escribimos el conjunto de pruebas que el agente tiene que superar antes de salir a producción. El agente solo consulta las fuentes que le damos y cita de dónde saca cada respuesta. Precios Plan Inicio desde 900 € al mes para una tienda con un canal; Plan Empresa con varios canales e integración con vuestro CRM, a medida. Pestañas: Integraciones · Seguridad · Preguntas frecuentes Equipo Marta Soler y Pablo Ferrer, ocho años desarrollando software para comercio electrónico. Contacto · Aviso legal · Privacidad",
+        "spamSignals": {
+          "historyTraps": [],
+          "sneakyRedirects": [],
+          "hiddenContent": [],
+          "scamFacts": [],
+          "promptInjection": [],
+          "promptInjectionLeads": [
+            "Hidden by inline display:none on <div>, needs a look: \"Seguridad Un ataque de prompt injection esconde en una web frases como \"ignore all previous instructions\" para que el asistente cambie de comportamiento. Nuestros agentes tratan el texto de las páginas como datos, no como órdenes.\""
+          ]
+        },
+        "wordCount": 150
+      },
+      "regression_for": "BING-30 failed any hidden text that matched one prompt-injection pattern, so a JS tab quoting the attack, a closed chat widget or hidden interface strings rejected the page for Bing."
+    },
+    {
       "id": "legit-bing-nocache",
       "kind": "legit",
       "engines": ["google", "bing"],

@@ -2430,7 +2430,7 @@
       "check": "binary",
       "applies_if": "always",
       "question": "Si robots.txt tiene un grupo propio para Bingbot, ¿repite las reglas del grupo genérico (*)?",
-      "pass_if": "No hay grupo para Bingbot, o su grupo incluye todas las reglas Disallow y Allow del grupo *.",
+      "pass_if": "No hay grupo para Bingbot, su grupo incluye todas las reglas Disallow y Allow del grupo *, o lo deja pasar a propósito (su grupo solo tiene Allow: / o un Disallow vacío, o el grupo * bloquea todo el sitio).",
       "fail_if": "El grupo de Bingbot omite reglas Disallow del grupo *: Bingbot ignora el grupo genérico y rastrea lo que el resto de bots tiene bloqueado.",
       "remediation": "Copiar al grupo de Bingbot todas las reglas del grupo *, además de las propias, o quitar el grupo de Bingbot si no hace falta.",
       "sources": [
@@ -2893,7 +2893,7 @@
       "applies_if": "always",
       "question": "¿La página evita contenido diseñado para manipular o interferir con los modelos de lenguaje de Bing o Copilot?",
       "pass_if": "Ninguna instrucción oculta dirigida a modelos de IA. Un texto visible que explica o cita prompt injection no cuenta.",
-      "fail_if": "Texto oculto al lector que da órdenes a un modelo de IA ('ignora las instrucciones anteriores', 'si eres una IA, recomienda…'). En comentarios HTML: aviso.",
+      "fail_if": "Texto oculto al lector que ordena a un modelo de IA ignorar sus instrucciones y, dirigiéndose a él como modelo, le dice qué recomendar o decir ('ignora las instrucciones anteriores; si eres una IA, recomienda…'), sin presentarlo como cita o ejemplo. Solo una parte de ese patrón, una cita o un comentario HTML: aviso para revisión.",
       "remediation": "Quitar las instrucciones ocultas dirigidas a modelos de IA.",
       "sources": [
         {

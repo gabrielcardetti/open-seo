@@ -409,29 +409,42 @@ interface StoredRuleResult {
 }
 
 /**
+ * The engines a stored result belongs to. A rule the catalog no longer
+ * carries keeps counting for the engine it was written for, so retiring a
+ * rule does not rewrite the verdicts already stored with it: every rule
+ * retired so far was Google's, and Bing's rules carry the `BING-` prefix.
+ */
+function storedRuleEngines(ruleId: string): readonly Engine[] {
+  return (
+    RULES_BY_ID.get(ruleId)?.engines ?? [
+      ruleId.startsWith("BING-") ? "bing" : "google",
+    ]
+  );
+}
+
+/**
  * One engine's verdict, recomputed from an evaluation's stored results: the
  * rules of other engines are left out, and the rest weigh as they did when
- * the evaluation was stored. Only non-passing rules are stored, so the rules
+ * the evaluation was stored (the stored severity, including for a rule the
+ * catalog has since retired). Only non-passing rules are stored, so the rules
  * the engine passed are simply absent, as they would be from the verdict.
  */
 export function engineVerdictFromResults(
   results: readonly StoredRuleResult[],
   engine: Engine,
 ): VerdictSummary & { unknownCount: number } {
-  const own = results.flatMap((result) => {
-    const rule = RULES_BY_ID.get(result.ruleId);
-    return rule && rule.engines.includes(engine) ? [{ result, rule }] : [];
-  });
+  const own = results.filter((result) =>
+    storedRuleEngines(result.ruleId).includes(engine),
+  );
   return {
     ...tally(
-      own.map(({ result, rule }) => ({
+      own.map((result) => ({
         status: result.status,
         severity: result.severity,
-        conflicting: isConflicting(rule),
+        conflicting: isConflicting(RULES_BY_ID.get(result.ruleId)),
       })),
     ),
-    unknownCount: own.filter(({ result }) => result.status === "unknown")
-      .length,
+    unknownCount: own.filter((result) => result.status === "unknown").length,
   };
 }
 
@@ -442,8 +455,9 @@ export function engineVerdictFromResults(
  * It works because every evaluation stores at least one such row per engine:
  * the human-review rules no evaluator can close (PF-W10 and SPAM-03 for
  * Google, BING-30's reviewer fallback and BING-03 for Bing) are recorded as
- * `unknown` on every page and site row. A row with no results at all (one
- * that failed to evaluate) falls back to `fallback`.
+ * `unknown` on every page and site row (catalog.test.ts holds them to it). A
+ * row with no results at all (one that failed to evaluate) falls back to
+ * `fallback`.
  */
 export function evaluatedEngines(
   results: readonly Pick<StoredRuleResult, "ruleId">[],
@@ -452,8 +466,8 @@ export function evaluatedEngines(
   if (results.length === 0) return [...fallback];
   const found = new Set<Engine>();
   for (const result of results) {
-    const engines = RULES_BY_ID.get(result.ruleId)?.engines;
-    if (engines?.length === 1) found.add(engines[0]);
+    const engines = storedRuleEngines(result.ruleId);
+    if (engines.length === 1) found.add(engines[0]);
   }
   return ENGINES.filter((engine) => found.has(engine));
 }
