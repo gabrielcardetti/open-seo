@@ -28,8 +28,12 @@ const pageSchema = z.object({
   canonical: z.string().nullable(),
   robotsMeta: z.string().nullable(),
   googlebotMeta: z.string().nullable(),
+  // Fields added after the first cases were written default to what a page
+  // without them would yield.
+  bingbotMeta: z.string().nullable().default(null),
   robotsHeader: z.string().nullable(),
   h1s: z.array(z.string()),
+  headingOrder: z.array(z.number()).default([]),
   wordCount: z.number(),
   bodyText: z.string(),
   structuredData: z.array(z.unknown()),
@@ -37,6 +41,9 @@ const pageSchema = z.object({
   imagesMissingAlt: z.number(),
   internalLinks: z.number(),
   externalLinks: z.number(),
+  pdfLinks: z.number().default(0),
+  dataNosnippet: z.number().default(0),
+  collapsedWords: z.number().default(0),
   isHttps: z.boolean(),
   // Read from raw HTML, which the cases do not carry; a case that needs a
   // signal states it.
@@ -46,6 +53,8 @@ const pageSchema = z.object({
       sneakyRedirects: z.array(z.string()),
       hiddenContent: z.array(z.string()),
       scamFacts: z.array(z.string()),
+      promptInjection: z.array(z.string()).default([]),
+      promptInjectionLeads: z.array(z.string()).default([]),
     })
     .default(emptySpamSignals),
 }) satisfies z.ZodType<FetchedPage>;

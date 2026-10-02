@@ -3,12 +3,12 @@ import { z } from "zod";
 import { CATALOG_VERSION } from "@/shared/guidelines/catalog";
 import type { FetchedPage } from "@/server/lib/guidelines/page-fetch";
 import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
-import { emptySpamSignals } from "@/server/lib/guidelines/spam-signals";
 import {
   getGuidelinesEvaluationBatchTool,
   submitGuidelinesEvaluationTool,
 } from "./guideline-judge-tools";
 import { makeToolContext } from "./tool-test-support";
+import { fetchedPageFixture } from "@/server/lib/guidelines/guideline-test-support";
 
 const ORIGIN = "https://example.com";
 const SITE = `${ORIGIN}/#site`;
@@ -88,27 +88,14 @@ vi.mock("@/server/lib/guidelines/page-fetch", () => ({
 }));
 
 function fetchedPage(url: string): FetchedPage {
-  return {
+  return fetchedPageFixture({
     url,
     finalUrl: url,
-    statusCode: 200,
     title: "Abogados en Madrid | Firma",
-    metaDescription: "",
-    canonical: null,
-    robotsMeta: null,
-    googlebotMeta: null,
-    robotsHeader: null,
-    h1s: [],
     wordCount: 430,
     bodyText: "Abogados en Madrid con experiencia.",
-    structuredData: [],
-    imagesTotal: 0,
-    imagesMissingAlt: 0,
     internalLinks: 5,
-    externalLinks: 0,
-    isHttps: true,
-    spamSignals: emptySpamSignals(),
-  };
+  });
 }
 
 beforeEach(() => {

@@ -35,9 +35,13 @@ export interface FetchedPage {
   robotsMeta: string | null;
   /** `<meta name="googlebot">`, which Google reads alongside `robots`. */
   googlebotMeta: string | null;
+  /** `<meta name="bingbot">`, which Bing reads alongside `robots`. */
+  bingbotMeta: string | null;
   /** The `X-Robots-Tag` response header, as received. */
   robotsHeader: string | null;
   h1s: string[];
+  /** Heading levels in document order (2 for an h2). */
+  headingOrder: number[];
   wordCount: number;
   bodyText: string;
   /** Parsed JSON-LD blocks, unusable ones dropped. */
@@ -46,6 +50,12 @@ export interface FetchedPage {
   imagesMissingAlt: number;
   internalLinks: number;
   externalLinks: number;
+  /** Links to PDF files. */
+  pdfLinks: number;
+  /** Elements marked `data-nosnippet`. */
+  dataNosnippet: number;
+  /** Words inside `<details>` elements that load closed. */
+  collapsedWords: number;
   isHttps: boolean;
   /** Spam evidence read from the raw HTML while it is still in memory. */
   spamSignals: SpamSignals;
@@ -100,22 +110,69 @@ function extractJsonLd(html: string): unknown[] {
   return blocks;
 }
 
+const withoutComments = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
+
 /**
- * The `googlebot` meta tag, which the streaming analyzer does not keep (it
- * reads only `robots`). Attribute order varies, so both orders are tried.
+ * A crawler's own robots meta tag (`googlebot`, `bingbot`), which the
+ * streaming analyzer does not keep (it reads only `robots`). Attribute order
+ * varies, so both orders are tried.
  */
-function extractGooglebotMeta(rawHtml: string): string | null {
-  // A tag left in a comment ("staging: noindex") is not one Google reads.
-  const html = rawHtml.replace(/<!--[\s\S]*?-->/g, "");
+function extractCrawlerMeta(
+  rawHtml: string,
+  crawler: "googlebot" | "bingbot",
+): string | null {
+  // A tag left in a comment ("staging: noindex") is not one a crawler reads.
+  const html = withoutComments(rawHtml);
   const match =
     html.match(
-      /<meta[^>]+name=["']googlebot["'][^>]*content=["']([^"']*)["']/i,
+      new RegExp(
+        `<meta[^>]+name=["']${crawler}["'][^>]*content=["']([^"']*)["']`,
+        "i",
+      ),
     ) ??
     html.match(
-      /<meta[^>]+content=["']([^"']*)["'][^>]*name=["']googlebot["']/i,
+      new RegExp(
+        `<meta[^>]+content=["']([^"']*)["'][^>]*name=["']${crawler}["']`,
+        "i",
+      ),
     );
   return match?.[1] ?? null;
 }
+
+/** Elements carrying `data-nosnippet`, which Bing and Google leave out of snippets. */
+function countDataNosnippet(rawHtml: string): number {
+  return (
+    withoutComments(rawHtml).match(/<[a-z][^>]*\sdata-nosnippet(?=[\s=>/])/gi)
+      ?.length ?? 0
+  );
+}
+
+/**
+ * Words inside `<details>` elements without `open`: content a visitor (and an
+ * AI system that does not render) has to unfold first. Nested ones are rare
+ * enough to count once each.
+ */
+function countCollapsedWords(rawHtml: string): number {
+  let words = 0;
+  for (const match of withoutComments(rawHtml).matchAll(
+    /<details(?![^>]*\sopen(?=[\s=>/]))[^>]*>([\s\S]*?)<\/details>/gi,
+  )) {
+    const text = match[1]
+      .replace(/<summary[\s\S]*?<\/summary>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .trim();
+    if (text) words += text.split(/\s+/).length;
+  }
+  return words;
+}
+
+const isPdfLink = (url: string) => {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return false;
+  }
+};
 
 /**
  * The spam detectors only ever produce warnings, so a bug in one must not
@@ -198,9 +255,11 @@ export async function fetchPageForEvaluation(
     metaDescription: analysis.metaDescription,
     canonical: analysis.canonical,
     robotsMeta: analysis.robotsMeta,
-    googlebotMeta: extractGooglebotMeta(html),
+    googlebotMeta: extractCrawlerMeta(html, "googlebot"),
+    bingbotMeta: extractCrawlerMeta(html, "bingbot"),
     robotsHeader: response.headers.get("x-robots-tag"),
     h1s: analysis.h1s,
+    headingOrder: analysis.headingOrder,
     wordCount: analysis.wordCount,
     bodyText: analysis.bodyText,
     structuredData: extractJsonLd(html),
@@ -210,6 +269,9 @@ export async function fetchPageForEvaluation(
     ).length,
     internalLinks: analysis.links.filter((link) => link.isInternal).length,
     externalLinks: analysis.links.filter((link) => !link.isInternal).length,
+    pdfLinks: analysis.links.filter((link) => isPdfLink(link.targetUrl)).length,
+    dataNosnippet: countDataNosnippet(html),
+    collapsedWords: countCollapsedWords(html),
     isHttps: finalUrl.startsWith("https://"),
     spamSignals: safeSpamSignals(
       () =>

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   CATALOG_VERSION,
+  ENGINES,
   GUIDELINE_RULES,
   RULES_BY_ID,
+  SOURCE_DOCUMENTS,
   computeVerdict,
+  engineVerdictFromResults,
+  evaluatedEngines,
   rulesForContext,
   verdictSeverity,
 } from "./catalog";
@@ -29,7 +33,7 @@ describe("catalog", () => {
   // The catalog is data we replace wholesale when Google updates a source
   // document. This is the test that fails on a bad or truncated replacement.
   it("parses and carries the rules it declares", () => {
-    expect(GUIDELINE_RULES).toHaveLength(107);
+    expect(GUIDELINE_RULES).toHaveLength(134);
     expect(RULES_BY_ID.size).toBe(GUIDELINE_RULES.length);
     expect(CATALOG_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
@@ -56,6 +60,53 @@ describe("catalog", () => {
     ).map((rule) => rule.id);
     expect(unquoted).toEqual([]);
   });
+
+  it("derives each rule's engines from its sources", () => {
+    for (const rule of GUIDELINE_RULES) {
+      expect(rule.engines, rule.id).toEqual(
+        ENGINES.filter((engine) =>
+          rule.sources.some((source) => source.engine === engine),
+        ),
+      );
+    }
+  });
+
+  // The quote checker fetches each Bing source from the document it names.
+  it("names a re-checkable document for every Bing source", () => {
+    const undocumented = GUIDELINE_RULES.flatMap((rule) =>
+      rule.sources
+        .filter(
+          (source) =>
+            source.engine === "bing" &&
+            SOURCE_DOCUMENTS[source.source]?.url !== source.source_url,
+        )
+        .map((source) => `${rule.id} ${source.source}`),
+    );
+    expect(undocumented).toEqual([]);
+  });
+
+  // A blog post is a weaker authority than the guidelines themselves: a rule
+  // resting only on one may advise, not send a page back.
+  it("caps rules sourced only from a blog at medium severity", () => {
+    const overreaching = GUIDELINE_RULES.filter(
+      (rule) =>
+        rule.sources.every((source) => source.source === "SRC-BAIANS") &&
+        (rule.severity === "critical" || rule.severity === "high"),
+    );
+    expect(overreaching).toEqual([]);
+  });
+
+  it("points every conflict at another engine's existing rule", () => {
+    for (const rule of GUIDELINE_RULES) {
+      for (const conflict of rule.conflicts_with ?? []) {
+        const other = RULES_BY_ID.get(conflict.rule_id);
+        expect(other, `${rule.id} -> ${conflict.rule_id}`).toBeDefined();
+        expect(
+          other!.engines.some((engine) => !rule.engines.includes(engine)),
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 describe("rulesForContext", () => {
@@ -79,9 +130,30 @@ describe("rulesForContext", () => {
     expect(ids({ ymyl: false }).has("YMYL-02")).toBe(false);
   });
 
+  // Adding Bing's rules must not change what a default (Google) evaluation
+  // asks; asking for Bing adds its rules and the ones both engines state.
+  it("asks only the selected engines' rules", () => {
+    const google = rulesForContext({}, "page");
+    const bing = rulesForContext({}, "page", ["bing"]);
+    expect(google.every((rule) => rule.engines.includes("google"))).toBe(true);
+    expect(bing.every((rule) => rule.engines.includes("bing"))).toBe(true);
+    expect(bing.some((rule) => rule.id === "SPAM-10")).toBe(true);
+    expect(google.some((rule) => rule.id.startsWith("BING-"))).toBe(false);
+  });
+
+  it("asks Bing Webmaster Tools rules only with a Bing connection", () => {
+    const ids = (hasBwt?: boolean) =>
+      rulesForContext({ hasBwt }, "page", ["bing"]).map((rule) => rule.id);
+    expect(ids()).not.toContain("BING-36");
+    expect(ids(true)).toContain("BING-36");
+  });
+
   it("keeps unconditional rules in every context", () => {
     const always = GUIDELINE_RULES.filter(
-      (r) => r.applies_if === "always" && r.scope === "page",
+      (r) =>
+        r.applies_if === "always" &&
+        r.scope === "page" &&
+        r.engines.includes("google"),
     );
     const asked = new Set(rulesForContext({}, "page").map((r) => r.id));
     expect(always.every((r) => asked.has(r.id))).toBe(true);
@@ -172,6 +244,50 @@ describe("computeVerdict", () => {
   it("ignores results for rules the catalog no longer carries", () => {
     const summary = computeVerdict([{ id: "GONE-99", status: "fail" }]);
     expect(summary.verdict).toBe("pass");
+  });
+
+  // Where Bing and Google disagree, failing Bing's preference is reported but
+  // cannot send back a page Google's guidance accepts.
+  it("lets a rule that conflicts with another engine's only warn", () => {
+    const conflicting = GUIDELINE_RULES.find((r) => r.conflicts_with?.length);
+    expect(
+      computeVerdict([{ id: conflicting!.id, status: "fail" }]).verdict,
+    ).toBe("pass_with_warnings");
+  });
+});
+
+describe("per-engine verdicts from stored results", () => {
+  const stored = [
+    { ruleId: "BING-07", status: "fail" as const, severity: "high" as const },
+    { ruleId: "PF-W10", status: "unknown" as const, severity: "high" as const },
+    {
+      ruleId: "BING-03",
+      status: "unknown" as const,
+      severity: "medium" as const,
+    },
+    {
+      ruleId: "SPAM-10",
+      status: "warn" as const,
+      severity: "critical" as const,
+    },
+  ];
+
+  it("weighs each engine's rules only", () => {
+    expect(engineVerdictFromResults(stored, "google")).toMatchObject({
+      verdict: "pass_with_warnings",
+      unknownCount: 1,
+    });
+    expect(engineVerdictFromResults(stored, "bing")).toMatchObject({
+      verdict: "revise",
+      highFails: 1,
+      unknownCount: 1,
+    });
+  });
+
+  it("reads the engines an evaluation covered back from its rows", () => {
+    expect(evaluatedEngines(stored, ["google"])).toEqual(["google", "bing"]);
+    expect(evaluatedEngines(stored.slice(1, 2), [])).toEqual(["google"]);
+    expect(evaluatedEngines([], ["google"])).toEqual(["google"]);
   });
 });
 

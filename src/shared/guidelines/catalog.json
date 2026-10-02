@@ -1,11 +1,48 @@
 {
-  "catalog_version": "2026-09-25",
-  "rule_count": 107,
+  "catalog_version": "2026-10-02",
+  "rule_count": 134,
   "verdict_logic": {
     "reject": ">=1 critical fail backed by evidence (deterministic, or quoted by the judge); page-level answers to site-pattern rules cap at revise",
     "revise": ">=1 high fail and 0 critical",
     "pass_with_warnings": "only medium/low fails",
     "pass": "0 fails"
+  },
+  "source_documents": {
+    "SRC-BWG": {
+      "engine": "bing",
+      "title": "Bing Webmaster Guidelines",
+      "url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+      "fetch_url": "https://www.bing.com/webmasters/api/help/htmlcontent?ArticleId=30fba23a",
+      "checked": "2026-10-02"
+    },
+    "SRC-BROBOTS": {
+      "engine": "bing",
+      "title": "How to create a robots.txt file",
+      "url": "https://www.bing.com/webmasters/help/how-to-create-a-robots-txt-file-cb7c31ec",
+      "fetch_url": "https://www.bing.com/webmasters/api/help/htmlcontent?ArticleId=cb7c31ec",
+      "checked": "2026-10-02"
+    },
+    "SRC-BMETA": {
+      "engine": "bing",
+      "title": "Robots meta tags and attributes that Bing supports",
+      "url": "https://www.bing.com/webmasters/help/robots-meta-tags-and-attributes-that-bing-supports-5198d240",
+      "fetch_url": "https://www.bing.com/webmasters/api/help/htmlcontent?ArticleId=5198d240",
+      "checked": "2026-10-02"
+    },
+    "SRC-BRANK": {
+      "engine": "bing",
+      "title": "How Bing delivers search results",
+      "url": "https://support.microsoft.com/en-us/topic/how-bing-delivers-search-results-d18fc815-ac37-4723-bc67-9229ce3eb6a3",
+      "fetch_url": "https://support.microsoft.com/en-us/topic/how-bing-delivers-search-results-d18fc815-ac37-4723-bc67-9229ce3eb6a3",
+      "checked": "2026-10-02"
+    },
+    "SRC-BAIANS": {
+      "engine": "bing",
+      "title": "Optimizing your content for inclusion in AI search answers (Microsoft Advertising blog)",
+      "url": "https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers",
+      "fetch_url": "https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers",
+      "checked": "2026-10-02"
+    }
   },
   "rules": [
     {
@@ -131,6 +168,12 @@
           "source": "SRC-ESS",
           "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable#crawlable-links",
           "official_quote": "Generally, Google can only crawl your link if it's an <a> HTML element (also known as anchor element) with an href attribute. Most links in other formats won't be parsed and extracted by Google's crawlers."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Use standard <a href> links"
         }
       ]
     },
@@ -152,6 +195,12 @@
           "source": "SRC-ESS",
           "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable#internal-links",
           "official_quote": "Every page you care about should have a link from at least one other page on your site."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Ensure each important URL is reachable through crawlable internal links."
         }
       ]
     },
@@ -173,6 +222,12 @@
           "source": "SRC-ESS",
           "source_url": "https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics#how-googlebot-processes-javascript",
           "official_quote": "If it marks the URL as disallowed, then Googlebot skips making an HTTP request to this URL and skips the URL. Google Search won't render JavaScript from blocked files or on blocked pages."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Hiding critical content behind client-side rendering"
         }
       ]
     },
@@ -1244,6 +1299,12 @@
           "source": "SRC-SPAM",
           "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#cloaking",
           "official_quote": "Cloaking refers to the practice of presenting different content to users and search engines with the intent to manipulate search rankings and mislead users."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Showing different content to search crawlers than to users is a manipulative practice that undermines trust and visibility."
         }
       ]
     },
@@ -1391,6 +1452,12 @@
           "source": "SRC-SPAM",
           "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#malicious-practices",
           "official_quote": "Malicious practices create a mismatch between user expectations and the actual outcome, leading to a negative and deceptive user experience, or compromised user security or privacy."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Sites that participate in phishing, malware distribution, or other harmful activities risk demotion or removal."
         }
       ]
     },
@@ -1433,6 +1500,12 @@
           "source": "SRC-SPAM",
           "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#scraped-content",
           "official_quote": "Scraping refers to the practice of taking content from other sites, often through automated means, and hosting it with the purpose of manipulating search rankings."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Modifying or lightly rewriting existing content without new insight or perspective is considered scraping."
         }
       ]
     },
@@ -1454,6 +1527,12 @@
           "source": "SRC-SPAM",
           "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#scaled-content",
           "official_quote": "Scaled content abuse is when many pages are generated for the primary purpose of manipulating search rankings and not helping users. This abusive practice is typically focused on creating large amounts of unoriginal content that provides little to no value to users, no matter how it's created."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Large‑scale content generated without oversight, quality control, or editorial review often lacks usefulness, accuracy, and originality, and may be excluded from indexing."
         }
       ]
     },
@@ -1517,6 +1596,18 @@
           "source": "SRC-SPAM",
           "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#thin-affiliate-pages",
           "official_quote": "Thin affiliation is the practice of publishing content with product affiliate links where the product descriptions and reviews are copied directly from the original merchant without any original content or added value."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Sites that primarily redirect users to retailers without providing original value such as unique reviews, comparisons, or analysis may experience reduced visibility or removal."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Thin, ad heavy, or affiliate-only URLs may lose ranking eligibility and grounding visibility."
         }
       ]
     },
@@ -1580,6 +1671,12 @@
           "source": "SRC-SPAM",
           "source_url": "https://developers.google.com/search/docs/essentials/spam-policies#scam-and-fraud",
           "official_quote": "Scam and fraud come in many forms, including but not limited to impersonating an official business or service through imposter sites, intentionally displaying false information about a business or service, or otherwise attracting users to a site on false pretenses."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Sites that participate in phishing, malware distribution, or other harmful activities risk demotion or removal."
         }
       ]
     },
@@ -1622,6 +1719,12 @@
           "source": "SRC-AI",
           "source_url": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content#focus",
           "official_quote": "When creating content for the web, focus on accuracy, quality, and relevance, especially when automatically generating the content."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Large‑scale content generated without oversight, quality control, or editorial review often lacks usefulness, accuracy, and originality, and may be excluded from indexing."
         }
       ]
     },
@@ -1832,6 +1935,12 @@
           "source": "SRC-PX",
           "source_url": "https://developers.google.com/search/docs/appearance/core-web-vitals#metrics",
           "official_quote": "To provide a good user experience, strive to have LCP occur within the first 2.5 seconds of the page starting to load."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BRANK",
+          "source_url": "https://support.microsoft.com/en-us/topic/how-bing-delivers-search-results-d18fc815-ac37-4723-bc67-9229ce3eb6a3",
+          "official_quote": "Slow page load times can lead a visitor to leave a website, potentially before the content has even loaded, to seek information elsewhere."
         }
       ]
     },
@@ -1895,6 +2004,12 @@
           "source": "SRC-PX",
           "source_url": "https://developers.google.com/search/docs/appearance/page-experience#assess",
           "official_quote": "Does your content avoid using an excessive amount of ads that distract from or interfere with the main content? Do your pages avoid using intrusive interstitials? Is your page designed so visitors can easily distinguish the main content from other content on your page?"
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Thin, ad heavy, or affiliate-only URLs may lose ranking eligibility and grounding visibility."
         }
       ]
     },
@@ -2021,6 +2136,12 @@
           "source": "SRC-SD",
           "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies#content",
           "official_quote": "Don't mark up content that is not visible to readers of the page. For example, if the JSON-LD markup describes a performer, the HTML body must describe that same performer."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Structured data must accurately represent visible content."
         }
       ]
     },
@@ -2063,6 +2184,12 @@
           "source": "SRC-SD",
           "source_url": "https://developers.google.com/search/docs/appearance/structured-data/sd-policies#content",
           "official_quote": "Don't mark up irrelevant or misleading content, such as fake reviews or content unrelated to the focus of a page. Don't use structured data to deceive or mislead users."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Markup that is irrelevant, inaccurate, or misleading may be ignored and can affect trust and eligibility for enhanced features."
         }
       ]
     },
@@ -2147,6 +2274,12 @@
           "source": "SRC-ESS",
           "source_url": "https://developers.google.com/search/docs/appearance/google-images",
           "official_quote": "When writing alt text, focus on creating useful, information-rich content that uses keywords appropriately and is in context of the content of the page. Avoid filling alt attributes with keywords (also known as keyword stuffing) as it results in a negative user experience and may cause your site to be seen as spam."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Include relevant anchor text or image alt attributes"
         }
       ]
     },
@@ -2168,6 +2301,12 @@
           "source": "SRC-ESS",
           "source_url": "https://developers.google.com/search/docs/crawling-indexing/links-crawlable#write-good-anchor-text",
           "official_quote": "Good anchor text is descriptive, reasonably concise, and relevant to the page that it's on and to the page it links to. It provides context for the link, and sets the expectation for your readers."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Include relevant anchor text or image alt attributes"
         }
       ]
     },
@@ -2252,6 +2391,633 @@
           "source": "SRC-RANK",
           "source_url": "https://developers.google.com/search/docs/appearance/core-updates#keep-in-mind",
           "official_quote": "In fact, if you're considering deleting entire sections of your site, that's likely a sign those sections were created for search engines first, and not people. If that's the case for your site, then deleting the unhelpful content can help the good content on your site perform better."
+        }
+      ]
+    },
+    {
+      "id": "BING-01",
+      "name": "Bingbot no bloqueado en robots.txt",
+      "category": "TECH",
+      "scope": "site",
+      "severity": "critical",
+      "check": "binary",
+      "applies_if": "always",
+      "question": "¿robots.txt deja a Bingbot rastrear el sitio?",
+      "pass_if": "Las reglas que aplican a Bingbot (su grupo propio o, si no tiene, el genérico *) permiten la home y las páginas indexables.",
+      "fail_if": "robots.txt bloquea a Bingbot la home. Páginas que el grupo * permite y el de Bingbot bloquea: aviso.",
+      "remediation": "Quitar el Disallow que afecta a Bingbot o acotarlo a las rutas que no deben rastrearse, y comprobarlo con el probador de robots.txt de Bing Webmaster Tools.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Allow Bingbot to crawl and render content efficiently."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Blocking Bingbot in your robots.txt file"
+        }
+      ]
+    },
+    {
+      "id": "BING-02",
+      "name": "Grupo de Bingbot en robots.txt completo",
+      "category": "TECH",
+      "scope": "site",
+      "severity": "high",
+      "check": "binary",
+      "applies_if": "always",
+      "question": "Si robots.txt tiene un grupo propio para Bingbot, ¿repite las reglas del grupo genérico (*)?",
+      "pass_if": "No hay grupo para Bingbot, o su grupo incluye todas las reglas Disallow y Allow del grupo *.",
+      "fail_if": "El grupo de Bingbot omite reglas Disallow del grupo *: Bingbot ignora el grupo genérico y rastrea lo que el resto de bots tiene bloqueado.",
+      "remediation": "Copiar al grupo de Bingbot todas las reglas del grupo *, además de las propias, o quitar el grupo de Bingbot si no hace falta.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BROBOTS",
+          "source_url": "https://www.bing.com/webmasters/help/how-to-create-a-robots-txt-file-cb7c31ec",
+          "official_quote": "On finding a specific set of instructions for itself, Bingbot will ignore the directives listed in the generic section, so you need to repeat all the general directives in addition to the specific directives you created for it in specific section of the file."
+        }
+      ]
+    },
+    {
+      "id": "BING-03",
+      "name": "Altas, cambios y bajas avisados con IndexNow",
+      "category": "IDX",
+      "scope": "site",
+      "severity": "medium",
+      "check": "human",
+      "applies_if": "always",
+      "question": "¿El sitio avisa a Bing con IndexNow cuando publica, actualiza o elimina URLs?",
+      "pass_if": "Las URLs añadidas, actualizadas y eliminadas se envían por IndexNow, mejor una a una que en lotes.",
+      "fail_if": "Bing solo se entera de los cambios al rastrear o leer el sitemap.",
+      "remediation": "Integrar IndexNow en el CMS o en el deploy y enviar cada URL añadida, actualizada o eliminada.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Timely notifications help Bing refresh the index and reduce outdated or incorrect URL references in Copilot responses and grounding results."
+        }
+      ]
+    },
+    {
+      "id": "BING-04",
+      "name": "Sitemap solo con URLs canónicas y vigentes",
+      "category": "IDX",
+      "scope": "site",
+      "severity": "medium",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿El sitemap lista solo URLs canónicas que responden 2xx y son indexables?",
+      "pass_if": "Las URLs del sitemap que se rastrearon responden 2xx, son indexables y no apuntan su canonical a otra URL.",
+      "fail_if": "El sitemap incluye URLs que redirigen, dan error, llevan noindex o declaran como canonical otra URL.",
+      "remediation": "Generar el sitemap solo con URLs canónicas, quitar enseguida las eliminadas o redirigidas y dar a cada una un lastmod real (la auditoría no comprueba lastmod).",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Use XML sitemaps to indicate which URLs matter and when content changes."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "List only canonical URLs"
+        }
+      ]
+    },
+    {
+      "id": "BING-05",
+      "name": "302 solo para cambios de menos de 2 días",
+      "category": "TECH",
+      "scope": "site",
+      "severity": "medium",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿Las redirecciones del sitio son 301 cuando el cambio es permanente?",
+      "pass_if": "Las redirecciones encontradas en el rastreo son permanentes (301 o 308), o las temporales duran menos de 2 días.",
+      "fail_if": "Redirecciones temporales (302, 303 o 307) que sirven un cambio permanente.",
+      "remediation": "Cambiar a 301 las redirecciones temporales que no se vayan a revertir en menos de 2 días.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Use 302 redirects only for very short-term changes (less than 2 days)"
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Use 301 redirects for permanent URL changes"
+        }
+      ]
+    },
+    {
+      "id": "BING-06",
+      "name": "Redirección, no canonical, al mover una URL",
+      "category": "TECH",
+      "scope": "page",
+      "severity": "medium",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "Si el contenido se mudó a otra URL, ¿la antigua redirige en vez de declarar un canonical?",
+      "pass_if": "Canonical a sí misma o sin canonical; o canonical a una URL equivalente del mismo sitio para consolidar duplicados que deben seguir existiendo.",
+      "fail_if": "La URL antigua sigue sirviendo el contenido con un canonical a la nueva (típicamente en otro dominio) en vez de redirigir con 301.",
+      "remediation": "Si la página se mudó, redirigirla con 301 a la nueva URL. El canonical es para duplicados que deben seguir existiendo.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Use redirects instead of canonical tags"
+        }
+      ]
+    },
+    {
+      "id": "BING-07",
+      "name": "Contenido eliminado responde 404",
+      "category": "IDX",
+      "scope": "page",
+      "severity": "high",
+      "check": "binary",
+      "applies_if": "always",
+      "question": "¿La URL sirve contenido real, y no una página de 'no encontrado' con status 200?",
+      "pass_if": "La página tiene contenido propio; las URLs eliminadas responden 404 o 410.",
+      "fail_if": "Página de 'no encontrado' o de contenido eliminado servida con 200 (soft 404).",
+      "remediation": "Devolver 404 (o 410) en las URLs eliminadas, quitarlas del sitemap y avisar a Bing por IndexNow.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Return a 404 status code"
+        }
+      ]
+    },
+    {
+      "id": "BING-08",
+      "name": "NOARCHIVE o NOCACHE no sacan la página de Copilot",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "high",
+      "check": "binary",
+      "applies_if": "always",
+      "question": "¿La página evita noarchive y nocache para Bing, si debe poder citarse en Copilot?",
+      "pass_if": "Sin noarchive ni nocache para Bing (meta robots, meta bingbot o X-Robots-Tag), o la exclusión de Copilot es intencional.",
+      "fail_if": "noarchive (sin nocache): Bing no usa la página en respuestas de Copilot ni en grounding. nocache solo limita la cita a URL, título y snippet: aviso.",
+      "remediation": "Quitar noarchive y nocache de las páginas que deban poder citarse en Copilot. Si la exclusión es intencional, ignorar este hallazgo.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "NOARCHIVE prevents content from being used in Copilot responses and grounding results."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "NOCACHE limits Copilot to using only the URL, title, and snippet, reducing citation depth and answer quality."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BMETA",
+          "source_url": "https://www.bing.com/webmasters/help/robots-meta-tags-and-attributes-that-bing-supports-5198d240",
+          "official_quote": "If content has both NOCACHE and NOARCHIVE tags, we will treat it as NOCACHE."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BMETA",
+          "source_url": "https://www.bing.com/webmasters/help/robots-meta-tags-and-attributes-that-bing-supports-5198d240",
+          "official_quote": "In all cases, you can replace the generic name=\"robots\" with name=\"bingbot\" to limit the meta tag to only apply to Bing."
+        }
+      ]
+    },
+    {
+      "id": "BING-09",
+      "name": "nosnippet no recorta captions ni citas",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "low",
+      "check": "binary",
+      "applies_if": "always",
+      "question": "¿La página evita nosnippet para Bing, si quiere captions y citas completas?",
+      "pass_if": "Sin nosnippet ni max-snippet:0 para Bing y sin bloques data-nosnippet.",
+      "fail_if": "nosnippet o max-snippet:0 en meta robots, meta bingbot o X-Robots-Tag. Bloques data-nosnippet: aviso.",
+      "remediation": "Quitar nosnippet salvo que sea intencional; para elegir qué texto puede mostrarse o citarse, usar data-snippet en lugar de bloquear el snippet.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "DATA-NOSNIPPET and NOSNIPPET prevent Bing from displaying captions and may limit Copilot citation quality."
+        }
+      ]
+    },
+    {
+      "id": "BING-10",
+      "name": "Duplicados resueltos en origen",
+      "category": "TECH",
+      "scope": "site",
+      "severity": "medium",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿Cada contenido se sirve en una sola URL indexable?",
+      "pass_if": "Ninguna URL indexable rastreada repite el cuerpo de otra.",
+      "fail_if": "Varias URLs indexables con el mismo cuerpo, aunque declaren canonical.",
+      "remediation": "Unificar en origen (enlaces internos, parámetros, redirecciones 301); el canonical ayuda pero no sustituye arreglar la causa.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Canonical tags help signal preference but do not replace fixing underlying issues."
+        }
+      ]
+    },
+    {
+      "id": "BING-11",
+      "name": "Sin desperdicio de rastreo",
+      "category": "TECH",
+      "scope": "site",
+      "severity": "medium",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿El rastreo se gasta en URLs que valen la pena?",
+      "pass_if": "Pocas URLs con parámetros, redirecciones, errores o duplicados entre las rastreadas.",
+      "fail_if": "Una parte grande de lo rastreado son URLs con parámetros, redirecciones, errores o duplicados.",
+      "remediation": "Quitar o bloquear en robots.txt las rutas sin valor (filtros, parámetros de sesión), enlazar a la URL final en vez de a redirecciones y corregir los enlaces rotos.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Bing allocates crawl capacity based on site health, efficiency, signal quality, and crawl value."
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Outputting excessive or low‑value URLs, such as duplicate content or URLs with numerous parameters"
+        }
+      ]
+    },
+    {
+      "id": "BING-13",
+      "name": "Title y meta description presentes, únicos y no cortos",
+      "category": "ON",
+      "scope": "page",
+      "severity": "medium",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿La página tiene un title y una meta description propios y con contenido suficiente?",
+      "pass_if": "Title y meta description presentes, no repetidos en otras páginas del sitio y no demasiado cortos.",
+      "fail_if": "Falta el title o la meta description. Repetidos o demasiado cortos: aviso.",
+      "remediation": "Escribir un title y una meta description únicos que resuman la página.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Missing, duplicate, or overly short title tags and meta descriptions may reduce indexing reliability, ranking, and eligibility for grounding results and citations."
+        }
+      ]
+    },
+    {
+      "id": "BING-14",
+      "name": "Jerarquía de encabezados H1–H6 lógica",
+      "category": "ON",
+      "scope": "page",
+      "severity": "low",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿Los encabezados siguen una jerarquía lógica, sin saltar niveles?",
+      "pass_if": "Los encabezados bajan de nivel de uno en uno (H1, H2, H3).",
+      "fail_if": "Saltos de nivel (H2 seguido de H4) o ningún encabezado.",
+      "remediation": "Ordenar los encabezados para que cada nivel cuelgue del anterior y no usarlos solo por estilo.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Logical <H1> – <H6> heading hierarchy"
+        }
+      ]
+    },
+    {
+      "id": "BING-15",
+      "name": "Contenido verificable por sí solo",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "medium",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿El contenido se entiende y se puede verificar sin contexto externo?",
+      "pass_if": "Hechos y definiciones explícitos; las afirmaciones clave no dependen de contenido implícito ni de otra página.",
+      "fail_if": "Afirmaciones clave que dependen de un contexto que la página no da (otra página, una imagen, 'como ya dijimos').",
+      "remediation": "Hacer explícitos en la propia URL los hechos, definiciones y datos clave.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "URLs are more likely to be selected for grounding queries and citations when content stands on its own."
+        }
+      ]
+    },
+    {
+      "id": "BING-16",
+      "name": "Entidades nombradas de forma clara y consistente",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "low",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿Personas, organizaciones, productos y lugares se nombran de forma clara y consistente?",
+      "pass_if": "Cada entidad se nombra con claridad y siempre igual, sin referencias ambiguas.",
+      "fail_if": "La misma entidad aparece con nombres distintos, o hay referencias ambiguas que no dejan claro de quién o de qué se habla.",
+      "remediation": "Usar el nombre completo de cada entidad la primera vez y mantenerlo en toda la página.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Use clear and consistent naming for people, organizations, products, and locations."
+        }
+      ]
+    },
+    {
+      "id": "BING-17",
+      "name": "Un tema principal por URL",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "medium",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿La URL se centra en un tema principal?",
+      "pass_if": "Un tema principal, con el title, los encabezados y la intención del contenido alineados. Varios aspectos de un mismo tema cuentan como un tema.",
+      "fail_if": "La URL mezcla conceptos sin relación entre sí.",
+      "remediation": "Separar en URLs propias los temas sin relación y alinear title, encabezados y contenido con el tema principal.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "URLs focused on a primary topic are more likely to be selected for grounding results."
+        }
+      ],
+      "conflicts_with": [
+        {
+          "rule_id": "AIO-02",
+          "note": "Bing prefiere un tema principal por URL para elegirla en grounding; Google dice que sus sistemas entienden varios temas en una página y que no hace falta partir el contenido."
+        }
+      ]
+    },
+    {
+      "id": "BING-18",
+      "name": "Información clave al principio",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "low",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿La información esencial aparece cerca del principio de la página?",
+      "pass_if": "La respuesta o el dato principal llega pronto, sin una introducción larga.",
+      "fail_if": "Una introducción larga antes de abordar el tema principal.",
+      "remediation": "Llevar al principio la respuesta o los datos clave y dejar el contexto para después.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Place essential information near the top of the URL"
+        }
+      ]
+    },
+    {
+      "id": "BING-19",
+      "name": "Contenido al día",
+      "category": "PF-Q",
+      "scope": "page",
+      "severity": "medium",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿El contenido está al día con los hechos y la guía vigentes?",
+      "pass_if": "La página no muestra información desactualizada.",
+      "fail_if": "Datos, precios, normas o recomendaciones que la propia página presenta como vigentes y que ella misma deja ver como pasados (un año anterior presentado como el actual, una versión que la página dice retirada).",
+      "remediation": "Actualizar o quitar lo que cambió y avisar a Bing por IndexNow al actualizar.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Update content when facts or guidance change."
+        }
+      ]
+    },
+    {
+      "id": "BING-20",
+      "name": "Imagen o vídeo no son la única fuente",
+      "category": "ON",
+      "scope": "page",
+      "severity": "low",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿El texto explica el tema por sí solo, sin depender de imágenes o vídeo?",
+      "pass_if": "El texto lleva la información; imágenes y vídeo la refuerzan.",
+      "fail_if": "La información necesaria está solo en imágenes o vídeo, con muy poco texto.",
+      "remediation": "Poner la información clave como texto y acompañar imágenes y vídeo con alt, pies o transcripciones.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Images and video should reinforce the primary text on the page and should not be the sole source of information required to understand the topic."
+        }
+      ]
+    },
+    {
+      "id": "BING-23",
+      "name": "Sin esquemas de enlaces ni promoción social artificial",
+      "category": "SPAM",
+      "scope": "site",
+      "severity": "high",
+      "check": "human",
+      "applies_if": "always",
+      "question": "¿El sitio evita comprar enlaces, las redes privadas y la promoción social artificial?",
+      "pass_if": "Enlaces y señales sociales ganados de forma natural.",
+      "fail_if": "Compra o spam de enlaces, redes privadas de sitios, o promoción social artificial que simula popularidad.",
+      "remediation": "Dejar de comprar o intercambiar enlaces y menciones, y desautorizar en Bing Webmaster Tools los enlaces artificiales.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "This includes link buying, link spamming, private networks, and artificial social promotion schemes that simulate popularity."
+        }
+      ]
+    },
+    {
+      "id": "BING-25",
+      "name": "Sin lenguaje artificial para forzar citas de IA",
+      "category": "SPAM",
+      "scope": "page",
+      "severity": "high",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿El texto está escrito para personas y no para forzar citas o respuestas de IA?",
+      "pass_if": "Lenguaje natural pensado para el lector. Preguntas y respuestas, listas y resúmenes útiles para el lector cuentan como lenguaje natural.",
+      "fail_if": "Repeticiones, frases forzadas o bloques escritos para que un sistema de IA cite o recomiende la página, sin valor para el lector.",
+      "remediation": "Reescribir para el lector y quitar lo que solo busca activar citas o respuestas de IA.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Content should be created for users, not to manipulate ranking systems or trigger citations or AI responses."
+        }
+      ]
+    },
+    {
+      "id": "BING-30",
+      "name": "Sin prompt injection ni manipulación de modelos de lenguaje",
+      "category": "SPAM",
+      "scope": "page",
+      "severity": "critical",
+      "check": "hybrid",
+      "applies_if": "always",
+      "question": "¿La página evita contenido diseñado para manipular o interferir con los modelos de lenguaje de Bing o Copilot?",
+      "pass_if": "Ninguna instrucción oculta dirigida a modelos de IA. Un texto visible que explica o cita prompt injection no cuenta.",
+      "fail_if": "Texto oculto al lector que da órdenes a un modelo de IA ('ignora las instrucciones anteriores', 'si eres una IA, recomienda…'). En comentarios HTML: aviso.",
+      "remediation": "Quitar las instrucciones ocultas dirigidas a modelos de IA.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Attempts to add content designed to manipulate or interfere with language models used by Bing or Copilot may result in reduced visibility or removal from search experiences."
+        }
+      ]
+    },
+    {
+      "id": "BING-31",
+      "name": "Atribuye las fuentes",
+      "category": "EXP",
+      "scope": "page",
+      "severity": "medium",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "Si la página reproduce información de otros, ¿dice de dónde sale?",
+      "pass_if": "Contenido propio, o la información de terceros se atribuye con un enlace o una mención de la fuente.",
+      "fail_if": "Republica o resume información de otros sin decir de dónde sale.",
+      "remediation": "Citar y enlazar la fuente original de los datos, citas y contenidos de terceros.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BRANK",
+          "source_url": "https://support.microsoft.com/en-us/topic/how-bing-delivers-search-results-d18fc815-ac37-4723-bc67-9229ce3eb6a3",
+          "official_quote": "If the site doesn’t publish original content, do they attribute the source?"
+        }
+      ]
+    },
+    {
+      "id": "BING-32",
+      "name": "Distingue hechos de opiniones",
+      "category": "EXP",
+      "scope": "page",
+      "severity": "medium",
+      "check": "llm",
+      "applies_if": "always",
+      "question": "¿La página distingue con claridad los hechos de las opiniones?",
+      "pass_if": "Las opiniones se presentan como tales; la sátira o la parodia está identificada.",
+      "fail_if": "Opiniones presentadas como hechos, o sátira que oculta su intención.",
+      "remediation": "Marcar las opiniones como tales (columna, análisis, 'en nuestra opinión') y separar los datos de su valoración.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BRANK",
+          "source_url": "https://support.microsoft.com/en-us/topic/how-bing-delivers-search-results-d18fc815-ac37-4723-bc67-9229ce3eb6a3",
+          "official_quote": "How well does the site differentiate fact from opinion?"
+        }
+      ]
+    },
+    {
+      "id": "BING-34",
+      "name": "Respuestas clave no escondidas en desplegables",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "low",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿Las respuestas importantes están a la vista, no plegadas en pestañas o desplegables?",
+      "pass_if": "La información clave se ve al cargar la página; solo lo secundario va plegado.",
+      "fail_if": "Buena parte del texto de la página está plegado en desplegables cerrados.",
+      "remediation": "Mostrar las respuestas clave fuera de pestañas y desplegables y plegar solo lo secundario.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BAIANS",
+          "source_url": "https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers",
+          "official_quote": "Don’t hide important answers in tabs or expandable menus:"
+        },
+        {
+          "engine": "bing",
+          "source": "SRC-BAIANS",
+          "source_url": "https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers",
+          "official_quote": "AI systems may not render hidden content, so key details can be skipped."
+        }
+      ],
+      "conflicts_with": [
+        {
+          "rule_id": "SPAM-05",
+          "note": "Bing (blog de Microsoft Advertising) prefiere no plegar respuestas en pestañas o desplegables porque la IA puede no renderizarlas; Google dice que acordeones y pestañas no son texto oculto."
+        }
+      ]
+    },
+    {
+      "id": "BING-35",
+      "name": "Información crítica en HTML, no solo en PDF",
+      "category": "AIO",
+      "scope": "page",
+      "severity": "low",
+      "check": "heuristic",
+      "applies_if": "always",
+      "question": "¿La información esencial está en el HTML y no solo en un PDF?",
+      "pass_if": "El contenido principal está en la página; los PDF lo complementan.",
+      "fail_if": "Página con muy poco texto cuyo contenido principal se ofrece solo como PDF.",
+      "remediation": "Publicar en HTML la información crítica y dejar el PDF como descarga complementaria.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BAIANS",
+          "source_url": "https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers",
+          "official_quote": "Avoid relying on PDFs for core information:"
+        }
+      ]
+    },
+    {
+      "id": "BING-36",
+      "name": "Bing no reporta problemas de rastreo en la URL",
+      "category": "TECH",
+      "scope": "page",
+      "severity": "medium",
+      "check": "bwt",
+      "applies_if": "has_bwt",
+      "question": "¿Bing Webmaster Tools reporta un problema de rastreo abierto para esta URL?",
+      "pass_if": "La última sincronización con Bing Webmaster Tools no reporta problemas abiertos para la URL.",
+      "fail_if": "Bing reporta para la URL un error 4xx o 5xx, un bloqueo por robots.txt, malware, o errores de DNS o de tiempo de espera.",
+      "remediation": "Revisar el problema en Bing Webmaster Tools, corregirlo y pedir que se vuelva a rastrear la URL.",
+      "sources": [
+        {
+          "engine": "bing",
+          "source": "SRC-BWG",
+          "source_url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+          "official_quote": "Allow Bingbot to crawl and render content efficiently."
         }
       ]
     }

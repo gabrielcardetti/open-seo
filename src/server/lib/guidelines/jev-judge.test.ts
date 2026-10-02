@@ -8,30 +8,9 @@ import {
   type DecisionTransport,
 } from "./decision-transport";
 import { JevJudge } from "./jev-judge";
-import type { FetchedPage } from "./page-fetch";
-import { emptySpamSignals } from "./spam-signals";
+import { fetchedPageFixture } from "./guideline-test-support";
 
-const page: FetchedPage = {
-  url: "https://example.com/a",
-  finalUrl: "https://example.com/a",
-  statusCode: 200,
-  title: "A page",
-  metaDescription: "",
-  canonical: null,
-  robotsMeta: null,
-  googlebotMeta: null,
-  robotsHeader: null,
-  h1s: ["A page"],
-  wordCount: 300,
-  bodyText: "Some content.",
-  structuredData: [],
-  imagesTotal: 0,
-  imagesMissingAlt: 0,
-  internalLinks: 1,
-  externalLinks: 0,
-  isHttps: true,
-  spamSignals: emptySpamSignals(),
-};
+const page = fetchedPageFixture({ h1s: ["A page"], internalLinks: 1 });
 
 const binary = RULES_BY_ID.get("PF-W01")!;
 const scored = RULES_BY_ID.get("PF-Q01")!;

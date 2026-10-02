@@ -4,7 +4,6 @@ import type { PageEvaluation } from "@/server/lib/guidelines/page-evaluator";
 import type { FetchedPage } from "@/server/lib/guidelines/page-fetch";
 import type { SiteFacts } from "@/server/lib/guidelines/site-facts";
 import type { GuidelinesStrategy } from "@/server/lib/audit/types";
-import { emptySpamSignals } from "@/server/lib/guidelines/spam-signals";
 
 const {
   pgStepMock,
@@ -52,6 +51,7 @@ vi.mock("@/server/lib/guidelines/judge-config", () => ({
 }));
 
 import { runGuidelinesPhase } from "@/server/workflows/siteAuditWorkflowGuidelines";
+import { fetchedPageFixture } from "@/server/lib/guidelines/guideline-test-support";
 
 const ORIGIN = "https://example.com";
 const SITE_URL = `${ORIGIN}/#site`;
@@ -88,27 +88,14 @@ const inventory = [
 }));
 
 function fetchedPage(url: string): FetchedPage {
-  return {
+  return fetchedPageFixture({
     url,
     finalUrl: url,
-    statusCode: 200,
     title: "Abogados",
-    metaDescription: "",
-    canonical: null,
-    robotsMeta: null,
-    googlebotMeta: null,
-    robotsHeader: null,
-    h1s: [],
     wordCount: 430,
     bodyText: "Abogados con experiencia.",
-    structuredData: [],
-    imagesTotal: 0,
-    imagesMissingAlt: 0,
     internalLinks: 5,
-    externalLinks: 0,
-    isHttps: true,
-    spamSignals: emptySpamSignals(),
-  };
+  });
 }
 
 /** Fails doorways on the site, citing every cluster; passes everything else. */

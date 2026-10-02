@@ -18,6 +18,7 @@
  */
 import { z } from "zod";
 import { RULES_BY_ID, type GuidelineRule } from "@/shared/guidelines/catalog";
+import { guidelinesOwner } from "@/shared/guidelines/judge-map";
 import {
   renderSubject,
   type JudgeInput,
@@ -32,7 +33,7 @@ const DEFAULT_LLM_BASE_URL = "https://openrouter.ai/api/v1";
  * bearing ones are 1 (the catalog is the only authority), 3 (quote or it did
  * not happen) and 4 (missing data is `unknown`, never a guess).
  */
-const SYSTEM_PROMPT = `You evaluate a web page against the official Google Search quality guidelines supplied in the request.
+const SYSTEM_PROMPT = `You evaluate a web page against the official GUIDELINES supplied in the request.
 
 1. Invent no policies. If a rule is not in the supplied list, it does not exist.
 2. Evaluate; do not rewrite the page.
@@ -55,7 +56,7 @@ Answer with a JSON object: {"findings":[{"id":"RULE-ID","status":"fail"|"warn"|"
  * matters on templated sites) and the cluster citation, which the corroboration
  * guard in site-evaluator.ts checks against the cluster's real shape.
  */
-const SITE_SYSTEM_PROMPT = `You evaluate a whole website against the official Google Search quality guidelines supplied in the request. You see its crawl inventory, not page text: URL templates, clusters of pages that share a title or URL skeleton or identical text (C1, C2, ...), and a sample of titles.
+const SITE_SYSTEM_PROMPT = `You evaluate a whole website against the official GUIDELINES supplied in the request. You see its crawl inventory, not page text: URL templates, clusters of pages that share a title or URL skeleton or identical text (C1, C2, ...), and a sample of titles.
 
 1. Invent no policies. If a rule is not in the supplied list, it does not exist.
 2. Evidence is the inventory's own words: quote URLs, titles, title patterns or cluster ids exactly, separated by "; ". Cite every cluster a finding rests on in "clusters".
@@ -102,6 +103,24 @@ interface LlmJudgeConfig {
   /** Sent by OpenRouter-style gateways for attribution; harmless elsewhere. */
   referer?: string;
   maxOutputTokens?: number;
+}
+
+/**
+ * Whose guidelines the prompt names: Google's unless the batch carries a rule
+ * only Bing states (see `guidelinesOwner`).
+ */
+function withGuidelines(
+  prompt: string,
+  rules: readonly GuidelineRule[],
+): string {
+  const owner = guidelinesOwner(rules);
+  const name =
+    owner === "Bing's"
+      ? "Bing Webmaster Guidelines"
+      : owner === "Google Search's"
+        ? "Google Search quality guidelines"
+        : "Google Search quality guidelines and Bing Webmaster Guidelines";
+  return prompt.replace("GUIDELINES", name);
 }
 
 function rulesBlock(rules: readonly GuidelineRule[]): string {
@@ -151,7 +170,10 @@ export class LlmJudge implements RuleJudge {
       messages: [
         {
           role: "system" as const,
-          content: isSite ? SITE_SYSTEM_PROMPT : SYSTEM_PROMPT,
+          content: withGuidelines(
+            isSite ? SITE_SYSTEM_PROMPT : SYSTEM_PROMPT,
+            rules,
+          ),
         },
         {
           role: "user" as const,

@@ -9,33 +9,30 @@
  * deterministic answer is worse than an honest `unknown`.
  *
  * The one exception is the spam signals: they settle nothing, so they only
- * ever warn, with the evidence attached, and otherwise return null.
+ * ever warn, with the evidence attached, and otherwise return null. Bing's
+ * rules live in bing-evaluators.ts and bing-site-evaluators.ts under the same
+ * contract (bing-evaluators.ts explains the one detector allowed to fail).
  */
-import type { RuleStatus } from "@/shared/guidelines/catalog";
+import { bingPageEvaluators } from "./bing-evaluators";
+import { bingSiteEvaluators } from "./bing-site-evaluators";
+import {
+  comparableUrl,
+  directiveList,
+  headerDirectivesFor,
+  type DeterministicResult,
+  type EvaluationContext,
+  type Evaluator,
+  type SiteEvaluator,
+} from "./evaluator-support";
 import type { FetchedPage } from "./page-fetch";
 import type { SiteFacts, SiteTripwire } from "./site-facts";
 
-export interface EvaluationContext {
-  page: FetchedPage;
-  /** Whether any internal link was seen pointing at this URL during the crawl. */
-  hasInboundInternalLinks?: boolean;
-  /** Site-level facts gathered once per audit. */
-  site?: { facts?: SiteFacts };
-}
+export type { EvaluationContext } from "./evaluator-support";
 
 /** The site pass has facts and no page; site rules read nothing else. */
 interface SiteEvaluationContext {
   site: { facts: SiteFacts };
 }
-
-interface DeterministicResult {
-  status: RuleStatus;
-  evidence?: string;
-  reason?: string;
-}
-
-/** Null leaves the rule unsettled, to be routed as if there were no evaluator. */
-type Evaluator = (ctx: EvaluationContext) => DeterministicResult | null;
 
 /**
  * `noindex`, or `none` (noindex + nofollow), as a directive of its own. Matched
@@ -49,39 +46,6 @@ function blocksIndexing(directives: readonly string[]): boolean {
   });
 }
 
-const directiveList = (value: string | null): string[] =>
-  value ? value.split(",") : [];
-
-/**
- * The `X-Robots-Tag` directives that apply to Googlebot.
- *
- * The header can scope a directive to one crawler ("otherbot: noindex"), and
- * several headers arrive joined by commas. A named user agent holds until the
- * next one; directives before any name apply to every crawler.
- */
-/** Directives written `name: value`, which are not crawler names. */
-const VALUED_DIRECTIVES = new Set([
-  "unavailable_after",
-  "max-snippet",
-  "max-image-preview",
-  "max-video-preview",
-]);
-
-function headerDirectivesForGooglebot(header: string): string[] {
-  const applying: string[] = [];
-  let agent: string | null = null;
-  for (const part of header.split(",")) {
-    const scoped = part.match(/^\s*([a-z][\w-]*)\s*:\s*(.*)$/i);
-    let directive = part.trim();
-    if (scoped && !VALUED_DIRECTIVES.has(scoped[1].toLowerCase())) {
-      agent = scoped[1].toLowerCase();
-      directive = scoped[2].trim();
-    }
-    if (agent === null || agent === "googlebot") applying.push(directive);
-  }
-  return applying;
-}
-
 /** Where a page tells Google not to index it: meta robots, meta googlebot, or the header. */
 function noindexSource(page: FetchedPage): string | null {
   if (blocksIndexing(directiveList(page.robotsMeta))) {
@@ -91,21 +55,10 @@ function noindexSource(page: FetchedPage): string | null {
     return `meta googlebot: ${page.googlebotMeta}`;
   }
   const header = page.robotsHeader ?? "";
-  if (blocksIndexing(headerDirectivesForGooglebot(header))) {
+  if (blocksIndexing(headerDirectivesFor(header, "googlebot"))) {
     return `X-Robots-Tag: ${header}`;
   }
   return null;
-}
-
-/** A URL without its fragment or trailing slash, for canonical comparison. */
-function comparableUrl(url: string, base?: string): string | null {
-  try {
-    const parsed = new URL(url, base);
-    parsed.hash = "";
-    return parsed.toString().replace(/\/$/, "");
-  } catch {
-    return null;
-  }
 }
 
 /** Narrows an unknown JSON node to a plain object. */
@@ -192,11 +145,6 @@ function namedAuthor(page: FetchedPage): string | null {
 const MACHINE_AUTHOR =
   /^(?:(?:the\s+)?(?:ai|a\.i\.|artificial intelligence|chatgpt|gpt(?:-?\d[\w.]*)?|claude|gemini|copilot|bot|robot)(?:\s+(?:writer|author|assistant|bot|team))?|(?:written|generated|created) by (?:ai|chatgpt|gpt[\w.-]*|claude|gemini)|ia|redactor ia|inteligencia artificial)$/i;
 
-/** Site rules read only the site facts; undefined when none were gathered. */
-type SiteEvaluator = (
-  facts: SiteFacts | undefined,
-) => DeterministicResult | null;
-
 /**
  * About/contact presence: who runs the site and how to reach them. A crawl cut
  * short at its page limit may simply not have reached them, so absence only
@@ -275,6 +223,8 @@ const siteEvaluators: Record<string, SiteEvaluator> = {
       "SPAM-12",
       "A section looks like third-party content outside the site's business; check it is editorially integrated.",
     ),
+
+  ...bingSiteEvaluators,
 };
 
 /**
@@ -446,6 +396,8 @@ const evaluators: Record<string, Evaluator> = {
       reason: "Content images should carry descriptive alt text.",
     };
   },
+
+  ...bingPageEvaluators,
 };
 
 /**

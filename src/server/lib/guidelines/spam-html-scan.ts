@@ -13,6 +13,8 @@ import { getDomain } from "tldts";
 const MAX_INLINE_SCRIPT_CHARS = 200_000;
 /** Text kept per hidden block; every detector threshold is far under it. */
 const MAX_HIDDEN_TEXT_CHARS = 20_000;
+/** HTML comment text kept in total, for the prompt-injection check. */
+const MAX_COMMENT_CHARS = 50_000;
 
 /** Registrable domain (example.co.uk for a.b.example.co.uk), or null for non-web URLs. */
 export function registrableDomain(url: string, base?: string): string | null {
@@ -49,6 +51,8 @@ export interface Scan {
   hiddenBlocks: HiddenBlock[];
   /** `action` of every form holding a password field. */
   credentialFormActions: string[];
+  /** HTML comments outside scripts and styles, capped in total. */
+  comments: string[];
 }
 
 const JS_TYPES =
@@ -170,6 +174,8 @@ export function scanHtml(html: string, pageUrl: string): Scan {
   const metaRefreshes: Refresh[] = [];
   const hiddenBlocks: HiddenBlock[] = [];
   const credentialFormActions: string[] = [];
+  const comments: string[] = [];
+  let commentChars = 0;
 
   const stack: Frame[] = [];
   const forms: Array<{ action: string; hasPassword: boolean }> = [];
@@ -234,6 +240,12 @@ export function scanHtml(html: string, pageUrl: string): Scan {
           block.links.push(link);
         }
       },
+      oncomment(text) {
+        if (script || commentChars >= MAX_COMMENT_CHARS) return;
+        const kept = text.slice(0, MAX_COMMENT_CHARS - commentChars);
+        comments.push(kept);
+        commentChars += kept.length;
+      },
       ontext(text) {
         if (script) {
           script.push(text);
@@ -282,5 +294,6 @@ export function scanHtml(html: string, pageUrl: string): Scan {
     metaRefreshes,
     hiddenBlocks,
     credentialFormActions,
+    comments,
   };
 }
