@@ -3,6 +3,8 @@ import { GUIDELINE_RULES } from "@/shared/guidelines/catalog";
 import { evaluateDeterministic } from "./rule-evaluators";
 import type { FetchedPage } from "./page-fetch";
 import { emptySpamSignals } from "./spam-signals";
+import { buildBingSiteFacts } from "./bing-site-facts";
+import type { SiteFacts } from "./site-facts";
 import { fetchedPageFixture } from "./guideline-test-support";
 
 function fetchedPage(overrides: Partial<FetchedPage> = {}): FetchedPage {
@@ -152,6 +154,36 @@ describe("Bing evaluators", () => {
         metaDescription: "Riego por goteo.",
       }),
     ).toBe("warn");
+  });
+
+  // The site pass draws the repeat lists for the sampled pages only; a page
+  // judged later (a flagged cluster's member) was never compared.
+  it("leaves BING-13 open on a page the repeat check did not cover", () => {
+    const shared = { title: "Riego por goteo", contentHash: null };
+    const crawled = ["/a", "/b", "/c"].map((path) => ({
+      url: `https://example.com${path}`,
+      statusCode: 200,
+      isIndexable: true,
+      ...shared,
+    }));
+    const bing = buildBingSiteFacts({
+      pages: crawled,
+      startUrl: "https://example.com/",
+      memberUrlFilter: new Set(["https://example.com/a"]),
+    });
+    const site = { facts: { bing } as SiteFacts };
+    const bing13 = (url: string) =>
+      evaluateDeterministic("BING-13", {
+        page: fetchedPage({
+          url,
+          title: "Riego por goteo",
+          metaDescription:
+            "Cómo montar un riego por goteo en casa, paso a paso y con material barato.",
+        }),
+        site,
+      })?.status;
+    expect(bing13("https://example.com/a")).toBe("warn");
+    expect(bing13("https://example.com/c")).toBe("unknown");
   });
 
   it("fails prompt injection hidden from visitors", () => {

@@ -209,6 +209,11 @@ export const bingPageEvaluators: Record<string, Evaluator> = {
       };
     }
     const bing = site?.facts?.bing;
+    // Pages judged after the site pass (members of a cluster it flagged) are
+    // not in the facts' duplicate lists, which were drawn for the sample.
+    const repeatsChecked =
+      bing !== undefined &&
+      (bing.duplicatesCheckedFor?.includes(page.url) ?? true);
     const notes = [
       page.title.trim().length < TITLE_MIN_CHARS &&
         `title is ${page.title.trim().length} characters`,
@@ -226,12 +231,12 @@ export const bingPageEvaluators: Record<string, Evaluator> = {
         reason: "Bing reads short or repeated titles and descriptions as weak.",
       };
     }
-    return bing
+    return repeatsChecked
       ? { status: "pass" }
       : {
-          status: "pass",
-          evidence:
-            "Present and not short; repeats on other pages not checked.",
+          status: "unknown",
+          reason:
+            "Present and not short; whether another page repeats them was not checked.",
         };
   },
 

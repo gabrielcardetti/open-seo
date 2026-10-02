@@ -65,6 +65,12 @@ export interface BingSiteFacts {
   /** Pages whose title or description another indexable page repeats. */
   duplicateTitleUrls: string[];
   duplicateDescriptionUrls: string[];
+  /**
+   * The URLs the two lists above were narrowed to (`memberUrlFilter`); absent
+   * when they cover every crawled page. A page outside it was never checked
+   * for repeats, which is not the same as having none.
+   */
+  duplicatesCheckedFor?: string[];
 }
 
 const MAX_EXAMPLES = 10;
@@ -328,5 +334,8 @@ export function buildBingSiteFacts(input: {
       groupBy(live, (page) => normalized(page.metaDescription)),
       input.memberUrlFilter,
     ),
+    ...(input.memberUrlFilter
+      ? { duplicatesCheckedFor: [...input.memberUrlFilter] }
+      : {}),
   };
 }
