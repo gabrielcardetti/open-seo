@@ -35,6 +35,47 @@ In Bing Webmaster Tools, open **Settings → API Access → API Key** and choose
 **Generate API Key**. The key belongs to your Bing account, so one key covers
 every site that account has verified.
 
+### On Cloudflare Workers: route Bing calls through a relay
+
+Bing throttles requests by IP address, and Cloudflare Workers share their
+outbound IPs with every other Worker. From a Worker, Bing often answers every
+call with `ThrottleIP`, even with a valid key, and saving the key fails with
+"Bing is rate-limiting this server's IP address". Docker deployments call Bing
+from their own IP and don't need this.
+
+The fix is a small relay on any machine with its own IP that forwards
+`/webmaster/api.svc/*` to `https://ssl.bing.com` and only accepts requests that
+carry a shared secret in an `X-Relay-Secret` header (the relay should drop that
+header before forwarding). Then set:
+
+```bash
+BING_API_BASE_URL=https://your-relay.example.com
+BING_RELAY_SECRET=a-long-random-secret
+```
+
+and redeploy. A minimal Caddy configuration:
+
+```caddyfile
+:8080 {
+	@api {
+		path /webmaster/api.svc/*
+		header X-Relay-Secret {$RELAY_SECRET}
+	}
+	handle @api {
+		request_header -X-Relay-Secret
+		reverse_proxy https://ssl.bing.com {
+			header_up Host ssl.bing.com
+		}
+	}
+	handle {
+		respond 404
+	}
+}
+```
+
+The API key travels in the request's query string, so serve the relay over
+HTTPS and keep its access logs free of query strings.
+
 ## 2) Connect a project
 
 Open the project's **Settings → Integrations** page and find the **Bing
@@ -243,6 +284,10 @@ new key replaces the old one.
 **The site isn't listed, or "the Bing account behind this API key can't read
 this site"**: the site isn't verified in the Bing account that owns the key.
 Verify it in Bing Webmaster Tools, or save a key from the account that did.
+
+**"Bing is rate-limiting this server's IP address"**: Bing answered
+`ThrottleIP`. On Cloudflare Workers this is the shared outbound IP, not your
+key; set up the relay described in step 1.
 
 **Rate limit reached**: Bing throttles each key and each host. Wait and sync
 again later. On Cloudflare, the next daily sync retries on its own.

@@ -296,6 +296,10 @@ const dataEnv = {
   // Alchemy reconciles worker vars on every deploy, so the telemetry opt-out
   // must live in the env file — a dashboard-set var would be wiped.
   OPENSEO_TELEMETRY_DISABLED: optionalVar("OPENSEO_TELEMETRY_DISABLED"),
+  // Optional relay for Bing Webmaster API calls (Bing throttles Workers'
+  // shared outbound IPs). See docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md.
+  BING_API_BASE_URL: optionalVar("BING_API_BASE_URL"),
+  BING_RELAY_SECRET: optionalSecret("BING_RELAY_SECRET"),
 };
 
 export default Alchemy.Stack(

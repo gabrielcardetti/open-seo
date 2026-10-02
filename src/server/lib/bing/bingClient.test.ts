@@ -15,6 +15,7 @@ describe("bingClient", () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("sends the key and site, and renders Bing's day buckets in UTC", async () => {
@@ -126,6 +127,32 @@ describe("bingClient", () => {
     expect(typeof init?.body === "string" && JSON.parse(init.body)).toEqual({
       siteUrl: "https://example.com/",
       urlList: ["https://example.com/a"],
+    });
+  });
+
+  it("sends calls through a configured relay with its secret", async () => {
+    vi.stubEnv("BING_API_BASE_URL", "https://relay.example.com/");
+    vi.stubEnv("BING_RELAY_SECRET", "relay-secret");
+    fetchMock.mockResolvedValue(jsonResponse({ d: [] }));
+
+    await client.getUserSites();
+
+    const [input, init] = fetchMock.mock.calls[0];
+    const url = new URL(input instanceof Request ? input.url : input);
+    expect(url.origin + url.pathname).toBe(
+      "https://relay.example.com/webmaster/api.svc/json/GetUserSites",
+    );
+    expect(init?.headers).toMatchObject({ "X-Relay-Secret": "relay-secret" });
+  });
+
+  it("reports Bing throttling the server's IP as throttled, not a bad key", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ErrorCode: 17, Message: "ERROR!!! ThrottleIP" }, 400),
+    );
+
+    await expect(client.getUserSites()).rejects.toMatchObject({
+      kind: "throttled",
+      errorCode: 17,
     });
   });
 });

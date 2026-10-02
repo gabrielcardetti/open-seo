@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getOptionalEnvValue } from "@/server/lib/runtime-env";
 import { BingApiError, type BingErrorKind } from "./bingErrors";
 import {
   bingDay,
@@ -38,7 +39,8 @@ export type {
 
 export { BingApiError } from "./bingErrors";
 
-const BING_API_BASE = "https://ssl.bing.com/webmaster/api.svc/json";
+const BING_API_ORIGIN = "https://ssl.bing.com";
+const BING_API_PATH = "/webmaster/api.svc/json";
 const REQUEST_TIMEOUT_MS = 20_000;
 
 // Bing's ApiErrorCode values that change how a failure is handled.
@@ -53,7 +55,10 @@ const ERROR_CODE_KIND: Record<number, BingErrorKind> = {
   10: "auth", // UserNotFound
   13: "site_access", // NotAllowed
   14: "site_access", // NotAuthorized
+  17: "throttled", // ThrottleIP
 };
+
+const THROTTLE_IP = 17;
 
 const errorBodySchema = z.looseObject({
   ErrorCode: z.number().optional(),
@@ -106,7 +111,9 @@ async function toApiError(response: Response): Promise<BingApiError> {
   });
   return new BingApiError(
     kind,
-    messageFor(kind, detail),
+    errorCode === THROTTLE_IP
+      ? "Bing is rate-limiting this server's IP address. Deployments on Cloudflare Workers share their outbound IPs, so route Bing calls through a relay (BING_API_BASE_URL in the self-hosting guide)."
+      : messageFor(kind, detail),
     response.status,
     errorCode,
   );
@@ -123,7 +130,14 @@ export function createBingClient(apiKey: string) {
     params: Record<string, string | number> = {},
     body?: Record<string, unknown>,
   ): Promise<unknown> {
-    const url = new URL(`${BING_API_BASE}/${method}`);
+    // Bing throttles Cloudflare Workers' shared outbound IPs (ThrottleIP), so
+    // a deployment can send its calls through a relay that forwards
+    // /webmaster/api.svc/* to Bing and checks a shared secret.
+    const origin =
+      (await getOptionalEnvValue("BING_API_BASE_URL"))?.replace(/\/+$/, "") ||
+      BING_API_ORIGIN;
+    const relaySecret = await getOptionalEnvValue("BING_RELAY_SECRET");
+    const url = new URL(`${origin}${BING_API_PATH}/${method}`);
     url.searchParams.set("apikey", apiKey);
     for (const [name, value] of Object.entries(params)) {
       url.searchParams.set(name, String(value));
@@ -132,9 +146,12 @@ export function createBingClient(apiKey: string) {
     try {
       response = await fetch(url, {
         method: body ? "POST" : "GET",
-        headers: body
-          ? { "Content-Type": "application/json; charset=utf-8" }
-          : undefined,
+        headers: {
+          ...(body
+            ? { "Content-Type": "application/json; charset=utf-8" }
+            : {}),
+          ...(relaySecret ? { "X-Relay-Secret": relaySecret } : {}),
+        },
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
