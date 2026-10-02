@@ -44,6 +44,18 @@ async function upsertSettings(projectId: string, patch: SettingsPatch) {
 }
 
 /**
+ * Create the project's settings row with defaults if it has none, so the
+ * daily sitemap watch picks it up. Never changes an existing row.
+ */
+async function ensureSettings(projectId: string) {
+  const now = new Date().toISOString();
+  await db
+    .insert(indexingSettings)
+    .values({ projectId, createdAt: now, updatedAt: now })
+    .onConflictDoNothing();
+}
+
+/**
  * Store a key only when the project has none: a published key file must keep
  * matching, so a second "generate" (two tabs, a retry) never replaces it.
  */
@@ -199,6 +211,7 @@ async function applySitemapInventory(input: {
 }
 
 export const IndexingRepository = {
+  ensureSettings,
   getSettings,
   upsertSettings,
   setKeyIfAbsent,

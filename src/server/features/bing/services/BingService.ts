@@ -1,3 +1,4 @@
+import { IndexingRepository } from "@/server/features/indexing/IndexingRepository";
 import { BING_KEY_PURPOSE } from "@/server/features/bing/bingAccess";
 import { bingAppError } from "@/server/features/bing/bingFailures";
 import { siteHost } from "@/server/features/bing/bingUrls";
@@ -174,6 +175,9 @@ async function setSite(input: {
     connectedByUserId: input.userId,
     nextSyncAt: new Date().toISOString(),
   });
+  // A Bing connection is a channel for announcing URLs, so start watching the
+  // sitemap. The first check is a baseline and announces nothing.
+  await IndexingRepository.ensureSettings(input.projectId);
 }
 
 /** Drop the project's connection. Snapshot history stays, keyed by site, and
