@@ -8,7 +8,12 @@ import {
   planEvaluation,
   summarizeEvaluation,
 } from "../page-evaluator";
-import { GOLDEN_CASES, caseProblems, type GoldenCase } from "./golden-cases";
+import {
+  GOLDEN_CASES,
+  caseProblems,
+  verdictRank,
+  type GoldenCase,
+} from "./golden-cases";
 
 /** A perfect judge: fails exactly the case's must_fail rules, with a quote. */
 function oracleAnswers(
@@ -32,16 +37,17 @@ function oracleJudge(goldenCase: GoldenCase): RuleJudge {
 
 describe("guideline golden cases", () => {
   it.each(GOLDEN_CASES)("$id", async (goldenCase) => {
-    const { page } = goldenCase;
-    const withoutJudge = await evaluatePage({ page });
+    const { page, engines } = goldenCase;
+    const withoutJudge = await evaluatePage({ page, engines });
     const withJudge = await evaluatePage({
       page,
+      engines,
       languageJudge: oracleJudge(goldenCase),
     });
 
     // The MCP submit path, through the same function the submit tool calls:
     // the caller reports only what does not pass, and silence is a pass.
-    const plan = planEvaluation(page);
+    const plan = planEvaluation(page, undefined, engines);
     const submitted = oracleAnswers(goldenCase, plan.askable).flatMap(
       (answer) =>
         answer.status === "fail"
@@ -79,8 +85,8 @@ describe("guideline golden cases", () => {
   // golden pages are asked, so the set needs a YMYL case and a review case.
   it("lists the judged rules whose failure alone rejects a page", () => {
     const judgedRuleIds = new Set(
-      GOLDEN_CASES.flatMap(({ page }) =>
-        planEvaluation(page).askable.map((rule) => rule.id),
+      GOLDEN_CASES.flatMap(({ page, engines }) =>
+        planEvaluation(page, undefined, engines).askable.map((rule) => rule.id),
       ),
     );
     const rejecting = sort(
@@ -101,4 +107,21 @@ describe("guideline golden cases", () => {
       "YMYL-03", // YMYL pages only
     ]);
   });
+
+  // Bing's deterministic rules settle without a judge, so they are where a
+  // legitimate page could be sent back by data alone. Every legit page,
+  // Google's cases included, must hold its verdict with Bing's rules added.
+  it.each(GOLDEN_CASES.filter((goldenCase) => goldenCase.kind === "legit"))(
+    "keeps $id within its verdict with Bing's rules too",
+    async (goldenCase) => {
+      const evaluation = await evaluatePage({
+        page: goldenCase.page,
+        engines: ["google", "bing"],
+        languageJudge: oracleJudge(goldenCase),
+      });
+      expect(verdictRank(evaluation.verdict)).toBeLessThanOrEqual(
+        verdictRank(goldenCase.expected.verdict_max ?? "pass_with_warnings"),
+      );
+    },
+  );
 });

@@ -129,13 +129,17 @@ describe("Bing evaluators", () => {
         wordCount: 40,
       }),
     ).toBe("fail");
+    // An article about the error is titled after it, not as it.
     expect(
       status("BING-07", {
         title: "Error 404: qué es y cómo solucionarlo",
-        wordCount: 900,
+        wordCount: 250,
       }),
-    ).toBe("unknown");
-    expect(status("BING-07", { title: "Cómo arreglar un 404" })).toBe("pass");
+    ).toBe("pass");
+    // A not-found title on a long page is a lead, not a verdict.
+    expect(status("BING-07", { title: "Page not found", wordCount: 900 })).toBe(
+      "unknown",
+    );
   });
 
   it("fails a missing meta description and warns on a short one", () => {

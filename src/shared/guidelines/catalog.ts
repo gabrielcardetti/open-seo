@@ -103,8 +103,6 @@ const ruleSourceSchema = z.object({
   official_quote: z.string(),
 });
 
-export type RuleSource = z.infer<typeof ruleSourceSchema>;
-
 const ruleSchema = z
   .object({
     id: z.string().min(1),

@@ -63,12 +63,12 @@ function findDirective(
 }
 
 /**
- * What a "not found" page calls itself, at the start of its title or H1.
- * Anchored, so an article about 404 errors does not read as one, and only
- * trusted on a short page.
+ * What a "not found" page calls itself, as its whole title (before the site
+ * name) or H1. Matched whole, so "Error 404: qué es y cómo arreglarlo" — an
+ * article about the error — is not one, and only trusted on a short page.
  */
 const NOT_FOUND =
-  /^(?:(?:error\s*)?404\b|(?:page|file|content)\s+not\s+found\b|not\s+found\b|(?:this|the)\s+page\s+(?:does\s+not|doesn't|no\s+longer)\s+exists?\b|(?:la\s+|esta\s+)?p[aá]gina\s+no\s+(?:encontrada|existe)\b|(?:contenido\s+)?no\s+encontrad[oa]\b|contenido\s+no\s+disponible\b)/i;
+  /^(?:(?:oops|whoops|sorry|vaya|ups|lo sentimos)[,!.]?\s+)?(?:(?:error\s*)?404(?:\s*error)?(?:\s*[-–—:|·]?\s*(?:(?:page\s+)?not\s+found|p[aá]gina\s+no\s+encontrada))?|(?:page|file|content)\s+not\s+found|not\s+found|(?:this|the)\s+page\s+(?:does\s+not|doesn't|no\s+longer)\s+exists?|(?:la\s+|esta\s+)?p[aá]gina\s+no\s+(?:encontrada|existe)|(?:contenido\s+)?no\s+encontrad[oa]|contenido\s+no\s+disponible)[\s.!]*$/i;
 /** A real page is longer than this; a not-found template rarely is. */
 const SOFT_404_MAX_WORDS = 300;
 

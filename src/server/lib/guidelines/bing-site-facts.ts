@@ -125,7 +125,7 @@ function sampleUrlFor(origin: string, pattern: string): string {
   return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function bingRobotsFacts(input: {
+function bingRobotsFacts(input: {
   robotsText: string;
   startUrl: string;
   indexableUrls: readonly string[];

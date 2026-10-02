@@ -8,6 +8,8 @@
  */
 import { z } from "zod";
 import {
+  DEFAULT_ENGINES,
+  ENGINES,
   RULES_BY_ID,
   VERDICTS,
   type Verdict,
@@ -62,6 +64,11 @@ const pageSchema = z.object({
 const caseSchema = z.object({
   id: z.string(),
   kind: z.enum(["legit", "technical", "spam"]),
+  /** Whose guidelines the case is judged against. */
+  engines: z
+    .array(z.enum(ENGINES))
+    .min(1)
+    .default([...DEFAULT_ENGINES]),
   description: z.string(),
   notes: z.string().optional(),
   /** The bug this case would have caught. */
