@@ -138,6 +138,13 @@ gsc/queries-last-16-months.csv
 gsc/pages-last-16-months.csv
 ```
 
+**Then offer Bing Webmaster Tools and IndexNow.** Both are free. Bing's index also feeds Copilot, and Bing only shows about six months of data, so connecting early starts OpenSEO's own daily history sooner.
+
+- Bing Webmaster Tools: if the site is verified there, the user creates an API key in Bing Webmaster Tools (Settings → API Access) and pastes it on the project's Integrations page, then picks the site. `get_bing_overview` confirms the connection.
+- IndexNow: on the project's Indexing page, generate a key and publish the key file it shows on the site, then verify it with `verify_indexnow_key` (needs an owner or admin). From then on, new and changed pages are announced to Bing and other IndexNow engines automatically. `get_indexing_setup` shows the exact file to publish and what is already set up.
+
+Offer these once. If the user isn't interested or can't publish a file on the site, move on.
+
 ### 9. Set up a local folder only for file work
 
 Project knowledge lives in OpenSEO, not on disk. A local folder is still useful for the things that are actually files: GSC CSV exports, crawls, drafts, briefs, and reports.
@@ -179,7 +186,7 @@ Then summarize:
 - Known positioning
 - Competitors saved
 - Key pages saved
-- Search Console status and any local files
+- Search Console and Bing Webmaster Tools status, IndexNow status, and any local files
 - Sections still missing from project context
 - Recommended next workflow
 
@@ -189,7 +196,7 @@ Tell the user they can read and edit everything saved here on the project's Cont
 
 - Keep setup lightweight. The user should feel oriented, not assigned homework.
 - Confirm facts with the user before writing them. Inferences from the site are fine to propose, but they get saved as agreed answers, not guesses.
-- Do not pretend a GSC CSV has been uploaded unless you can see it, and do not claim Search Console is connected unless `get_search_console_performance` confirms it (it returns a "not connected" message otherwise).
+- Do not pretend a GSC CSV has been uploaded unless you can see it, and do not claim Search Console is connected unless `get_search_console_performance` confirms it (it returns a "not connected" message otherwise). The same goes for Bing: only `get_bing_overview` confirms a Bing connection.
 - Keep project setup focused on setup and context unless the user asks for live research. If a step does spend credits, append a research log entry so other skills do not re-buy it.
 - If web search or scraping is used for positioning research, distinguish source evidence from inference.
 - Overwriting a section replaces it. When context already exists, merge the new answers into the existing prose instead of discarding it.

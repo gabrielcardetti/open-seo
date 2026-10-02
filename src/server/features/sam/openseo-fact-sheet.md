@@ -33,6 +33,7 @@ The paid plan includes:
 - Keyword research, backlinks, rank tracking, and site audits.
 - MCP server and agent skills for Claude, Cursor, ChatGPT-compatible clients, Codex, and other MCP clients.
 - Google Search Console integration that does not use credits.
+- Bing Webmaster Tools integration and IndexNow URL submission, which do not use credits.
 - $10.00 of usage credits each billing cycle.
 - A 30-day money-back guarantee for the first charge.
 
@@ -67,6 +68,8 @@ OpenSEO uses DataForSEO as its main SEO data provider. DataForSEO powers many pa
 
 Google Search Console data comes from the user's connected Search Console property and does not use credits.
 
+Bing Webmaster Tools data comes from the user's own Bing Webmaster account through an API key they paste in, and does not use credits.
+
 ## Google Search Console
 
 Hosted OpenSEO can connect to Google Search Console without requiring the user to create a Google Cloud project or OAuth client.
@@ -82,6 +85,18 @@ Search Console features include:
 - Up to 10 URLs per URL inspection call.
 
 Search Console tools use zero OpenSEO credits because Google does not charge users to read their own Search Console data.
+
+## Bing Webmaster Tools and indexing
+
+A project can connect to a site verified in the user's Bing Webmaster Tools account. The user creates an API key in Bing Webmaster Tools (Settings, then API Access) and pastes it into the project's Integrations page.
+
+OpenSEO saves a copy of the project's Bing data every day: clicks, impressions, CTR, and position by query, page, and day; crawl statistics and crawl issues; sitemaps; and inbound link counts. Bing itself only shows about the last six months, so this saved history is how OpenSEO keeps data beyond that window. The first sync after connecting saves what Bing still shows, and the history grows from there. Bing reports no device or country breakdown.
+
+OpenSEO can compare the same queries or pages in Search Console and Bing side by side. Copilot and Bing AI citation data is available only when the user imports Bing's AI Performance CSV export, because Bing has no API for it.
+
+The Indexing page announces new and changed pages to Bing and other search engines that use IndexNow, either automatically (from a daily sitemap check, after a site audit, or from a deploy hook the user's build calls) or by pasting URLs. Every URL sent is logged with the engine's answer. An accepted notice means the engine received it, not that the page is indexed. Google does not take part in IndexNow; Search Console and URL inspection remain the tools for Google.
+
+Bing Webmaster Tools data and indexing tools use zero OpenSEO credits, like Search Console.
 
 ## OpenSEO and Claude (or other AI clients)
 
@@ -118,6 +133,8 @@ OpenSEO MCP tools cover workflows such as:
 - Backlink and referring-domain overview data for any domain, including competitors.
 - Google Search Console performance reads.
 - Google URL inspection reads.
+- Bing Webmaster Tools performance, crawl health, backlinks, and AI citation reads, and Google-versus-Bing comparisons.
+- IndexNow and Bing URL submission, with a per-URL log.
 
 OpenSEO also provides agent skills for workflows such as SEO project setup, SEO coaching, keyword research, competitive landscape analysis, competitor analysis, keyword clustering, and link prospecting.
 

@@ -36,6 +36,7 @@ Deliver through the `seo-report` skill, saving with `skill: "keyword-research"`.
 - `get_keyword_metrics`: hydrate up to 700 known keywords with volume, keyword difficulty (KD), search intent, CPC, and monthly trends in one call. Use it to score candidate or known terms — including the Search Console striking-distance queries from step 1.
 - `get_ranked_keywords`: pull exact ranking keyword rows when a target domain or page is part of the research brief.
 - `get_search_console_performance`: when Search Console is connected, start from the project's real first-party demand — queries already earning impressions and near-ranking ("striking distance") terms. Pass `minPosition: 5, maxPosition: 20, minImpressions: 50` so the server filters the striking-distance rows for you (Google sorts by clicks and can't filter by position itself). Then hydrate those striking-distance queries with `get_keyword_metrics` to attach difficulty and intent.
+- `get_bing_search_performance`: when Bing Webmaster Tools is connected, run the same striking-distance filter on Bing (`minPosition: 5, maxPosition: 20, minImpressions: 50`). Rows come from OpenSEO's stored Bing history in weekly buckets. A query near page one on both engines is a stronger candidate than one near it on either. Free.
 - `get_serp_results`: inspect SERPs for the top candidate terms, especially when intent is ambiguous. Pass the same `locationName` for the SERP in one city, county, or region.
 - `search_local_businesses`, `get_local_serp_results`, and `get_google_business_questions`: use for local SEO topics when a business/location radius matters.
 - `list_saved_keywords`: avoid duplicating already-saved work or use existing tags as context.
@@ -43,7 +44,7 @@ Deliver through the `seo-report` skill, saving with `skill: "keyword-research"`.
 
 ## Workflow
 
-1. Normalize seeds into a small set of distinct research angles. If Search Console is connected for the project, first pull `get_search_console_performance` with `minPosition: 5, maxPosition: 20, minImpressions: 50` (default lookback), and hydrate those queries with `get_keyword_metrics` to attach KD and intent. That ranked, hydrated list is your fastest opportunity set — work it before broad discovery.
+1. Normalize seeds into a small set of distinct research angles. If Search Console is connected for the project, first pull `get_search_console_performance` with `minPosition: 5, maxPosition: 20, minImpressions: 50` (default lookback), and hydrate those queries with `get_keyword_metrics` to attach KD and intent. If Bing Webmaster Tools is connected, add Bing's striking-distance queries from `get_bing_search_performance` to the same list. That ranked, hydrated list is your fastest opportunity set — work it before broad discovery.
 2. If the request is local SEO, identify the business, location/coordinates or service area, and local categories. Research local volume for that city or county with `research_keywords` and `locationName`. Use `search_local_businesses` and `get_local_serp_results` for the most important location/keyword set instead of relying only on national keyword/SERP data.
 3. Call `research_keywords` for exploratory seeds. Use bulk calls when possible.
 4. Use `get_keyword_metrics` to hydrate a fixed keyword list — or the striking-distance queries from step 1 — with volume, KD, and intent before prioritizing.
