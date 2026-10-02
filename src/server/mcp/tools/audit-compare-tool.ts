@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AuditComparisonRepository } from "@/server/features/audit/repositories/AuditComparisonRepository";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
 import { compareAudits } from "@/server/lib/audit/compare";
@@ -53,11 +54,20 @@ async function guidelineVerdicts(auditId: string) {
 
 async function snapshot(auditId: string) {
   const [pages, issues, guidelines] = await Promise.all([
-    AuditRepository.getPagesForAudit(auditId),
+    AuditComparisonRepository.getPageHashesForAudit(auditId),
     AuditRepository.getIssuesForAudit(auditId, {}),
     guidelineVerdicts(auditId),
   ]);
-  return { pageUrls: pages.map((page) => page.url), issues, ...guidelines };
+  return {
+    pageUrls: pages.map((page) => page.url),
+    contentHashes: new Map(
+      pages.flatMap((page) =>
+        page.contentHash ? [[page.url, page.contentHash] as const] : [],
+      ),
+    ),
+    issues,
+    ...guidelines,
+  };
 }
 
 export const compareAuditsTool = {
@@ -65,11 +75,18 @@ export const compareAuditsTool = {
   config: {
     title: "Compare two site audits",
     description:
-      "Before/after between two audits of the same project: pages added and removed, each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after. issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
+      "Before/after between two audits of the same project: pages added and removed, pages whose visible text changed (pages.changed, matched by URL and content hash), each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after. issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
     inputSchema,
     outputSchema: z
       .object({
-        pages: looseObjectOutputSchema,
+        pages: z.looseObject({
+          added: z.array(z.string()),
+          removed: z.array(z.string()),
+          changed: z.array(z.string()),
+          addedCount: z.number(),
+          removedCount: z.number(),
+          changedCount: z.number(),
+        }),
         issues: looseObjectOutputSchema,
         guidelines: looseObjectOutputSchema,
         ...optionalMetaOutputSchema,
@@ -104,7 +121,7 @@ export const compareAuditsTool = {
     const text = [
       ...(warning ? [warning] : []),
       `Audit ${base.id} (${base.startedAt}) → ${current.id} (${current.startedAt}).`,
-      `Pages: ${diff.pages.before} → ${diff.pages.after} (+${diff.pages.added.length}, -${diff.pages.removed.length}).`,
+      `Pages: ${diff.pages.before} → ${diff.pages.after} (+${diff.pages.added.length}, -${diff.pages.removed.length}, ${diff.pages.changed.length} with changed content).`,
       `Issues: ${diff.issues.before} → ${diff.issues.after}.`,
       ...diff.issues.byType.map(
         (t) =>
@@ -140,8 +157,10 @@ export const compareAuditsTool = {
           ...diff.pages,
           added: diff.pages.added.slice(0, MAX_LISTED),
           removed: diff.pages.removed.slice(0, MAX_LISTED),
+          changed: diff.pages.changed.slice(0, MAX_LISTED),
           addedCount: diff.pages.added.length,
           removedCount: diff.pages.removed.length,
+          changedCount: diff.pages.changed.length,
         },
         issues: {
           ...diff.issues,

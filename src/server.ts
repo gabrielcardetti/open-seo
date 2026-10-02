@@ -248,6 +248,15 @@ export default {
     } catch (err) {
       console.error("[cron] Bing Webmaster syncs failed:", err);
     }
+    // Daily sitemap checks that announce new and changed URLs (IndexNow /
+    // Bing). Same isolation and lazy loading as agent readiness.
+    try {
+      const { SitemapWatchService } =
+        await import("@/server/features/indexing/SitemapWatchService");
+      await withPgClient(() => SitemapWatchService.runScheduledSitemapChecks());
+    } catch (err) {
+      console.error("[cron] Sitemap indexing checks failed:", err);
+    }
     if (watchdogError) throw watchdogError;
   },
 };

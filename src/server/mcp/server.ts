@@ -96,6 +96,13 @@ import {
   deleteSiteAuditTool,
   listSiteAuditsTool,
 } from "@/server/mcp/tools/site-audit-cleanup-tools";
+import {
+  getIndexingCandidatesTool,
+  getIndexingLogTool,
+  getIndexingSetupTool,
+  submitUrlsForIndexingTool,
+  verifyIndexNowKeyTool,
+} from "@/server/mcp/tools/indexing-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
 import {
   compareSearchEnginesTool,
@@ -262,6 +269,11 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(submitGuidelinesEvaluationTool);
   register(runAgentReadinessScanTool);
   register(getAgentReadinessTool);
+  register(getIndexingSetupTool);
+  register(verifyIndexNowKeyTool);
+  register(submitUrlsForIndexingTool);
+  register(getIndexingLogTool);
+  register(getIndexingCandidatesTool);
   register(saveReportTool);
   register(listReportsTool);
   register(getReportTool);

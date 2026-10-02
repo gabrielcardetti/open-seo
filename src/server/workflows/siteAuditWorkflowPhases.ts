@@ -36,6 +36,7 @@ import { runGuidelinesPhase } from "@/server/workflows/siteAuditWorkflowGuidelin
 import {
   DB_STEP,
   DISCOVERY_STEP,
+  INDEXING_STEP,
   LIGHTHOUSE_FETCH_STEP,
   LIGHTHOUSE_PERSIST_STEP,
   MULTIPAGE_CHECKS_STEP,
@@ -131,6 +132,39 @@ export async function runAuditPhases(
     config,
     crawl,
   });
+  await runIndexingPhase(step, { auditId, projectId });
+}
+
+/**
+ * Announce the pages that are new or changed since the previous audit, via
+ * IndexNow (see auditChanges.ts for why not Bing). Its own step with no
+ * retries so a replay never re-sends, and every failure is swallowed: the
+ * audit is already complete and indexing must never fail it.
+ */
+async function runIndexingPhase(
+  step: WorkflowStep,
+  input: { auditId: string; projectId: string },
+) {
+  try {
+    await pgStep(step, "indexing-submit", INDEXING_STEP, async () => {
+      try {
+        const { submitAuditChanges } =
+          await import("@/server/features/indexing/auditChanges");
+        return await submitAuditChanges(input);
+      } catch (error) {
+        console.warn("Audit indexing submission failed", {
+          auditId: input.auditId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { submitted: 0, skipped: "error" };
+      }
+    });
+  } catch (error) {
+    console.warn("Audit indexing step failed", {
+      auditId: input.auditId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function runDiscoveryPhase(

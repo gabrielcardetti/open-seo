@@ -7,6 +7,8 @@
  * Guideline verdicts are matched by URL. The whole-site verdict is not a page,
  * so it is compared on its own and kept out of the page counts.
  *
+ * Pages are matched by URL; a page whose body-text hash differs is "changed".
+ *
  * Two crawls of a large site rarely reach the same pages, so the whole-audit
  * counts mix real fixes with pages that merely entered or left the sample.
  * The `common` block repeats the issue comparison on the URLs both audits
@@ -24,6 +26,8 @@ const VERDICT_RANK: Record<string, number> = {
 
 interface AuditSnapshot {
   pageUrls: readonly string[];
+  /** Body-text fingerprint by URL, for pages that have one. */
+  contentHashes: ReadonlyMap<string, string>;
   issues: ReadonlyArray<{ issueType: string; pageUrl: string | null }>;
   /** Page verdicts by URL. */
   verdicts: ReadonlyMap<string, string>;
@@ -132,6 +136,12 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
       after: currentPages.size,
       added: current.pageUrls.filter((url) => !basePages.has(url)),
       removed: base.pageUrls.filter((url) => !currentPages.has(url)),
+      // Same URL, different visible text: what to re-announce to engines.
+      changed: current.pageUrls.filter((url) => {
+        const before = base.contentHashes.get(url);
+        const after = current.contentHashes.get(url);
+        return before !== undefined && after !== undefined && before !== after;
+      }),
     },
     issues: {
       before: base.issues.length,

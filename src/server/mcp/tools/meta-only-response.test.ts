@@ -24,6 +24,7 @@ import * as getDomainOverview from "./get-domain-overview";
 import * as getRankTracker from "./get-rank-tracker";
 import * as getSerpResults from "./get-serp-results";
 import * as googleAnalyticsTools from "./google-analytics-tools";
+import * as indexingTools from "./indexing-tools";
 import * as listProjects from "./list-projects";
 import * as listSavedKeywords from "./list-saved-keywords";
 import * as localSeoTools from "./local-seo-tools";
@@ -52,6 +53,7 @@ const toolExports: Record<string, unknown> = {
   ...getRankTracker,
   ...getSerpResults,
   ...googleAnalyticsTools,
+  ...indexingTools,
   ...listProjects,
   ...listSavedKeywords,
   ...localSeoTools,

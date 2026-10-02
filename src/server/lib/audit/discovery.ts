@@ -4,7 +4,11 @@
 import robotsParser from "robots-parser";
 import { XMLParser } from "fast-xml-parser";
 import { isSameOrigin, normalizeUrl } from "./url-utils";
-import { isCrawlableUrl } from "./url-policy";
+import {
+  isCrawlableUrl,
+  normalizeAndValidateStartUrl,
+  resolveStartUrlRedirects,
+} from "./url-policy";
 import { crawlerHeadersFor, type CrawlerAccess } from "@/shared/crawler-access";
 
 const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
@@ -138,18 +142,31 @@ function isProbablySitemapXml(
   );
 }
 
-function getSitemapLocations(input: unknown): string[] {
+/** A sitemap `<url>` (or `<sitemap>`) entry: its `<loc>` and `<lastmod>`. */
+interface SitemapEntry {
+  url: string;
+  lastmod: string | null;
+}
+
+function getSitemapEntries(input: unknown): SitemapEntry[] {
   if (!input) return [];
   const entries = Array.isArray(input) ? input : [input];
-  return entries
-    .map((entry) => {
-      if (isRecord(entry)) {
-        const loc = entry["loc"];
-        return typeof loc === "string" ? loc : null;
-      }
-      return null;
-    })
-    .filter((loc): loc is string => typeof loc === "string");
+  return entries.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const loc = entry["loc"];
+    if (typeof loc !== "string") return [];
+    const lastmod = entry["lastmod"];
+    return [
+      {
+        url: loc,
+        // The XML parser turns a bare year into a number.
+        lastmod:
+          typeof lastmod === "string" || typeof lastmod === "number"
+            ? String(lastmod).trim() || null
+            : null,
+      },
+    ];
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -213,12 +230,13 @@ async function fetchSitemapDocumentWithRetry(
   access?: CrawlerAccess | null,
 ): Promise<{
   nestedSitemaps: string[];
-  pageUrls: string[];
+  pageEntries: SitemapEntry[];
   timedOut: boolean;
 }> {
+  const empty = { nestedSitemaps: [], pageEntries: [], timedOut: false };
   const normalizedSitemapUrl = normalizeUrl(sitemapUrl);
   if (!normalizedSitemapUrl) {
-    return { nestedSitemaps: [], pageUrls: [], timedOut: false };
+    return empty;
   }
 
   let lastError: unknown = null;
@@ -231,17 +249,17 @@ async function fetchSitemapDocumentWithRetry(
         access,
       );
       if (!fetched) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
+        return empty;
       }
       const { response } = fetched;
 
       const finalUrl = normalizeUrl(fetched.finalUrl, normalizedSitemapUrl);
       if (!finalUrl || !isSameOrigin(finalUrl, normalizedSitemapUrl)) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
+        return empty;
       }
 
       if (!response.ok) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
+        return empty;
       }
 
       const body = await readBodyCapped(response, MAX_SITEMAP_BYTES);
@@ -249,19 +267,20 @@ async function fetchSitemapDocumentWithRetry(
         body === null ||
         !isProbablySitemapXml(response.headers.get("content-type"), body)
       ) {
-        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
+        return empty;
       }
 
       const parsed = xmlParser.parse(body) as unknown;
       const sections = getParsedSitemapSections(parsed);
-      const nestedSitemaps = getSitemapLocations(sections.sitemap)
-        .map((loc) => normalizeUrl(loc, finalUrl))
+      const nestedSitemaps = getSitemapEntries(sections.sitemap)
+        .map((entry) => normalizeUrl(entry.url, finalUrl))
         .filter((loc): loc is string => loc !== null);
-      const pageUrls = getSitemapLocations(sections.url)
-        .map((loc) => normalizeUrl(loc, finalUrl))
-        .filter((loc): loc is string => loc !== null);
+      const pageEntries = getSitemapEntries(sections.url).flatMap((entry) => {
+        const url = normalizeUrl(entry.url, finalUrl);
+        return url ? [{ url, lastmod: entry.lastmod }] : [];
+      });
 
-      return { nestedSitemaps, pageUrls, timedOut: false };
+      return { nestedSitemaps, pageEntries, timedOut: false };
     } catch (error) {
       lastError = error;
       if (!isTimeoutError(error) || attempt === SITEMAP_RETRIES) {
@@ -270,31 +289,21 @@ async function fetchSitemapDocumentWithRetry(
     }
   }
 
-  return {
-    nestedSitemaps: [],
-    pageUrls: [],
-    timedOut: isTimeoutError(lastError),
-  };
+  return { ...empty, timedOut: isTimeoutError(lastError) };
 }
 
 /**
- * Discover all page URLs from robots.txt + sitemaps for an origin.
- * Also tries the default /sitemap.xml if not listed in robots.txt.
+ * Walk the given sitemaps (and the sitemap indexes they lead to) and collect
+ * up to `maxUrls` same-origin page URLs with their lastmod, in discovery
+ * order. Bounded by depth and document count as well.
  */
-export async function discoverUrls(
+async function walkSitemaps(
   origin: string,
-  maxPages = 50,
+  sitemapSources: Iterable<string>,
+  maxUrls: number,
   access?: CrawlerAccess | null,
-): Promise<{ urls: string[]; robotsText: string | null }> {
-  const robotsText = await fetchRobotsTxtText(origin, access);
-  const robots = parseRobotsTxt(origin, robotsText);
-
-  // Collect sitemap URLs: from robots.txt + default location
-  const sitemapSources = new Set(robots.sitemapUrls);
-  sitemapSources.add(`${origin}/sitemap.xml`);
-
-  const maxDiscoveredUrls = Math.min(Math.max(maxPages * 20, 500), 50_000);
-  const allUrls = new Set<string>();
+): Promise<Map<string, string | null>> {
+  const allUrls = new Map<string, string | null>();
 
   const queue: Array<{ url: string; depth: number }> = Array.from(
     sitemapSources,
@@ -308,7 +317,7 @@ export async function discoverUrls(
   let failedDocs = 0;
   let timedOutDocs = 0;
 
-  while (queue.length > 0 && allUrls.size < maxDiscoveredUrls) {
+  while (queue.length > 0 && allUrls.size < maxUrls) {
     if (fetchedDocs >= MAX_SITEMAP_DOCS) {
       break;
     }
@@ -333,7 +342,7 @@ export async function discoverUrls(
           access,
         );
         if (
-          result.pageUrls.length === 0 &&
+          result.pageEntries.length === 0 &&
           result.nestedSitemaps.length === 0
         ) {
           failedDocs += 1;
@@ -343,10 +352,10 @@ export async function discoverUrls(
           return;
         }
 
-        for (const pageUrl of result.pageUrls) {
-          if (!isSameOrigin(pageUrl, origin)) continue;
-          if (allUrls.size >= maxDiscoveredUrls) break;
-          allUrls.add(pageUrl);
+        for (const entry of result.pageEntries) {
+          if (!isSameOrigin(entry.url, origin)) continue;
+          if (allUrls.size >= maxUrls) break;
+          if (!allUrls.has(entry.url)) allUrls.set(entry.url, entry.lastmod);
         }
 
         if (depth <= 1) return;
@@ -366,11 +375,72 @@ export async function discoverUrls(
       `Sitemap discovery completed with partial failures for ${origin}: fetched=${fetchedDocs}, failed=${failedDocs}, timedOut=${timedOutDocs}, discoveredUrls=${allUrls.size}`,
     );
   }
+  return allUrls;
+}
+
+/** Sitemaps named in robots.txt, plus the default /sitemap.xml. */
+function sitemapSourcesFor(origin: string, robots: RobotsResult): Set<string> {
+  const sources = new Set(robots.sitemapUrls);
+  sources.add(`${origin}/sitemap.xml`);
+  return sources;
+}
+
+/**
+ * Discover all page URLs from robots.txt + sitemaps for an origin.
+ * Also tries the default /sitemap.xml if not listed in robots.txt.
+ */
+export async function discoverUrls(
+  origin: string,
+  maxPages = 50,
+  access?: CrawlerAccess | null,
+): Promise<{ urls: string[]; robotsText: string | null }> {
+  const robotsText = await fetchRobotsTxtText(origin, access);
+  const robots = parseRobotsTxt(origin, robotsText);
+
+  const maxDiscoveredUrls = Math.min(Math.max(maxPages * 20, 500), 50_000);
+  const allUrls = await walkSitemaps(
+    origin,
+    sitemapSourcesFor(origin, robots),
+    maxDiscoveredUrls,
+    access,
+  );
 
   // Cap at the crawl's page budget: these are seeds, the crawl can never use
   // more — and an uncapped list can blow the ~1MiB Workflow step-state limit.
   return {
-    urls: Array.from(allUrls).slice(0, maxPages),
+    urls: Array.from(allUrls.keys()).slice(0, maxPages),
     robotsText,
+  };
+}
+
+/** Upper bound on one site's sitemap inventory. */
+const MAX_INVENTORY_URLS = 50_000;
+
+/**
+ * Every page URL a site's sitemaps list, with its `<lastmod>`, for the
+ * indexing inventory. Unlike `discoverUrls` there is no crawl budget, only
+ * the walk's own depth, document and URL bounds. The site is resolved first
+ * (validated, redirects followed) so an apex domain that redirects to www
+ * reads the www sitemaps.
+ */
+export async function collectSitemapEntries(
+  domain: string,
+): Promise<{ origin: string; entries: SitemapEntry[]; truncated: boolean }> {
+  const startUrl = await normalizeAndValidateStartUrl(domain);
+  const { url } = await resolveStartUrlRedirects(startUrl);
+  const origin = new URL(url).origin;
+  const robots = parseRobotsTxt(origin, await fetchRobotsTxtText(origin));
+  const found = await walkSitemaps(
+    origin,
+    sitemapSourcesFor(origin, robots),
+    MAX_INVENTORY_URLS,
+  );
+  return {
+    origin,
+    entries: Array.from(found, ([pageUrl, lastmod]) => ({
+      url: pageUrl,
+      lastmod,
+    })),
+    truncated: found.size >= MAX_INVENTORY_URLS,
   };
 }
