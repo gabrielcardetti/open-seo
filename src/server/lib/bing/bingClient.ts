@@ -88,13 +88,22 @@ async function toApiError(response: Response): Promise<BingApiError> {
   } catch {
     // Not JSON; keep the raw text as the detail.
   }
+  // An invalid key is a 400 with ErrorCode 3. A bare 403 (no ErrorCode) comes
+  // from Bing's edge blocking the request, not from the key, so it must not
+  // tell the user to replace a key that works.
   const kind: BingErrorKind =
     (errorCode !== undefined ? ERROR_CODE_KIND[errorCode] : undefined) ??
-    (response.status === 401 || response.status === 403
+    (response.status === 401
       ? "auth"
       : response.status === 429
         ? "throttled"
         : "other");
+  // Bing's answer never echoes the key, so it is safe to log.
+  console.warn("[bing] API error", {
+    status: response.status,
+    errorCode,
+    detail: detail.slice(0, 200),
+  });
   return new BingApiError(
     kind,
     messageFor(kind, detail),
@@ -146,6 +155,11 @@ export function createBingClient(apiKey: string) {
     // {"d": null}. A body without "d" is not a Bing answer.
     const json: unknown = await response.json().catch(() => undefined);
     if (typeof json !== "object" || json === null || !("d" in json)) {
+      console.warn("[bing] unexpected response", {
+        method,
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+      });
       throw new BingApiError(
         "other",
         messageFor("other", `unexpected response to ${method}`),
