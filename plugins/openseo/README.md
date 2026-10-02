@@ -11,7 +11,8 @@ OpenSEO gives your agent real SEO data and guided workflows, so its advice is gr
 - Audit a website and prioritize fixes
 - Analyze backlinks and find link prospects
 - Track organic and Google Maps rankings
-- Work with Google Search Console and Analytics data
+- Work with Google Search Console, Google Analytics, and Bing Webmaster Tools data
+- Announce new and changed pages to Bing and other IndexNow engines
 
 The plugin includes ten skills that guide Cursor through complete SEO workflows, plus the hosted OpenSEO MCP server for live data and project management.
 
