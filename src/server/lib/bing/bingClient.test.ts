@@ -36,7 +36,8 @@ describe("bingClient", () => {
     const rows = await client.getRankAndTrafficStats("https://example.com/");
 
     expect(rows).toEqual([{ date: "2026-09-26", clicks: 4, impressions: 90 }]);
-    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    const [input] = fetchMock.mock.calls[0];
+    const url = new URL(input instanceof Request ? input.url : input);
     expect(url.pathname).toBe("/webmaster/api.svc/json/GetRankAndTrafficStats");
     expect(url.searchParams.get("apikey")).toBe("key_123");
     expect(url.searchParams.get("siteUrl")).toBe("https://example.com/");
@@ -122,7 +123,7 @@ describe("bingClient", () => {
 
     const [, init] = fetchMock.mock.calls[0];
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(typeof init?.body === "string" && JSON.parse(init.body)).toEqual({
       siteUrl: "https://example.com/",
       urlList: ["https://example.com/a"],
     });
