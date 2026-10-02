@@ -30,6 +30,10 @@ New DataForSEO accounts include $1 of free credit to test with, and the minimum 
 
 Search Console is optional and works in self-hosted deployments using your own Google OAuth client. It takes about 10 minutes of one-time setup. See the [Google Search Console guide on GitHub](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_GOOGLE_SEARCH_CONSOLE.md).
 
+### Bing Webmaster Tools and IndexNow
+
+Bing Webmaster Tools and IndexNow are optional and need no new environment variables. Paste a Bing Webmaster API key to keep a daily history of your Bing traffic and crawl health, and publish an IndexNow key file to announce new and changed pages to Bing and other IndexNow engines. Saved API keys are encrypted with `BETTER_AUTH_SECRET`, so set it first. See the [Bing Webmaster Tools guide on GitHub](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md).
+
 ### AI features (SAM)
 
 AI features like SAM, the in-app SEO agent, are optional. Set the `OPENROUTER_API_KEY` environment variable to enable them. Create a key at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).
