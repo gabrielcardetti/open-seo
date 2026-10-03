@@ -10,27 +10,29 @@ import type { UmamiClient, UmamiFilters } from "@/server/lib/umami/umamiClient";
 export type UmamiChannel = "organic_search" | "all";
 export type RangeInput = { startDate?: string; endDate?: string };
 
-// Umami's own search-engine list (its organicSearch channel), plus Yahoo
-// search. Matched as substrings of the referrer domain, as Umami does.
-const SEARCH_ENGINE_DOMAINS = [
-  "google.",
-  "bing.com",
-  "duckduckgo.com",
-  "search.yahoo.",
-  "yandex.",
-  "ecosia.org",
-  "baidu.com",
-  "search.brave.com",
-  "msn.com",
+// Search engines' own hosts. Matched exactly (after dropping a leading
+// `www.`), not as substrings: Google's other services (accounts.google.com
+// after a sign-in, notebook.google.com, the Gmail app) refer visits too, and
+// none of them is search.
+const SEARCH_ENGINE_HOSTS = [
+  /^google\.[a-z]{2,3}(\.[a-z]{2})?$/,
+  /^com\.google\.android\.googlequicksearchbox$/,
+  /^(cn\.)?bing\.com$/,
+  /^duckduckgo\.com$/,
+  /^([a-z]{2}\.)?search\.yahoo\.com$/,
+  /^r\.search\.yahoo\.com$/,
+  /^yandex\.[a-z]{2,3}$/,
+  /^ecosia\.org$/,
+  /^baidu\.com$/,
+  /^search\.brave\.com$/,
+  /^msn\.com$/,
 ];
 const MAX_REFERRER_ROWS = 500;
 const MAX_ORGANIC_DOMAINS = 100;
 
 function isSearchEngineDomain(domain: string): boolean {
-  const host = domain.toLowerCase();
-  // Webmail on a search engine's domain (mail.google.com) is not search.
-  if (host.startsWith("mail.")) return false;
-  return SEARCH_ENGINE_DOMAINS.some((token) => host.includes(token));
+  const host = domain.toLowerCase().replace(/^www\./, "");
+  return SEARCH_ENGINE_HOSTS.some((pattern) => pattern.test(host));
 }
 
 /**

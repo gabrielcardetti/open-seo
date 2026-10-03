@@ -88,9 +88,11 @@ and staleness without unlocking anything Umami can't answer directly.
 Since Umami can't filter by channel, OpenSEO defines organic search the way
 Umami's own `organicSearch` channel starts: a visit referred by a search
 engine. For each read it asks Umami for the period's referrer domains, keeps
-those that belong to a search engine (Umami's list — Google, Bing,
-DuckDuckGo, Yandex, Ecosia, Baidu, Brave, MSN — plus Yahoo search, and not
-webmail such as mail.google.com), and sends them as one referrer filter. Reads
+those whose host is a search engine's own (Google's country domains and app,
+Bing, DuckDuckGo, Yahoo search, Yandex, Ecosia, Baidu, Brave, MSN), and sends
+them as one referrer filter. Hosts are matched exactly rather than as
+substrings, because Google's other services refer visits too:
+accounts.google.com after a sign-in, notebook.google.com, the Gmail app. Reads
 report the domains they used. This differs from Umami's channel in two small
 ways: paid clicks that carry a search referrer count, and visits tagged only
 with an organic UTM medium don't. The traffic acquisition read still shows
@@ -98,6 +100,15 @@ Umami's own channel breakdown, organic search included.
 
 Deriving the channel per page instead (asking for the channel breakdown once
 per page) would cost one Umami call per row and was rejected.
+
+### Entry-page engagement
+
+Umami 3 scores entry pages as single-view visits: every entry row comes back
+with bounces equal to visits and no time on site. Entry pages therefore keep
+their own visit counts but take bounce rate, visit time and views per visit
+from the same page's path row, which describes the visits (in the same
+filters) that viewed the page. Without this, every landing page read as a 100%
+bounce and search opportunities lost their business-value signal.
 
 ### Choosing the source
 

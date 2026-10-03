@@ -4,12 +4,12 @@ import {
   recordUmamiFailure,
   type ConnectedUmami,
 } from "@/server/features/umami/umamiAccess";
-import type {
-  UmamiExpandedRow,
-  UmamiFilters,
-  UmamiTotals,
-} from "@/server/lib/umami/umamiClient";
-import { UmamiApiError } from "@/server/lib/umami/umamiErrors";
+import type { UmamiTotals } from "@/server/lib/umami/umamiClient";
+import {
+  breakdownRows,
+  summarize,
+  type BreakdownRow,
+} from "@/server/features/umami/services/umamiBreakdown";
 import {
   channelFilters,
   resolveUmamiRange,
@@ -32,31 +32,6 @@ const ZERO_TOTALS: UmamiTotals = {
   bounces: 0,
   totaltime: 0,
 };
-
-function ratio(numerator: number, denominator: number): number | null {
-  return denominator > 0
-    ? Math.round((numerator / denominator) * 10_000) / 10_000
-    : null;
-}
-
-/** Umami's totals with the rates its dashboard shows. */
-function summarize(totals: UmamiTotals) {
-  return {
-    visitors: totals.visitors,
-    visits: totals.visits,
-    pageviews: totals.pageviews,
-    bounces: totals.bounces,
-    bounceRate: ratio(totals.bounces, totals.visits),
-    avgVisitSeconds:
-      totals.visits > 0 ? Math.round(totals.totaltime / totals.visits) : null,
-    viewsPerVisit: ratio(totals.pageviews, totals.visits),
-  };
-}
-
-// Basic rows (pre-Umami 3) carry only `count`; expanded rows everything else.
-type BreakdownRow = {
-  [Key in keyof ReturnType<typeof summarize>]: number | null;
-} & { name: string; count: number | null };
 
 function sourceOf({ connection, projectHost }: ConnectedUmami) {
   return {
@@ -84,62 +59,6 @@ async function withUmami<T>(
     await recordUmamiFailure(projectId, error).catch(() => undefined);
     throw error;
   }
-}
-
-/**
- * Visitors, visits, views, bounces and time per value of `type`. Instances
- * older than Umami 3 have no expanded metrics; they answer the single count
- * Umami ranks by, returned as `count` with the other fields null.
- */
-async function breakdownRows(
-  { client, connection }: ConnectedUmami,
-  request: {
-    type: string;
-    startAt: number;
-    endAt: number;
-    filters: UmamiFilters;
-    limit: number;
-    offset: number;
-  },
-): Promise<{
-  rows: BreakdownRow[];
-  detail: "expanded" | "basic";
-}> {
-  const query = { websiteId: connection.websiteId, ...request };
-  let expanded: UmamiExpandedRow[];
-  try {
-    expanded = await client.getExpandedMetrics(query);
-  } catch (error) {
-    if (
-      !(error instanceof UmamiApiError) ||
-      (error.status !== 400 && error.status !== 404)
-    ) {
-      throw error;
-    }
-    const basic = await client.getMetrics(query);
-    return {
-      detail: "basic",
-      rows: basic.map((row) => ({
-        name: row.name,
-        visitors: null,
-        visits: null,
-        pageviews: null,
-        bounces: null,
-        bounceRate: null,
-        avgVisitSeconds: null,
-        viewsPerVisit: null,
-        count: row.value,
-      })),
-    };
-  }
-  return {
-    detail: "expanded",
-    rows: expanded.map(({ name, ...totals }) => ({
-      name,
-      ...summarize(totals),
-      count: null,
-    })),
-  };
 }
 
 /** Each row with the same name's previous-period values (null when the name

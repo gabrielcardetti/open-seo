@@ -38,8 +38,37 @@ describe("UmamiReportingService organic reads", () => {
           { x: "www.google.com", y: 5 },
           { x: "news.ycombinator.com", y: 3 },
           { x: "mail.google.com", y: 1 },
+          { x: "accounts.google.com", y: 4 },
           { x: "duckduckgo.com", y: 2 },
         ]);
+      }
+      if (url.pathname.endsWith("/metrics/expanded")) {
+        const type = url.searchParams.get("type");
+        // Umami 3 reports entry rows as single-view visits; path rows carry
+        // the real engagement.
+        return Response.json(
+          type === "entry"
+            ? [
+                {
+                  name: "/a",
+                  pageviews: "10",
+                  visitors: 9,
+                  visits: 10,
+                  bounces: 10,
+                  totaltime: "0",
+                },
+              ]
+            : [
+                {
+                  name: "/a",
+                  pageviews: "30",
+                  visitors: 18,
+                  visits: 20,
+                  bounces: 5,
+                  totaltime: "1200",
+                },
+              ],
+        );
       }
       if (url.pathname.endsWith("/pageviews")) {
         return Response.json({ pageviews: [], sessions: [] });
@@ -88,5 +117,25 @@ describe("UmamiReportingService organic reads", () => {
       "eq.example.com,www.example.com",
     );
     expect(result.current).toMatchObject({ visitors: 4, bounceRate: 0.2 });
+  });
+
+  it("gives entry pages the engagement Umami reports for the same path", async () => {
+    const result = await UmamiReportingService.getBreakdown({
+      projectId: "project_1",
+      startDate: "2026-09-01",
+      endDate: "2026-09-28",
+      type: "entry",
+      channel: "all",
+      comparePreviousPeriod: false,
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(result.rows[0]).toMatchObject({
+      name: "/a",
+      visits: 10,
+      bounceRate: 0.25,
+      avgVisitSeconds: 60,
+    });
   });
 });
