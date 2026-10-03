@@ -38,6 +38,8 @@ import * as saveKeywords from "./save-keywords";
 import * as searchConsoleTools from "./search-console-tools";
 import * as siteAuditTools from "./site-audit-tools";
 import * as sitemapTools from "./sitemap-tools";
+import * as umamiConversionTools from "./umami-conversion-tools";
+import * as umamiSourceTools from "./umami-source-tools";
 import * as umamiTools from "./umami-tools";
 import * as whoami from "./whoami";
 
@@ -69,6 +71,8 @@ const toolExports: Record<string, unknown> = {
   ...searchConsoleTools,
   ...siteAuditTools,
   ...sitemapTools,
+  ...umamiConversionTools,
+  ...umamiSourceTools,
   ...umamiTools,
   ...whoami,
 };

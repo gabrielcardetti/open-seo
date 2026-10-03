@@ -136,7 +136,7 @@ OpenSEO MCP exposes tools for SEO research workflows:
 - Check backlink and referring-domain overview data.
 - Read first-party Google Search Console performance (clicks, impressions, CTR, position).
 - Inspect index status, crawl, and canonical for specific URLs (up to 10 per call).
-- Read Umami analytics live when the project connects Umami Cloud or a self-hosted Umami: overview against the previous period, organic landing pages, page performance, traffic sources and UTM campaigns, custom events, audience, and realtime visitors (free, no credits). Search opportunities use Umami when the project has no Google Analytics connection.
+- Read Umami analytics live when the project connects Umami Cloud or a self-hosted Umami: overview against the previous period, organic landing pages, page performance, traffic sources, organic visits by search engine, AI assistant referrals (ChatGPT, Perplexity, Copilot, Gemini, Claude...), UTM campaigns with their landing pages and events, custom events and their properties, saved or ad hoc funnels, attribution of a goal page or event, Web Vitals, audience, and realtime visitors (free, no credits). Search opportunities use Umami when the project has no Google Analytics connection.
 - Read Bing Webmaster Tools data, mostly from OpenSEO's stored daily history: clicks, impressions, CTR, and position by query, page, or day, plus crawl health, crawl issues, sitemaps, and inbound links (free, no credits). Organization owners and admins can sync it on demand for fresher data.
 - Compare Search Console and Bing performance side by side for the same queries or pages.
 - Read Copilot and Bing AI answer citations from an imported AI Performance export.

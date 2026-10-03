@@ -26,8 +26,8 @@ import {
 
 type Read = {
   projectId: string;
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
   channel: UmamiChannel;
 };
 

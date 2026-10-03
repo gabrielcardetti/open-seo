@@ -32,7 +32,7 @@ import {
 // Where visits come from beyond Umami's own channels: search engines, AI
 // assistants and UTM campaigns.
 
-type RangeRead = { projectId: string; startDate: string; endDate: string };
+type RangeRead = { projectId: string; startDate?: string; endDate?: string };
 
 const MAX_REFERRER_ROWS = 500;
 const MAX_QUERY_ROWS = 500;

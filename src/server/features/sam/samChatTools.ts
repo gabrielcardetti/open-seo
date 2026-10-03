@@ -37,15 +37,7 @@ import {
   getGoogleAnalyticsTrafficAcquisitionTool,
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
-import {
-  getUmamiAudienceBreakdownTool,
-  getUmamiEventsTool,
-  getUmamiOrganicLandingPagesTool,
-  getUmamiOverviewTool,
-  getUmamiPagePerformanceTool,
-  getUmamiRealtimeTool,
-  getUmamiTrafficAcquisitionTool,
-} from "@/server/mcp/tools/umami-tools";
+import { umamiChatTools } from "@/server/features/sam/samUmamiTools";
 import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
@@ -92,24 +84,13 @@ import {
 } from "@/server/mcp/tools/bing-webmaster-tools";
 import { discoverSiteUrls, readPages, readSite } from "@/server/lib/scrape";
 import { capToolOutput } from "@/server/features/sam/samToolOutput";
+import type { McpToolDefinition } from "@/server/features/sam/samMcpToolDefinition";
 import openSeoFactSheet from "@/server/features/sam/openseo-fact-sheet.md?raw";
 
 // Enough pages for SAM to work out what a business does, sells, and positions
 // against on its own.
 const SAM_MAX_SCRAPE_PAGES = 10;
 const SAM_MAX_MAPPED_URLS = 60;
-
-// Shape of the MCP tool objects exported from src/server/mcp/tools/*. SAM reuses
-// the exact same definitions the MCP server registers, so the in-app agent and
-// the MCP server can never drift in what a tool does or how it bills.
-type McpToolDefinition<Shape extends ZodRawShape> = {
-  name: string;
-  config: { description: string; inputSchema: Shape };
-  handler: (
-    args: z.infer<z.ZodObject<Shape>>,
-    context: ToolContext,
-  ) => Promise<CallToolResult>;
-};
 
 // Flatten an MCP CallToolResult into a plain value for the model. The text
 // block renders the same rows the structured data carries (see
@@ -461,13 +442,7 @@ export function buildSamMcpTools(
     get_google_analytics_audience_breakdown: adaptObjectTool(
       getGoogleAnalyticsAudienceBreakdownTool,
     ),
-    get_umami_overview: adaptTool(getUmamiOverviewTool),
-    get_umami_organic_landing_pages: adaptTool(getUmamiOrganicLandingPagesTool),
-    get_umami_page_performance: adaptTool(getUmamiPagePerformanceTool),
-    get_umami_traffic_acquisition: adaptTool(getUmamiTrafficAcquisitionTool),
-    get_umami_events: adaptTool(getUmamiEventsTool),
-    get_umami_audience_breakdown: adaptTool(getUmamiAudienceBreakdownTool),
-    get_umami_realtime: adaptTool(getUmamiRealtimeTool),
+    ...umamiChatTools(adaptTool),
     run_site_audit: adaptTool(runSiteAuditTool),
     get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
