@@ -13,7 +13,7 @@ export const UTM_FIELDS = [
 ] as const;
 export type UtmField = (typeof UTM_FIELDS)[number];
 
-export type CampaignTuple = {
+type CampaignTuple = {
   source: string | null;
   medium: string | null;
   campaign: string | null;

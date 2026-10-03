@@ -35,7 +35,7 @@ export const selectUmamiWebsiteSchema = z.object({
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const MAX_RANGE_DAYS = 731;
 
-export const UMAMI_CHANNELS = ["all", "organic_search"] as const;
+const UMAMI_CHANNELS = ["all", "organic_search"] as const;
 
 const rangeShape = {
   ...projectScoped,
@@ -96,7 +96,7 @@ export const umamiEventSchema = withValidRange(
   }),
 );
 
-export const UTM_FILTER_FIELDS = [
+const UTM_FILTER_FIELDS = [
   "utm_source",
   "utm_medium",
   "utm_campaign",
@@ -112,7 +112,7 @@ export const umamiCampaignDetailSchema = withValidRange(
   }),
 );
 
-export const funnelStepSchema = z.object({
+const funnelStepSchema = z.object({
   type: z.enum(["path", "event"]),
   value: z.string().trim().min(1).max(500),
 });
@@ -161,7 +161,6 @@ export const UMAMI_ANALYTICS_TABS = [
   "audience",
   "vitals",
 ] as const;
-export type UmamiAnalyticsTab = (typeof UMAMI_ANALYTICS_TABS)[number];
 
 export const UMAMI_RANGES = [
   "last_7_days",

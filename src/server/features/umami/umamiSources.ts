@@ -10,7 +10,7 @@ export const SEARCH_ENGINES = [
   "yandex",
   "other",
 ] as const;
-export type SearchEngine = (typeof SEARCH_ENGINES)[number];
+type SearchEngine = (typeof SEARCH_ENGINES)[number];
 
 // Search engines' own hosts. Matched exactly (after dropping a leading
 // `www.`), not as substrings: Google's other services (accounts.google.com
@@ -57,7 +57,7 @@ export const AI_ASSISTANTS = [
   "mistral",
   "other",
 ] as const;
-export type AiAssistant = (typeof AI_ASSISTANTS)[number];
+type AiAssistant = (typeof AI_ASSISTANTS)[number];
 
 // AI assistants' own hosts, matched exactly like search engines.
 const AI_ASSISTANT_HOSTS: Record<string, AiAssistant> = {
