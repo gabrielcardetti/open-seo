@@ -45,6 +45,12 @@ version) in every read.
 
 ## How it's used
 
+- The project's **Analytics** page (under My Site) shows the website in
+  full: overview, organic search by search engine and AI assistant traffic,
+  organic landing pages next to their Search Console and Bing numbers, pages,
+  acquisition and UTM campaigns, events, funnels, journeys and attribution,
+  audience, and Web Vitals. Funnels saved in Umami are listed there and run
+  for the page's dates.
 - The dashboard's organic traffic card shows search-engine visitors from
   Umami when Google Analytics isn't connected.
 - Agents read Umami with the `get_umami_*` MCP tools, and
@@ -53,3 +59,27 @@ version) in every read.
 
 Organic search means visits referred by a search engine (Google, Bing,
 DuckDuckGo, Yahoo, Yandex, Ecosia, Baidu, Brave). Dates are UTC days.
+
+AI assistant traffic counts visits whose referrer is an assistant's own host
+(chatgpt.com, perplexity.ai, copilot.microsoft.com, gemini.google.com,
+claude.ai...) and, separately, pageviews whose link carried an assistant's
+`utm_source` (ChatGPT adds `utm_source=chatgpt.com` to the links it cites).
+A visit with both shows in both counts.
+
+## Web Vitals
+
+Umami records Web Vitals (LCP, INP, CLS, FCP, TTFB) only when its tracking
+script has performance tracking on, from Umami 3.2. Add
+`data-performance="true"` to the script tag on your site:
+
+```html
+<script
+  defer
+  src="https://umami.example.com/script.js"
+  data-website-id="your-website-id"
+  data-performance="true"
+></script>
+```
+
+Until real visits send them, the Analytics page's Web Vitals tab says there
+is no data.
