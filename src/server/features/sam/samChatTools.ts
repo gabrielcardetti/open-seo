@@ -38,6 +38,15 @@ import {
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
 import {
+  getUmamiAudienceBreakdownTool,
+  getUmamiEventsTool,
+  getUmamiOrganicLandingPagesTool,
+  getUmamiOverviewTool,
+  getUmamiPagePerformanceTool,
+  getUmamiRealtimeTool,
+  getUmamiTrafficAcquisitionTool,
+} from "@/server/mcp/tools/umami-tools";
+import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
   getKeywordMetricsTool,
@@ -452,6 +461,13 @@ export function buildSamMcpTools(
     get_google_analytics_audience_breakdown: adaptObjectTool(
       getGoogleAnalyticsAudienceBreakdownTool,
     ),
+    get_umami_overview: adaptTool(getUmamiOverviewTool),
+    get_umami_organic_landing_pages: adaptTool(getUmamiOrganicLandingPagesTool),
+    get_umami_page_performance: adaptTool(getUmamiPagePerformanceTool),
+    get_umami_traffic_acquisition: adaptTool(getUmamiTrafficAcquisitionTool),
+    get_umami_events: adaptTool(getUmamiEventsTool),
+    get_umami_audience_breakdown: adaptTool(getUmamiAudienceBreakdownTool),
+    get_umami_realtime: adaptTool(getUmamiRealtimeTool),
     run_site_audit: adaptTool(runSiteAuditTool),
     get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
