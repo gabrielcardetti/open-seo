@@ -12,6 +12,7 @@ import {
   samSessions,
   savedKeywords,
   telemetryState,
+  umamiConnections,
   user,
 } from "@/db/schema";
 import { getAuthMode } from "@/lib/auth-mode";
@@ -68,6 +69,7 @@ type HeartbeatCounts = {
   savedKeywordCount: number;
   gscConnected: boolean;
   bingConnected: boolean;
+  umamiConnected: boolean;
   samChatUsed: boolean;
 };
 
@@ -207,6 +209,7 @@ async function collectCounts(): Promise<HeartbeatCounts> {
     [savedKeywordRow],
     [gscRow],
     [bingRow],
+    [umamiRow],
     [samRow],
   ] = await Promise.all([
     db.select({ value: count() }).from(user),
@@ -216,6 +219,7 @@ async function collectCounts(): Promise<HeartbeatCounts> {
     db.select({ value: count() }).from(savedKeywords),
     db.select({ value: count() }).from(gscConnections),
     db.select({ value: count() }).from(bingConnections),
+    db.select({ value: count() }).from(umamiConnections),
     db.select({ value: count() }).from(samSessions),
   ]);
 
@@ -227,6 +231,7 @@ async function collectCounts(): Promise<HeartbeatCounts> {
     savedKeywordCount: savedKeywordRow?.value ?? 0,
     gscConnected: (gscRow?.value ?? 0) > 0,
     bingConnected: (bingRow?.value ?? 0) > 0,
+    umamiConnected: (umamiRow?.value ?? 0) > 0,
     samChatUsed: (samRow?.value ?? 0) > 0,
   };
 }

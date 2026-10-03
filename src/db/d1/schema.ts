@@ -15,3 +15,4 @@ export * from "../telemetry.schema";
 export * from "../agent-readiness.schema";
 export * from "../bing.schema";
 export * from "../indexing.schema";
+export * from "../umami.schema";
