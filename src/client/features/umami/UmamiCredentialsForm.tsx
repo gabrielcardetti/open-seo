@@ -154,9 +154,7 @@ function CredentialsFields({
       }
       if (!result.ok) {
         const field =
-          mode === "cloud" && result.reason !== "throttled"
-            ? "apiKey"
-            : REJECTED_FIELD[result.reason];
+          mode === "cloud" ? "apiKey" : REJECTED_FIELD[result.reason];
         formApi.setErrorMap({
           onSubmit: {
             fields: {
