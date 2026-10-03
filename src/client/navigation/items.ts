@@ -2,6 +2,7 @@ import {
   Bookmark,
   Bot,
   Brain,
+  ChartLine,
   ClipboardCheck,
   FileText,
   Globe,
@@ -51,6 +52,11 @@ const projectNavItems = [
     to: "/p/$projectId/bing" as const,
     label: "Bing Insights",
     icon: ScanSearch,
+  },
+  {
+    to: "/p/$projectId/analytics" as const,
+    label: "Analytics",
+    icon: ChartLine,
   },
   {
     to: "/p/$projectId/indexing" as const,
@@ -151,6 +157,7 @@ export function getProjectNavGroups(projectId: string) {
       items: [
         byPath("/p/$projectId/search-performance"),
         byPath("/p/$projectId/bing"),
+        byPath("/p/$projectId/analytics"),
         byPath("/p/$projectId/indexing"),
         byPath("/p/$projectId/rank-tracking"),
         byPath("/p/$projectId/saved"),

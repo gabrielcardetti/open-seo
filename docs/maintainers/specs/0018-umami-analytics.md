@@ -130,7 +130,11 @@ the project has no GA4 connection but has an Umami website:
 Umami gets its own tools (`get_umami_overview`,
 `get_umami_organic_landing_pages`, `get_umami_page_performance`,
 `get_umami_traffic_acquisition`, `get_umami_events`,
-`get_umami_audience_breakdown`, `get_umami_realtime`) instead of making the
+`get_umami_audience_breakdown`, `get_umami_realtime`, and, for the reads the
+Analytics page added, `get_umami_organic_by_search_engine`,
+`get_umami_ai_referrals`, `get_umami_campaigns`,
+`get_umami_event_properties`, `get_umami_funnel`, `get_umami_attribution`
+and `get_umami_web_vitals`) instead of making the
 GA4 tools source-agnostic. The two sources measure different things —
 sessions, engagement, key events and revenue against visits, bounces, visit
 time and custom events — so one schema would either hide what each source
@@ -149,6 +153,73 @@ twin (Umami's `hostname` filter), so a project's numbers and its search
 opportunities only count its own pages. Realtime visitors can't be filtered by
 host and cover the whole website.
 
+### Analytics page
+
+Each project gets an Analytics page under My Site. It reads the connected
+Umami website live, like every other Umami read, and shows the integration
+card inline when nothing is connected. The date range (presets from 7 days to
+12 months, or custom dates) and an All traffic / Organic search switch live in
+the URL. The tabs:
+
+- **Overview**: the overview totals against the previous period, a daily
+  trend, and the top pages, referrers and countries.
+- **SEO**: organic visits grouped by search engine (the same exact host
+  matching as the organic filter, grouped into Google, Bing, Yahoo,
+  DuckDuckGo, Ecosia, Yandex and others); AI assistant traffic; and the
+  organic entry pages next to the same pages' Search Console and Bing clicks,
+  impressions and position.
+- **Pages**: paths, entry pages, exit pages and titles, searchable and paged.
+- **Acquisition**: Umami's channels, referrers, UTM fields and campaign
+  combinations, with one campaign's visits, landing pages and events.
+- **Events and conversions**: custom event counts and trends, each event's
+  recorded properties, funnels, journeys and attribution.
+- **Audience**: country, region, city, device, browser, operating system,
+  language and screen size.
+- **Web Vitals**: LCP, INP, CLS, FCP and TTFB at the 50th, 75th and 95th
+  percentiles, rated good, needs improvement or poor on the 75th percentile
+  with Google's Core Web Vitals thresholds, and LCP by page, device and
+  browser.
+
+**Organic landing pages with Search Console and Bing.** Pages are joined by
+path on the project's host (scheme, `www.`, trailing slash and query string
+ignored); pages on other hosts of a Search Console domain property are left
+out. Pages either engine reports without an organic visit stay in the list.
+Two flags point at work: a page with many Google impressions whose organic
+visits mostly bounce ("high impressions, poor retention"), and a page with
+organic visits but no Google click (the visits came from other engines, or
+Google withheld the query). Bing numbers come from OpenSEO's stored Bing
+history (spec 0015), so they appear only when Bing is connected. Search
+Console lags a few days, so the newest days have visits but no Google data.
+
+**AI assistants.** Assistant traffic shows up two ways: a referrer that is an
+assistant's own host (chatgpt.com, perplexity.ai, copilot.microsoft.com,
+gemini.google.com, claude.ai...), and a link tagged with an assistant's
+`utm_source` (ChatGPT adds `utm_source=chatgpt.com` to the links it cites,
+often without a referrer). Umami can't combine two filter fields with "or",
+so the page reports both counts side by side, visits by referrer and
+pageviews by `utm_source`, and says they can overlap rather than adding them.
+
+**UTM campaigns.** Per-field counts come from Umami's UTM report, which
+answers every field in one call. Source / medium / campaign combinations,
+which the report can't give, are parsed from the landing URLs' query strings
+(Umami's query breakdown) and counted in visits; query strings that differ
+only in other parameters count as one combination. A campaign's detail reads
+the same totals, entry pages and events filtered by Umami's UTM filters.
+
+**Reports.** Funnels, journeys, attribution, the UTM report and Web Vitals
+are Umami reports, run with the page's dates and the same hostname (and,
+when chosen, organic referrer) filters every other read sends. Funnels saved
+in Umami are listed and run for the page's range with their own steps and
+window; an ad hoc funnel takes two to six page or event steps. When an
+instance can't run a report (older Umami answers the route with an error, or
+answers a shape the client doesn't know) the page says the report isn't
+available on that Umami version instead of failing. Event properties are
+bounded to ten properties with ten values each.
+
+**Web Vitals** exist only when the site's Umami script sends them
+(`data-performance="true"`); without them the tab explains how to turn them
+on.
+
 ## Consequences
 
 - Projects on Umami get organic analytics, search opportunities and agent
@@ -158,4 +229,8 @@ host and cover the whole website.
 - Organic numbers can differ slightly from Umami's own organic search channel,
   for the reasons above.
 - The client accepts both Umami 2 and Umami 3 answers; instances older than
-  Umami 3 return only a single count per row for breakdowns.
+  Umami 3 return only a single count per row for breakdowns, and Umami's
+  report-based views (funnels, journeys, attribution, Web Vitals) may be
+  unavailable there.
+- AI assistant traffic is reported as two possibly overlapping counts, not
+  one total.

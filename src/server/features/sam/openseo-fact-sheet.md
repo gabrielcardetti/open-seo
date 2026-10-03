@@ -111,7 +111,7 @@ Sites that use Umami instead of Google Analytics can connect it on the project's
 
 OpenSEO reads Umami live, so nothing is copied or synced. Organic search means visits referred by a search engine (Google, Bing, DuckDuckGo, Yahoo, Yandex, Ecosia, Baidu, Brave). Dates are UTC days.
 
-When a project has no Google Analytics connection but has Umami, the dashboard's organic traffic card shows Umami visitors, and search opportunities (Search Console pages ranking 4 to 20) are scored with Umami's organic landing pages, using the non-bounce rate as the business value. Google Analytics keeps priority when both are connected. Agents can read the Umami overview, organic landing pages, page performance, traffic sources and UTM campaigns, custom events, audience, and realtime visitors. Umami reads use zero OpenSEO credits.
+When a project has no Google Analytics connection but has Umami, the dashboard's organic traffic card shows Umami visitors, and search opportunities (Search Console pages ranking 4 to 20) are scored with Umami's organic landing pages, using the non-bounce rate as the business value. Google Analytics keeps priority when both are connected. The project's Analytics page shows the Umami website in full: an overview against the previous period, organic search by search engine and AI assistant traffic, organic landing pages next to their Search Console and Bing numbers, pages, acquisition (channels, referrers, UTM campaigns), events and conversions (event properties, funnels, journeys, attribution), audience, and Web Vitals. Agents can read the Umami overview, organic landing pages, page performance, traffic sources, organic visits by search engine, AI assistant referrals, UTM campaigns, custom events and their properties, funnels, attribution, Web Vitals, audience, and realtime visitors. Umami reads use zero OpenSEO credits.
 
 ## OpenSEO and Claude (or other AI clients)
 
@@ -149,7 +149,7 @@ OpenSEO MCP tools cover workflows such as:
 - Google Search Console performance reads.
 - Google URL inspection reads.
 - Bing Webmaster Tools performance, crawl health, backlinks, and AI citation reads, and Google-versus-Bing comparisons.
-- Umami analytics reads (overview, organic landing pages, pages, traffic sources, events, audience, realtime).
+- Umami analytics reads (overview, organic landing pages, pages, traffic sources, search engines, AI assistant referrals, UTM campaigns, events and event properties, funnels, attribution, Web Vitals, audience, realtime).
 - IndexNow and Bing URL submission, with a per-URL log.
 
 OpenSEO also provides agent skills for workflows such as SEO project setup, SEO coaching, keyword research, competitive landscape analysis, competitor analysis, keyword clustering, and link prospecting.

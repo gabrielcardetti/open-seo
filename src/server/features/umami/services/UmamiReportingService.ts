@@ -1,9 +1,9 @@
 import { shiftGa4Date } from "@/server/features/ga4/services/Ga4Dates";
 import {
-  openUmamiForProject,
-  recordUmamiFailure,
-  type ConnectedUmami,
-} from "@/server/features/umami/umamiAccess";
+  sourceAndRequest,
+  sourceOf,
+  withUmami,
+} from "@/server/features/umami/umamiRead";
 import type { UmamiTotals } from "@/server/lib/umami/umamiClient";
 import {
   breakdownRows,
@@ -32,34 +32,6 @@ const ZERO_TOTALS: UmamiTotals = {
   bounces: 0,
   totaltime: 0,
 };
-
-function sourceOf({ connection, projectHost }: ConnectedUmami) {
-  return {
-    analytics: "umami" as const,
-    mode: connection.mode,
-    websiteId: connection.websiteId,
-    websiteName: connection.websiteName,
-    websiteDomain: connection.websiteDomain,
-    // Reads count only this hostname (and its www twin), not every host the
-    // Umami website tracks. Realtime visitors can't be filtered by host.
-    projectHost,
-  };
-}
-
-/** Open the project's Umami website, run a read, and remember a failure the
- *  user has to fix (bad credentials, a deleted website). */
-async function withUmami<T>(
-  projectId: string,
-  read: (umami: ConnectedUmami) => Promise<T>,
-): Promise<T> {
-  const umami = await openUmamiForProject(projectId);
-  try {
-    return await read(umami);
-  } catch (error) {
-    await recordUmamiFailure(projectId, error).catch(() => undefined);
-    throw error;
-  }
-}
 
 /** Each row with the same name's previous-period values (null when the name
  *  had none), when a comparison was asked for. */
@@ -159,34 +131,14 @@ async function getOverview(
   });
 }
 
-/** The fields every read answers with: where the data came from and the
- *  resolved request. */
-function sourceAndRequest<Extra extends Record<string, unknown>>(
-  umami: ConnectedUmami,
-  range: UmamiRange,
-  extra: Extra,
-) {
-  return {
-    ok: true as const,
-    source: sourceOf(umami),
-    request: {
-      dateRange: { startDate: range.startDate, endDate: range.endDate },
-      previousDateRange: {
-        startDate: range.previousStartDate,
-        endDate: range.previousEndDate,
-      },
-      timeZone: TIME_ZONE,
-      ...extra,
-    },
-  };
-}
-
 /** A ranked breakdown with optional previous-period values per row. */
 async function getBreakdown(
   input: PageInput & {
     type: string;
     channel: UmamiChannel;
     comparePreviousPeriod: boolean;
+    // Keeps rows whose value contains this text.
+    search?: string;
   },
 ) {
   return withUmami(input.projectId, async (umami) => {
@@ -213,6 +165,7 @@ async function getBreakdown(
     const pagedUpstream = input.type !== "channel";
     const page = {
       type: input.type,
+      search: input.search,
       filters,
       limit: pagedUpstream ? input.limit : 100,
       offset: pagedUpstream ? input.offset : 0,

@@ -154,7 +154,7 @@ export const outputSchema = z.looseObject({
   ...optionalMetaOutputSchema,
 });
 
-const percent = (value: unknown) =>
+export const percentCell = (value: unknown) =>
   typeof value === "number" ? `${(value * 100).toFixed(1)}%` : "—";
 
 type Described = {
@@ -197,7 +197,7 @@ export function breakdownText(label: string, result: BreakdownResult): string {
           {
             header: "bounce rate",
             value: (row) => row.bounceRate,
-            format: percent,
+            format: percentCell,
           },
           { header: "avg visit (s)", value: (row) => row.avgVisitSeconds },
           ...(result.request.comparePreviousPeriod

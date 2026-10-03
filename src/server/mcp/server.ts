@@ -44,6 +44,17 @@ import {
   getUmamiRealtimeTool,
   getUmamiTrafficAcquisitionTool,
 } from "@/server/mcp/tools/umami-tools";
+import {
+  getUmamiAttributionTool,
+  getUmamiEventPropertiesTool,
+  getUmamiFunnelTool,
+  getUmamiWebVitalsTool,
+} from "@/server/mcp/tools/umami-conversion-tools";
+import {
+  getUmamiAiReferralsTool,
+  getUmamiCampaignsTool,
+  getUmamiOrganicBySearchEngineTool,
+} from "@/server/mcp/tools/umami-source-tools";
 import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
 import {
@@ -276,6 +287,13 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getUmamiEventsTool);
   register(getUmamiAudienceBreakdownTool);
   register(getUmamiRealtimeTool);
+  register(getUmamiOrganicBySearchEngineTool);
+  register(getUmamiAiReferralsTool);
+  register(getUmamiCampaignsTool);
+  register(getUmamiEventPropertiesTool);
+  register(getUmamiFunnelTool);
+  register(getUmamiAttributionTool);
+  register(getUmamiWebVitalsTool);
   register(runSiteAuditTool);
   register(listSiteAuditsTool);
   register(deleteSiteAuditTool);

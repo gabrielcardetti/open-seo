@@ -3,6 +3,7 @@ import {
   shiftGa4Date,
 } from "@/server/features/ga4/services/Ga4Dates";
 import type { ConnectedUmami } from "@/server/features/umami/umamiAccess";
+import { searchEngineOf } from "@/server/features/umami/umamiSources";
 import type { UmamiClient, UmamiFilters } from "@/server/lib/umami/umamiClient";
 
 // The date range and the traffic an Umami read covers.
@@ -10,30 +11,8 @@ import type { UmamiClient, UmamiFilters } from "@/server/lib/umami/umamiClient";
 export type UmamiChannel = "organic_search" | "all";
 export type RangeInput = { startDate?: string; endDate?: string };
 
-// Search engines' own hosts. Matched exactly (after dropping a leading
-// `www.`), not as substrings: Google's other services (accounts.google.com
-// after a sign-in, notebook.google.com, the Gmail app) refer visits too, and
-// none of them is search.
-const SEARCH_ENGINE_HOSTS = [
-  /^google\.[a-z]{2,3}(\.[a-z]{2})?$/,
-  /^com\.google\.android\.googlequicksearchbox$/,
-  /^(cn\.)?bing\.com$/,
-  /^duckduckgo\.com$/,
-  /^([a-z]{2}\.)?search\.yahoo\.com$/,
-  /^r\.search\.yahoo\.com$/,
-  /^yandex\.[a-z]{2,3}$/,
-  /^ecosia\.org$/,
-  /^baidu\.com$/,
-  /^search\.brave\.com$/,
-  /^msn\.com$/,
-];
 const MAX_REFERRER_ROWS = 500;
 const MAX_ORGANIC_DOMAINS = 100;
-
-function isSearchEngineDomain(domain: string): boolean {
-  const host = domain.toLowerCase().replace(/^www\./, "");
-  return SEARCH_ENGINE_HOSTS.some((pattern) => pattern.test(host));
-}
 
 /**
  * Umami has no channel filter, only a channel breakdown, so organic search is
@@ -59,7 +38,7 @@ async function organicFilters(
   });
   const domains = referrers
     .map((row) => row.name)
-    .filter((name) => name && isSearchEngineDomain(name))
+    .filter((name) => name && searchEngineOf(name) !== null)
     .slice(0, MAX_ORGANIC_DOMAINS);
   return {
     domains,
