@@ -66,6 +66,8 @@ type MetricsInput = RangeInput & {
   type: string;
   limit: number;
   offset?: number;
+  // Keeps rows whose value contains this text.
+  search?: string;
 };
 
 type Query = Record<string, string | number | undefined>;
@@ -154,13 +156,28 @@ export function createUmamiClient(input: {
     return { Accept: "application/json", Authorization: `Bearer ${token}` };
   }
 
-  async function get(path: string, query: Query = {}): Promise<unknown> {
+  async function call(
+    path: string,
+    query: Query = {},
+    body?: unknown,
+  ): Promise<unknown> {
     const url = apiUrl(path, query);
-    let response = await send(url, { headers: await authHeaders() });
+    const init = async (): Promise<RequestInit> =>
+      body === undefined
+        ? { headers: await authHeaders() }
+        : {
+            method: "POST",
+            headers: {
+              ...(await authHeaders()),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          };
+    let response = await send(url, await init());
     if (response.status === 401 && credentials.mode === "self_hosted") {
       // The token expired or was revoked: log in again, once.
       token = null;
-      response = await send(url, { headers: await authHeaders() });
+      response = await send(url, await init());
     }
     if (!response.ok) {
       // The path names the website at most; the query is never logged.
@@ -172,6 +189,8 @@ export function createUmamiClient(input: {
     }
     return readJson(response);
   }
+
+  const get = (path: string, query: Query = {}) => call(path, query);
 
   async function listPaged<T extends z.ZodType>(
     path: string,
@@ -211,6 +230,7 @@ export function createUmamiClient(input: {
       type: request.type,
       limit: request.limit,
       offset: request.offset ?? 0,
+      search: request.search,
     };
     const usesPath = query.type === "path" || query.path !== undefined;
     const legacyQuery = (): Query => {
@@ -238,6 +258,12 @@ export function createUmamiClient(input: {
   }
 
   return {
+    /** A raw GET under the API base, for reads parsed by their caller. */
+    get,
+
+    /** A raw POST (Umami's report endpoints take their input as a body). */
+    post: (path: string, body: unknown) => call(path, {}, body),
+
     /**
      * Every website the credentials can read: the user's own, and those of
      * every team the user belongs to. `websites?includeTeams=true` already

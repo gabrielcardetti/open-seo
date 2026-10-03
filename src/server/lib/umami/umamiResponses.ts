@@ -16,7 +16,7 @@ export type UmamiTotals = {
 };
 
 // Counts arrive as numbers, or as strings when the database returns bigints.
-const numeric = z.union([
+export const numeric = z.union([
   z.number(),
   z
     .string()

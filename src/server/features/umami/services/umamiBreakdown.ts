@@ -51,6 +51,7 @@ export async function breakdownRows(
     filters: UmamiFilters;
     limit: number;
     offset: number;
+    search?: string;
   },
 ): Promise<{
   rows: BreakdownRow[];
