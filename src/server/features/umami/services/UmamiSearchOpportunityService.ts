@@ -104,9 +104,10 @@ async function getOpportunities(
     dataState: "final",
   });
 
-  const websiteHost = umami.source.websiteDomain
-    ? siteHost(umami.source.websiteDomain)
-    : null;
+  // Umami rows are already limited to the project's hostname.
+  const websiteHost =
+    umami.source.projectHost ??
+    (umami.source.websiteDomain ? siteHost(umami.source.websiteDomain) : null);
   const umamiByPath = new Map(
     umami.rows.map((row) => [pathKey(row.name), row] as const),
   );

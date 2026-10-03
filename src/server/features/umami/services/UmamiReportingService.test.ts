@@ -21,6 +21,10 @@ function requestUrl(input: Parameters<typeof fetch>[0]) {
 describe("UmamiReportingService organic reads", () => {
   beforeEach(async () => {
     await testDb.client.execute("DELETE FROM umami_connections");
+    await testDb.client.execute("DELETE FROM projects");
+    await testDb.client.execute(
+      "INSERT INTO projects (id, domain) VALUES ('project_1', 'example.com')",
+    );
     await testDb.client.execute(
       `INSERT INTO umami_connections
         (id, project_id, organization_id, mode, base_url, credential_encrypted, credential_hint, website_id, connected_by_user_id)
@@ -77,6 +81,11 @@ describe("UmamiReportingService organic reads", () => {
       .find((url) => url.pathname.endsWith("/stats"));
     expect(statsCall?.searchParams.get("referrer")).toBe(
       "eq.www.google.com,duckduckgo.com",
+    );
+    // One Umami website can track several hostnames; reads keep to the
+    // project's site.
+    expect(statsCall?.searchParams.get("hostname")).toBe(
+      "eq.example.com,www.example.com",
     );
     expect(result.current).toMatchObject({ visitors: 4, bounceRate: 0.2 });
   });

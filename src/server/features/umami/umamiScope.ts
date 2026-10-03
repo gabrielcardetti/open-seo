@@ -45,6 +45,7 @@ async function organicFilters(
   websiteId: string,
   startAt: number,
   endAt: number,
+  hostFilter: UmamiFilters,
 ) {
   const referrers = await client.getMetrics({
     websiteId,
@@ -52,6 +53,7 @@ async function organicFilters(
     endAt,
     type: "referrer",
     limit: MAX_REFERRER_ROWS,
+    filters: hostFilter,
   });
   const domains = referrers
     .map((row) => row.name)
@@ -61,7 +63,10 @@ async function organicFilters(
     domains,
     filters:
       domains.length > 0
-        ? ({ referrer: `eq.${domains.join(",")}` } satisfies UmamiFilters)
+        ? ({
+            ...hostFilter,
+            referrer: `eq.${domains.join(",")}`,
+          } satisfies UmamiFilters)
         : null,
   };
 }
@@ -101,18 +106,22 @@ export type UmamiRange = ReturnType<typeof resolveUmamiRange>;
 
 /** Channel filters for a read, computed once over both compared periods. */
 export async function channelFilters(
-  { client, connection }: ConnectedUmami,
+  { client, connection, hostFilter }: ConnectedUmami,
   channel: UmamiChannel,
   range: UmamiRange,
 ) {
   if (channel === "all") {
-    return { filters: {} as UmamiFilters, organicDetection: null };
+    return {
+      filters: { ...hostFilter } as UmamiFilters,
+      organicDetection: null,
+    };
   }
   const organic = await organicFilters(
     client,
     connection.websiteId,
     range.previousStartAt,
     range.endAt,
+    hostFilter,
   );
   return {
     filters: organic.filters,

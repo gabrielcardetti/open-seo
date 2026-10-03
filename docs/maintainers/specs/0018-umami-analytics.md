@@ -131,6 +131,13 @@ limit, offset, previous-period comparison) and answer expected failures (not
 connected, rejected credentials, a missing website, throttling) as `ok: false`
 with a link to the integration settings.
 
+**Reads keep to the project's site.** One Umami website often tracks several
+hostnames: a sister domain sharing the tracking script, the logged-in app,
+local development. Every read filters by the project's domain and its `www.`
+twin (Umami's `hostname` filter), so a project's numbers and its search
+opportunities only count its own pages. Realtime visitors can't be filtered by
+host and cover the whole website.
+
 ## Consequences
 
 - Projects on Umami get organic analytics, search opportunities and agent

@@ -6,6 +6,7 @@ import {
 import {
   createUmamiClient,
   type UmamiClient,
+  type UmamiFilters,
   type UmamiCredentials,
 } from "@/server/lib/umami/umamiClient";
 import {
@@ -13,6 +14,8 @@ import {
   UmamiNotConnectedError,
 } from "@/server/lib/umami/umamiErrors";
 import { openSecret, sealSecret } from "@/server/lib/secretBox";
+import { siteHost } from "@/server/features/bing/bingUrls";
+import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 
 const CREDENTIAL_PURPOSE = "Umami credentials";
 
@@ -64,6 +67,11 @@ export async function openUmamiClient(
 export type ConnectedUmami = {
   connection: UmamiConnection & { websiteId: string };
   client: UmamiClient;
+  /** The project's own site (no `www.`), or null when it has no domain. */
+  projectHost: string | null;
+  /** Keeps every read to the project's site: one Umami website often tracks
+   *  several hostnames (a sister domain, the app, localhost). */
+  hostFilter: UmamiFilters;
 };
 
 /**
@@ -79,7 +87,16 @@ export async function openUmamiForProject(
   if (!connection || !websiteId) throw new UmamiNotConnectedError(projectId);
   const client = await openUmamiClient(connection);
   if (!client) throw new UmamiNotConnectedError(projectId);
-  return { connection: { ...connection, websiteId }, client };
+  const project = await ProjectRepository.getProjectById(projectId);
+  const projectHost = project?.domain ? siteHost(project.domain) : null;
+  return {
+    connection: { ...connection, websiteId },
+    client,
+    projectHost,
+    hostFilter: projectHost
+      ? { hostname: `eq.${projectHost},www.${projectHost}` }
+      : {},
+  };
 }
 
 /** Remember why Umami refused a read, so the integration card can say so.

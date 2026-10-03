@@ -58,13 +58,16 @@ type BreakdownRow = {
   [Key in keyof ReturnType<typeof summarize>]: number | null;
 } & { name: string; count: number | null };
 
-function sourceOf({ connection }: ConnectedUmami) {
+function sourceOf({ connection, projectHost }: ConnectedUmami) {
   return {
     analytics: "umami" as const,
     mode: connection.mode,
     websiteId: connection.websiteId,
     websiteName: connection.websiteName,
     websiteDomain: connection.websiteDomain,
+    // Reads count only this hostname (and its www twin), not every host the
+    // Umami website tracks. Realtime visitors can't be filtered by host.
+    projectHost,
   };
 }
 

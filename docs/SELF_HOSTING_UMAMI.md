@@ -39,6 +39,10 @@ Open the project's **Settings → Integrations** and find the **Umami** card.
 Then choose the website. The list includes your own websites and those of every
 Umami team you belong to; the one matching the project's domain is suggested.
 
+If one Umami website tracks more than one domain, connect it to each project:
+OpenSEO counts only the pages on the project's own domain (and its `www.`
+version) in every read.
+
 ## How it's used
 
 - The dashboard's organic traffic card shows search-engine visitors from
