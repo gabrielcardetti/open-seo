@@ -181,8 +181,9 @@ Hacelo en el mismo PR o en uno hermano, y medilo con `run_agent_readiness_scan` 
    - Bing Webmaster Tools se da de alta importando desde Search Console. Después, conectarlo en OpenSEO y `verify_indexnow_key` / `submit_urls_for_indexing`.
 4. **Medición:**
    - Anotá en el research log la línea base de Search Console y los IDs de las auditorías.
+   - Si el sitio mide con Umami (Cloud o self-hosted), conectalo en Integraciones del proyecto y anotá también la línea base orgánica de `get_umami_overview`. Con Search Console y Umami conectados, `get_search_opportunities` prioriza las páginas en posiciones 4–20 que ya traen visitas que se quedan.
    - Proponé saber qué página trae cada registro: guardar la primera página de la visita junto con los UTM al crear la cuenta.
-   - Eventos en los CTA y las herramientas.
+   - Eventos en los CTA y las herramientas (en Umami, `umami.track`; se leen con `get_umami_events`).
    - Un rank tracker de las keywords del mapa: `estimate_rank_tracker_cost` antes y aprobación del dueño.
 5. Revisá Search Console a las 2 semanas y al mes. Una página sin impresiones a los 3 meses se consolida o se pone en noindex.
 

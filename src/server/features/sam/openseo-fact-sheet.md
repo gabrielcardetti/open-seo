@@ -34,6 +34,7 @@ The paid plan includes:
 - MCP server and agent skills for Claude, Cursor, ChatGPT-compatible clients, Codex, and other MCP clients.
 - Google Search Console integration that does not use credits.
 - Bing Webmaster Tools integration and IndexNow URL submission, which do not use credits.
+- Umami analytics integration (Umami Cloud or self-hosted), which does not use credits.
 - $10.00 of usage credits each billing cycle.
 - A 30-day money-back guarantee for the first charge.
 
@@ -70,6 +71,8 @@ Google Search Console data comes from the user's connected Search Console proper
 
 Bing Webmaster Tools data comes from the user's own Bing Webmaster account through an API key they paste in, and does not use credits.
 
+Umami analytics data comes from the project's own Umami website (Umami Cloud or self-hosted), read live, and does not use credits.
+
 ## Google Search Console
 
 Hosted OpenSEO can connect to Google Search Console without requiring the user to create a Google Cloud project or OAuth client.
@@ -101,6 +104,14 @@ The Indexing page announces new and changed pages to Bing and other search engin
 Bing Webmaster Tools data and indexing tools use zero OpenSEO credits, like Search Console.
 
 A site audit's content evaluation judges pages against Google's guidelines by default. Users can also check Bing's Webmaster Guidelines (robots.txt for Bingbot, eligibility for Copilot citations, grounding, prompt injection), and the audit then shows Google's and Bing's verdicts side by side. Where Bing's advice contradicts Google's, the Bing rule only warns. Checking Bing's guidelines doesn't need a Bing connection.
+
+## Umami analytics
+
+Sites that use Umami instead of Google Analytics can connect it on the project's Integrations page: an Umami Cloud API key (created in Umami Cloud under Settings, then API keys), or a self-hosted Umami address with a username and password (a view-only Umami user is enough). The user then picks the website; websites shared with the user's Umami teams are listed too. Credentials are stored encrypted.
+
+OpenSEO reads Umami live, so nothing is copied or synced. Organic search means visits referred by a search engine (Google, Bing, DuckDuckGo, Yahoo, Yandex, Ecosia, Baidu, Brave). Dates are UTC days.
+
+When a project has no Google Analytics connection but has Umami, the dashboard's organic traffic card shows Umami visitors, and search opportunities (Search Console pages ranking 4 to 20) are scored with Umami's organic landing pages, using the non-bounce rate as the business value. Google Analytics keeps priority when both are connected. Agents can read the Umami overview, organic landing pages, page performance, traffic sources and UTM campaigns, custom events, audience, and realtime visitors. Umami reads use zero OpenSEO credits.
 
 ## OpenSEO and Claude (or other AI clients)
 
@@ -138,6 +149,7 @@ OpenSEO MCP tools cover workflows such as:
 - Google Search Console performance reads.
 - Google URL inspection reads.
 - Bing Webmaster Tools performance, crawl health, backlinks, and AI citation reads, and Google-versus-Bing comparisons.
+- Umami analytics reads (overview, organic landing pages, pages, traffic sources, events, audience, realtime).
 - IndexNow and Bing URL submission, with a per-URL log.
 
 OpenSEO also provides agent skills for workflows such as SEO project setup, SEO coaching, keyword research, competitive landscape analysis, competitor analysis, keyword clustering, and link prospecting.
