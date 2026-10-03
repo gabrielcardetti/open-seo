@@ -6,6 +6,8 @@ import { CrawlerAccessSettings } from "@/client/features/settings/CrawlerAccessS
 import { BingConnectionCard } from "@/client/features/bing/BingConnectionCard";
 import { bingConnectionOptions } from "@/client/features/bing/bingQueries";
 import { SitemapCoverageNotice } from "@/client/features/sitemaps/SitemapCoverageNotice";
+import { UmamiConnectionCard } from "@/client/features/umami/UmamiConnectionCard";
+import { umamiConnectionOptions } from "@/client/features/umami/umamiQueries";
 
 export const Route = createFileRoute(
   "/_app/p/$projectId/settings/integrations",
@@ -19,6 +21,7 @@ export const Route = createFileRoute(
       googleConnectionOptions("ga4", params.projectId),
     );
     void queryClient.prefetchQuery(bingConnectionOptions(params.projectId));
+    void queryClient.prefetchQuery(umamiConnectionOptions(params.projectId));
   },
   component: ProjectIntegrationsRoute,
 });
@@ -43,6 +46,10 @@ function ProjectIntegrationsRoute() {
 
       <section id="google-analytics" className="scroll-mt-6">
         <GoogleConnectionCard provider="ga4" projectId={projectId} />
+      </section>
+
+      <section id="umami" className="scroll-mt-6">
+        <UmamiConnectionCard projectId={projectId} />
       </section>
 
       <section id="bing-webmaster" className="scroll-mt-6">

@@ -34,6 +34,10 @@ Search Console is optional and works in self-hosted deployments using your own G
 
 Bing Webmaster Tools and IndexNow are optional. Paste a Bing Webmaster API key to keep a history of your Bing traffic and crawl health on the Bing Insights page. Site audits then also list the crawl problems Bing found. Publish an IndexNow key file to announce new and changed pages to Bing and other IndexNow engines. Saved API keys are encrypted with `BETTER_AUTH_SECRET`, the only environment variable this needs. Daily syncs and sitemap checks run only on Cloudflare deployments; on Docker you sync on demand. See the [Bing Webmaster Tools guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md).
 
+### Umami analytics
+
+If your site uses Umami instead of Google Analytics, connect Umami Cloud (an API key) or your self-hosted Umami (its address and a view-only login) to see organic visitors on the dashboard and give agents your landing pages, traffic sources, and events. It reads Umami live and uses no credits. Saved credentials are encrypted with `BETTER_AUTH_SECRET`. See the [Umami guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/SELF_HOSTING_UMAMI.md).
+
 ### AI features (SAM)
 
 AI features like SAM, the in-app SEO agent, are optional. Set the `OPENROUTER_API_KEY` environment variable to enable them. Create a key at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).

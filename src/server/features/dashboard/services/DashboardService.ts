@@ -7,6 +7,7 @@ import { getIssueTypePageCountsForAudit } from "@/server/features/audit/reposito
 import { BacklinkSnapshotRepository } from "@/server/features/dashboard/repositories/BacklinkSnapshotRepository";
 import { Ga4ConnectionRepository } from "@/server/features/ga4/repositories/Ga4ConnectionRepository";
 import { GscConnectionRepository } from "@/server/features/gsc/repositories/GscConnectionRepository";
+import { UmamiConnectionRepository } from "@/server/features/umami/repositories/UmamiConnectionRepository";
 import {
   createDataforseoClient,
   normalizeBacklinksTarget,
@@ -26,6 +27,8 @@ export type DashboardActivation = {
     cardDismissedAt: string | null;
   };
   gsc: { connected: boolean; siteUrl: string | null };
+  // The analytics source used where Google Analytics isn't connected.
+  umami: { connected: boolean; websiteName: string | null };
   mcp: {
     authorizedAt: string | null;
     firstToolCallAt: string | null;
@@ -85,6 +88,7 @@ async function getActivation(input: {
     hasTeammate,
     dismissed,
     latestAudit,
+    umami,
   ] = await Promise.all([
     Ga4ConnectionRepository.getByProjectId(input.projectId),
     GscConnectionRepository.getByProjectId(input.projectId),
@@ -94,6 +98,7 @@ async function getActivation(input: {
     ActivationRepository.hasTeammate(input.organizationId),
     ActivationRepository.getDismissedSteps(input.userId, input.projectId),
     AuditRepository.getLatestAuditForProject(input.projectId),
+    UmamiConnectionRepository.getByProjectId(input.projectId),
   ]);
 
   return {
@@ -107,6 +112,10 @@ async function getActivation(input: {
       cardDismissedAt: projectActivation?.ga4CardDismissedAt ?? null,
     },
     gsc: { connected: gsc !== null, siteUrl: gsc?.siteUrl ?? null },
+    umami: {
+      connected: Boolean(umami?.websiteId),
+      websiteName: umami?.websiteName ?? null,
+    },
     mcp: {
       authorizedAt: orgActivation?.firstMcpAuthorizedAt ?? null,
       firstToolCallAt: orgActivation?.firstMcpToolCallAt ?? null,

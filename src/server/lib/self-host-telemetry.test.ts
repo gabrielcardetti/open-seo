@@ -33,6 +33,7 @@ const emptyCounts = {
   savedKeywordCount: 0,
   gscConnected: false,
   bingConnected: false,
+  umamiConnected: false,
   samChatUsed: false,
 };
 

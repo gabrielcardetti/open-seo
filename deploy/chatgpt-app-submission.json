@@ -447,8 +447,8 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Only combines read-only Search Console and Analytics reports to identify opportunities.",
-        "open_world_justification": "Reads user-authorized Google data and cannot change Google or publicly visible internet state.",
+        "read_only_justification": "Only combines read-only Search Console and Analytics (Google Analytics or Umami) reports to identify opportunities.",
+        "open_world_justification": "Reads user-authorized Google or Umami data and cannot change Google, Umami, or publicly visible internet state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
@@ -762,6 +762,90 @@
         "read_only_justification": "Submits the project's tracked sitemaps to the user's Google Search Console property and Bing Webmaster Tools site.",
         "open_world_justification": "Registers sitemaps with external search engines (Google Search Console and Bing Webmaster Tools) for the user's own website.",
         "destructive_justification": "Submissions are additive and sitemaps the engine already lists are skipped by default; nothing is deleted or overwritten."
+      }
+    },
+    "get_umami_overview": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves visitors, visits, pageviews, bounce rate, visit time, and a daily trend from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_umami_organic_landing_pages": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the entry pages of search-engine visits from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_umami_page_performance": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves per-page visitors, visits, views, bounce rate, and visit time from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_umami_traffic_acquisition": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves visits by channel, referrer, or UTM field from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_umami_events": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves custom event counts from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_umami_audience_breakdown": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves visits by country, device, browser, or operating system from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_umami_realtime": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves the current number of active visitors from the project's connected Umami website.",
+        "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     }
   },

@@ -8,6 +8,7 @@ import {
   GscCard,
 } from "@/client/features/dashboard/DashboardCards";
 import { Ga4Card } from "@/client/features/dashboard/Ga4Card";
+import { UmamiCard } from "@/client/features/dashboard/UmamiCard";
 import { WorkspaceMergeBanner } from "@/client/features/dashboard/WorkspaceMergeBanner";
 import { QueryError } from "@/client/components/QueryState";
 import {
@@ -90,6 +91,8 @@ export function DashboardPage({ projectId }: { projectId: string }) {
   const showBacklinks = activation.domain !== null;
   const gscConnected = activation.gsc.connected;
   const ga4Connected = activation.ga4.connected;
+  // Umami stands in for Google Analytics when only Umami is connected.
+  const umamiConnected = !ga4Connected && activation.umami.connected;
 
   // Search Console always renders: connected shows the report, otherwise the
   // connect pitch. It sits ahead of the optional GA4 pitch.
@@ -99,15 +102,23 @@ export function DashboardPage({ projectId }: { projectId: string }) {
       hasData: gscConnected,
       node: <GscCard projectId={projectId} connected={gscConnected} />,
     },
-    ...(ga4Connected || !activation.ga4.cardDismissedAt
+    ...(umamiConnected
       ? [
           {
-            key: "ga4",
-            hasData: ga4Connected,
-            node: <Ga4Card projectId={projectId} connected={ga4Connected} />,
+            key: "umami",
+            hasData: true,
+            node: <UmamiCard projectId={projectId} />,
           },
         ]
-      : []),
+      : ga4Connected || !activation.ga4.cardDismissedAt
+        ? [
+            {
+              key: "ga4",
+              hasData: ga4Connected,
+              node: <Ga4Card projectId={projectId} connected={ga4Connected} />,
+            },
+          ]
+        : []),
     ...(overview
       ? [
           {

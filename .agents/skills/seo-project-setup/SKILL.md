@@ -194,7 +194,7 @@ Then summarize:
 - Known positioning
 - Competitors saved
 - Key pages saved
-- Search Console and Bing Webmaster Tools status, IndexNow status, and any local files
+- Search Console, Bing Webmaster Tools, and analytics (Google Analytics or Umami) status, IndexNow status, and any local files
 - Sitemaps tracked, and whether Google and Bing have them
 - Sections still missing from project context
 - Recommended next workflow
@@ -205,7 +205,7 @@ Tell the user they can read and edit everything saved here on the project's Cont
 
 - Keep setup lightweight. The user should feel oriented, not assigned homework.
 - Confirm facts with the user before writing them. Inferences from the site are fine to propose, but they get saved as agreed answers, not guesses.
-- Do not pretend a GSC CSV has been uploaded unless you can see it, and do not claim Search Console is connected unless `get_search_console_performance` confirms it (it returns a "not connected" message otherwise). The same goes for Bing: only `get_bing_overview` confirms a Bing connection.
+- Do not pretend a GSC CSV has been uploaded unless you can see it, and do not claim Search Console is connected unless `get_search_console_performance` confirms it (it returns a "not connected" message otherwise). The same goes for Bing: only `get_bing_overview` confirms a Bing connection, and for Umami: only `get_umami_overview` confirms an Umami connection.
 - Keep project setup focused on setup and context unless the user asks for live research. If a step does spend credits, append a research log entry so other skills do not re-buy it.
 - If web search or scraping is used for positioning research, distinguish source evidence from inference.
 - Overwriting a section replaces it. When context already exists, merge the new answers into the existing prose instead of discarding it.

@@ -35,6 +35,15 @@ import {
   getGoogleAnalyticsTrafficAcquisitionTool,
   getSearchOpportunitiesTool,
 } from "@/server/mcp/tools/google-analytics-tools";
+import {
+  getUmamiAudienceBreakdownTool,
+  getUmamiEventsTool,
+  getUmamiOrganicLandingPagesTool,
+  getUmamiOverviewTool,
+  getUmamiPagePerformanceTool,
+  getUmamiRealtimeTool,
+  getUmamiTrafficAcquisitionTool,
+} from "@/server/mcp/tools/umami-tools";
 import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
 import {
@@ -260,6 +269,13 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getGoogleAnalyticsEcommercePerformanceTool);
   register(getGoogleAnalyticsSiteSearchTool);
   register(getGoogleAnalyticsAudienceBreakdownTool);
+  register(getUmamiOverviewTool);
+  register(getUmamiOrganicLandingPagesTool);
+  register(getUmamiPagePerformanceTool);
+  register(getUmamiTrafficAcquisitionTool);
+  register(getUmamiEventsTool);
+  register(getUmamiAudienceBreakdownTool);
+  register(getUmamiRealtimeTool);
   register(runSiteAuditTool);
   register(listSiteAuditsTool);
   register(deleteSiteAuditTool);

@@ -16,6 +16,11 @@ import {
 } from "@/server/features/ga4/services/Ga4ReportingService";
 import { Ga4ReportError } from "@/server/lib/ga4Errors";
 import { SearchOpportunityService } from "@/server/features/ga4/services/SearchOpportunityService";
+import { UmamiSearchOpportunityService } from "@/server/features/umami/services/UmamiSearchOpportunityService";
+import {
+  UmamiApiError,
+  UmamiNotConnectedError,
+} from "@/server/lib/umami/umamiErrors";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { looseObjectOutputSchema } from "@/server/mcp/output-schemas";
@@ -172,6 +177,12 @@ function actionUrl(
   if (code.startsWith("gsc_")) {
     return buildDashboardUrl(baseUrl, `/p/${projectId}/search-performance`);
   }
+  if (code === "umami_reconnect_required") {
+    return buildDashboardUrl(
+      baseUrl,
+      `/p/${projectId}/settings/integrations#umami`,
+    );
+  }
   return undefined;
 }
 
@@ -185,8 +196,19 @@ function errorResponse(
   let retryAfterSeconds: number | null | undefined;
   if (error instanceof Ga4ReportError) {
     code = error.code;
-    message = error.message;
+    message =
+      error.code === "ga4_not_connected"
+        ? `${error.message} If this project uses Umami instead, call the get_umami_* tools.`
+        : error.message;
     retryAfterSeconds = error.retryAfterSeconds;
+  } else if (error instanceof UmamiApiError) {
+    code =
+      error.kind === "auth" || error.kind === "not_found"
+        ? "umami_reconnect_required"
+        : error.kind === "throttled"
+          ? "umami_rate_limited"
+          : "umami_upstream_unavailable";
+    message = error.message;
   } else if (error instanceof GscNotConnectedError) {
     code = "gsc_not_connected";
     message = "Search Console is not connected for this project.";
@@ -431,12 +453,33 @@ const opportunityInputSchema = z.strictObject({
 });
 type OpportunityArgs = z.infer<typeof opportunityInputSchema>;
 
+/** Google Analytics keeps priority; a project without it but with Umami gets
+ *  the same read joined to Umami instead. */
+async function readSearchOpportunities(args: OpportunityArgs) {
+  try {
+    return await SearchOpportunityService.getOpportunities(args);
+  } catch (error) {
+    if (
+      !(error instanceof Ga4ReportError) ||
+      error.code !== "ga4_not_connected"
+    ) {
+      throw error;
+    }
+    try {
+      return await UmamiSearchOpportunityService.getOpportunities(args);
+    } catch (umamiError) {
+      if (umamiError instanceof UmamiNotConnectedError) throw error;
+      throw umamiError;
+    }
+  }
+}
+
 export const getSearchOpportunitiesTool = {
   name: "get_search_opportunities",
   config: {
     title: "Get search opportunities",
     description:
-      "Join Search Console pages ranking in positions 4–20 with GA4 organic landing-page outcomes, then score matched opportunities by demand, business value, and reachability. Unmatched pages remain visible and unscored. Read-only and uses no OpenSEO credits.",
+      "Join Search Console pages ranking in positions 4–20 with GA4 organic landing-page outcomes, then score matched opportunities by demand, business value, and reachability. Projects without Google Analytics that connect Umami use Umami's search-referred entry pages instead (business value = non-bounce rate; source.analytics says which). Unmatched pages remain visible and unscored. Read-only and uses no OpenSEO credits.",
     inputSchema: opportunityInputSchema,
     outputSchema: opportunityOutputSchema,
     annotations: {
@@ -447,9 +490,13 @@ export const getSearchOpportunitiesTool = {
   },
   handler: withMcpProjectAuth(async (args: OpportunityArgs, context) => {
     try {
-      const result = await SearchOpportunityService.getOpportunities(args);
+      const result = await readSearchOpportunities(args);
+      const matchedWith =
+        "analytics" in result.source
+          ? "Umami organic entry pages"
+          : "GA4 landing pages";
       return mcpResponse({
-        text: `Search opportunities: ${result.rowCount} returned from ${result.totalCandidateRows} candidates. ${result.coverage.matchedRows} candidates matched GA4 landing pages.`,
+        text: `Search opportunities: ${result.rowCount} returned from ${result.totalCandidateRows} candidates. ${result.coverage.matchedRows} candidates matched ${matchedWith}.`,
         meta: buildProjectMeta(context, args.projectId),
         structuredContent: result,
       });
