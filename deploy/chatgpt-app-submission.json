@@ -955,6 +955,42 @@
         "open_world_justification": "Reads user-authorized Umami analytics and cannot change Umami or publicly visible internet state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
+    },
+    "get_core_web_vitals": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves Chrome UX Report field data for a site or URL.",
+        "open_world_justification": "Reads public Google field data and cannot change Google or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "run_pagespeed": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only runs a PageSpeed Insights analysis and returns its results.",
+        "open_world_justification": "Calls Google's PageSpeed Insights API and cannot change Google or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
+    "get_google_search_updates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only returns a bundled list of Google Search updates.",
+        "open_world_justification": "Reads static bundled data and cannot change any external state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
     }
   },
   "test_cases": [

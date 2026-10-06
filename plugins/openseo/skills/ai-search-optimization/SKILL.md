@@ -44,7 +44,7 @@ Deliver through the `seo-report` skill, saving with `skill: "ai-search-optimizat
 - `get_bing_ai_citations`: how often Copilot and Bing's AI answers cited the site, the most-cited pages, and the grounding queries, for periods where the AI Performance export was imported.
 - `get_guideline_results`: the content-guideline verdicts. The rules most relevant here are automated content quality (AI-03), one-page-per-query-variant fan-out (AI-04), accurate titles, alt text, and markup (AI-05), and content built to manipulate AI answers (SPAM-16), alongside the people-first and E-E-A-T rules. Run `run_site_audit` with `evaluateContent: true` (add `engines: ["google","bing"]` when Copilot matters) if there are no verdicts yet.
 - `get_search_console_performance`: queries and pages from Google Search. Search Console's Generative AI performance report is only in the Search Console interface; ask the user for it when the AI share of Google traffic matters.
-- In the OpenSEO app, Brand Lookup and Prompt Explorer show how AI assistants answer prompts about the brand and which sources they cite. Point the user to them when prompt-level visibility is the question.
+- `get_ai_brand_visibility` shows how often ChatGPT and Google AI Overviews mention the brand, which pages they cite, and Share of Voice against competitors (about 1,000 credits; confirm before running). `explore_ai_prompt` runs one prompt through chosen models and returns the answer, cited sources, and whether the brand is named (about 50–230 credits per model). Use them when prompt-level visibility is the question.
 - Web reading (fetch, scrape, or search): the pages themselves, the sources AI answers cite for the target questions, and the brand's presence on the sites those answers draw from.
 
 ## Workflow
@@ -57,7 +57,7 @@ Deliver through the `seo-report` skill, saving with `skill: "ai-search-optimizat
    Blocking a training crawler is a licensing choice, not a visibility problem. Blocking a search crawler, or a firewall that challenges it, is.
 2. Eligibility. For the key pages, check indexability, canonical, and snippet directives (`get_audit_pages`), and Google's index state (`inspect_urls`). Content that only appears after JavaScript runs is a risk for assistants whose crawlers read raw HTML; the agent-readiness scan reports it.
 3. Current visibility. Pull `get_ranked_keywords` with `ai_overview_reference`, `get_umami_ai_referrals`, and `get_bing_ai_citations`. Note which pages are cited or visited and for which questions. Missing connections are coverage gaps, not findings.
-4. The questions that matter. Build 5–10 questions or prompts from the business's offer and the user's input. Check the SERP for a few with `get_serp_results`, and see who AI answers cite for them (web search, or Brand Lookup and Prompt Explorer in the app).
+4. The questions that matter. Build 5–10 questions or prompts from the business's offer and the user's input. Check the SERP for a few with `get_serp_results`, and see who AI answers cite for them (web search, or `explore_ai_prompt` for a few key prompts).
 5. Content worth citing. For each key page and each question, read the page and ask:
    - Does it give a direct, specific answer early, in its own words, with facts a reader could check?
    - Does it offer something the commonly cited sources do not: first-hand experience, original data, a worked example, a current figure with its date?
