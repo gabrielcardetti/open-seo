@@ -959,24 +959,24 @@
     "get_core_web_vitals": {
       "annotations": {
         "readOnlyHint": true,
-        "openWorldHint": false,
+        "openWorldHint": true,
         "destructiveHint": false
       },
       "justifications": {
         "read_only_justification": "Only retrieves Chrome UX Report field data for a site or URL.",
-        "open_world_justification": "Reads public Google field data and cannot change Google or publicly visible internet state.",
+        "open_world_justification": "Calls Google's public Chrome UX Report and PageSpeed Insights APIs for any public site; it reads only and cannot change Google or publicly visible internet state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
     "run_pagespeed": {
       "annotations": {
         "readOnlyHint": true,
-        "openWorldHint": false,
+        "openWorldHint": true,
         "destructiveHint": false
       },
       "justifications": {
         "read_only_justification": "Only runs a PageSpeed Insights analysis and returns its results.",
-        "open_world_justification": "Calls Google's PageSpeed Insights API and cannot change Google or publicly visible internet state.",
+        "open_world_justification": "Calls Google's public Chrome UX Report and PageSpeed Insights APIs for any public site; it reads only and cannot change Google or publicly visible internet state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
