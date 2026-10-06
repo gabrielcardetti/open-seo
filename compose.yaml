@@ -22,6 +22,9 @@ services:
       # Optional: AI features (the SAM agent). Without this the setup
       # gate in the app asks for the key, but nothing here would forward it.
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      # Optional: Core Web Vitals field data and PageSpeed Insights. See
+      # docs/SELF_HOSTING_GOOGLE_CORE_WEB_VITALS.md
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       # Optional: Google Search Console. See
       # docs/SELF_HOSTING_GOOGLE_SEARCH_CONSOLE.md
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}

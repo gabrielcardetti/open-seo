@@ -14,7 +14,7 @@ type PreflightLevel = "ok" | "info" | "warn" | "fail";
 
 type PreflightItem = {
   // Stable identifier shared with /api/health's check map.
-  key: "auth" | "dataforseo" | "gsc" | "ai" | "runtime";
+  key: "auth" | "dataforseo" | "gsc" | "crux" | "ai" | "runtime";
   name: string;
   level: PreflightLevel;
   message: string;
@@ -194,6 +194,23 @@ function checkOptionalFeatures(env: EnvRecord, items: PreflightItem[]): void {
         "Not configured (optional). See docs/SELF_HOSTING_GOOGLE_SEARCH_CONSOLE.md.",
     });
   }
+
+  items.push(
+    get(env, "GOOGLE_API_KEY")
+      ? {
+          key: "crux",
+          name: "Core Web Vitals",
+          level: "ok",
+          message: "GOOGLE_API_KEY set",
+        }
+      : {
+          key: "crux",
+          name: "Core Web Vitals",
+          level: "info",
+          message:
+            "GOOGLE_API_KEY not set (optional) — Chrome UX Report field data and PageSpeed Insights are disabled. See docs/SELF_HOSTING_GOOGLE_CORE_WEB_VITALS.md.",
+        },
+  );
 
   items.push(
     get(env, "OPENROUTER_API_KEY")

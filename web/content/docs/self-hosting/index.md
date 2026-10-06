@@ -38,6 +38,10 @@ Bing Webmaster Tools and IndexNow are optional. Paste a Bing Webmaster API key t
 
 If your site uses Umami instead of Google Analytics, connect Umami Cloud (an API key) or your self-hosted Umami (its address and a view-only login) to see organic visitors on the dashboard and give agents your landing pages, traffic sources, and events. It reads Umami live and uses no credits. Saved credentials are encrypted with `BETTER_AUTH_SECRET`. See the [Umami guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/SELF_HOSTING_UMAMI.md).
 
+### Core Web Vitals
+
+Set `GOOGLE_API_KEY` to a Google Cloud API key with the Chrome UX Report API and PageSpeed Insights API enabled to see your site's Core Web Vitals as Google measures them from real Chrome users, with a weekly trend, on the dashboard. Agents can also read them for any page or competitor and run PageSpeed Insights. It uses no credits. See the [Core Web Vitals guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/SELF_HOSTING_GOOGLE_CORE_WEB_VITALS.md).
+
 ### AI features (SAM)
 
 AI features like SAM, the in-app SEO agent, are optional. Set the `OPENROUTER_API_KEY` environment variable to enable them. Create a key at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).

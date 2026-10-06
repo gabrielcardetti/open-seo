@@ -39,6 +39,10 @@ import {
 } from "@/server/mcp/tools/google-analytics-tools";
 import { umamiChatTools } from "@/server/features/sam/samUmamiTools";
 import {
+  getCoreWebVitalsTool,
+  runPagespeedTool,
+} from "@/server/mcp/tools/core-web-vitals-tools";
+import {
   findSerpCompetitorsTool,
   getGoogleBusinessQuestionsTool,
   getKeywordMetricsTool,
@@ -447,6 +451,8 @@ export function buildSamMcpTools(
     get_audit_status: waitingAuditStatusTool(adaptTool),
     get_audit_issues: adaptTool(getAuditIssuesTool),
     get_audit_pages: adaptTool(getAuditPagesTool),
+    get_core_web_vitals: adaptTool(getCoreWebVitalsTool),
+    run_pagespeed: adaptTool(runPagespeedTool),
     get_indexing_setup: adaptTool(getIndexingSetupTool),
     verify_indexnow_key: adaptTool(verifyIndexNowKeyTool),
     submit_urls_for_indexing: adaptTool(submitUrlsForIndexingTool),

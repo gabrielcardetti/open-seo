@@ -55,6 +55,9 @@ declare namespace Cloudflare {
     // DataForSEO API Basic auth value (base64 of login:password)
     DATAFORSEO_API_KEY: string;
 
+    // Google Cloud API key for Chrome UX Report and PageSpeed Insights (Core
+    // Web Vitals field data). Optional; the tools explain how to set it.
+    GOOGLE_API_KEY?: string;
     // OpenRouter API key for the SAM in-app chat agent.
     OPENROUTER_API_KEY?: string;
     // Optional OpenRouter model slug override (defaults in openrouter.ts).
