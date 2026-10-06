@@ -268,7 +268,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "info",
     title: "Structured data for a retired rich result",
     explanation:
-      "The page uses a schema.org type whose rich result Google no longer shows (FAQPage since May 2026, HowTo since 2023, and ClaimReview, EstimatedSalary, SpecialAnnouncement and VehicleListing since 2025). The markup does no harm, but it no longer earns anything in Google Search.",
+      "The page uses a schema.org type whose rich result Google no longer shows (FAQPage since May 2026, HowTo since 2023, and ClaimReview, EstimatedSalary, learning videos, SpecialAnnouncement and VehicleListing since 2025). The markup does no harm, but it no longer earns anything in Google Search.",
     howToFix:
       "No action is required. Keep the markup if other consumers use it (a fact-check publisher's ClaimReview feeds Fact Check Explorer), and don't add new markup of these types expecting a rich result. Use QAPage for genuine single-question pages.",
   },
