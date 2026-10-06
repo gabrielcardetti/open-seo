@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  INDEXING_PROBLEM_KINDS,
+  INDEXING_URL_STATUSES,
   URL_SUBMISSION_CHANNELS,
   URL_SUBMISSION_SOURCES,
   URL_SUBMISSION_STATUSES,
@@ -39,4 +41,23 @@ export const indexingLogSchema = projectScoped.extend({
   channel: z.enum(URL_SUBMISSION_CHANNELS).optional(),
   limit: z.number().int().min(1).max(500).default(50),
   offset: z.number().int().min(0).default(0),
+});
+
+export const indexingStatusFiltersSchema = z.object({
+  template: z.string().trim().max(500).optional(),
+  pathPrefix: z.string().trim().max(500).optional(),
+  status: z.enum(INDEXING_URL_STATUSES).optional(),
+  coverageState: z.string().trim().max(200).optional(),
+  problem: z.enum(INDEXING_PROBLEM_KINDS).optional(),
+  notIndexedDays: z.number().int().min(1).max(365).default(7),
+  limit: z.number().int().min(1).max(500).default(50),
+});
+export type IndexingStatusFilters = z.infer<typeof indexingStatusFiltersSchema>;
+
+export const indexingStatusSchema = projectScoped.extend(
+  indexingStatusFiltersSchema.shape,
+);
+
+export const reinspectUrlsSchema = projectScoped.extend({
+  urls: z.array(z.string().url().max(2048)).min(1).max(10),
 });

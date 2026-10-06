@@ -28,3 +28,26 @@ export const URL_SUBMISSION_STATUSES = [
 export type UrlSubmissionChannel = (typeof URL_SUBMISSION_CHANNELS)[number];
 export type UrlSubmissionSource = (typeof URL_SUBMISSION_SOURCES)[number];
 export type UrlSubmissionStatus = (typeof URL_SUBMISSION_STATUSES)[number];
+
+// The indexing monitor's problems, most serious first.
+export const INDEXING_PROBLEM_KINDS = [
+  // Was indexed at some point and is not anymore.
+  "lost_indexing",
+  // Excluded by a noindex meta tag or X-Robots-Tag header.
+  "noindex",
+  // Googlebot could not fetch it (404, soft 404, 5xx, robots.txt, redirect).
+  "fetch_error",
+  // Google picked a different canonical than the page declares.
+  "canonical_mismatch",
+  // Still not indexed some days after it first appeared in the sitemaps.
+  "not_indexed_after_days",
+  // Every inspection so far failed (often: outside the property).
+  "inspection_failed",
+] as const;
+export type IndexingProblemKind = (typeof INDEXING_PROBLEM_KINDS)[number];
+
+export const INDEXING_URL_STATUSES = [
+  "indexed",
+  "not_indexed",
+  "not_inspected",
+] as const;

@@ -5,12 +5,21 @@ import { requireOrgPermission } from "@/server/auth/org-gate";
 import { IndexingService } from "@/server/features/indexing/IndexingService";
 import { SitemapWatchService } from "@/server/features/indexing/SitemapWatchService";
 import { UrlSubmissionService } from "@/server/features/indexing/UrlSubmissionService";
+import {
+  GscNotConnectedError,
+  GscService,
+  isExpectedGrantFailure,
+} from "@/server/features/gsc/services/GscService";
+import { UrlInspectionService } from "@/server/features/gsc/services/UrlInspectionService";
+import { RECONNECT_GSC } from "@/server/features/sitemaps/searchConsoleProperty";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   importIndexNowKeySchema,
   indexingLogSchema,
   indexingProjectSchema,
+  indexingStatusSchema,
+  reinspectUrlsSchema,
   submitUrlsSchema,
   updateIndexingSettingsSchema,
 } from "@/types/schemas/indexing";
@@ -144,4 +153,38 @@ export const runIndexingSitemapCheck = createServerFn({ method: "POST" })
       warning: outcome.warning,
       counts: outcome.submission?.counts ?? {},
     };
+  });
+
+/** Google's indexing of the sitemap URLs, from the indexing monitor. */
+export const getIndexingStatus = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(indexingStatusSchema)
+  .handler(async ({ data, context }) => {
+    const { projectId: _projectId, ...filters } = data;
+    return UrlInspectionService.status(context.projectId, filters);
+  });
+
+/** Inspect a few URLs in Search Console now; results feed the monitor. */
+export const reinspectIndexingUrls = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(reinspectUrlsSchema)
+  .handler(async ({ data, context }) => {
+    try {
+      const { results } = await GscService.inspectUrls({
+        projectId: context.projectId,
+        urls: data.urls,
+      });
+      return {
+        ok: true as const,
+        failed: results.filter((result) => result.error).length,
+      };
+    } catch (error) {
+      if (error instanceof GscNotConnectedError) {
+        return { ok: false as const, problem: "Connect Search Console first." };
+      }
+      if (isExpectedGrantFailure(error)) {
+        return { ok: false as const, problem: RECONNECT_GSC };
+      }
+      throw error;
+    }
   });

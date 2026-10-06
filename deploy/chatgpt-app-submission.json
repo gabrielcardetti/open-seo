@@ -428,6 +428,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
     },
+    "get_indexing_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves stored URL inspection results for the project's sitemap URLs from a user-authorized Search Console property.",
+        "open_world_justification": "Reads private OpenSEO state built from user-authorized Google data and cannot change Google or publicly visible internet state.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
+      }
+    },
     "get_google_analytics_organic_landing_pages": {
       "annotations": {
         "readOnlyHint": true,

@@ -253,6 +253,13 @@
       "when": 1791322341335,
       "tag": "0035_upstream_breakers",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791323247441,
+      "tag": "0036_url_inspections",
+      "breakpoints": true
     }
   ]
 }

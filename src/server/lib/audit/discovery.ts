@@ -309,9 +309,13 @@ async function fetchSitemapDocumentWithRetry(
   return { ...empty, timedOut: isTimeoutError(lastError), failed: true };
 }
 
+/** A document to read, and the source sitemap whose walk reached it. */
+type QueuedSitemap = { url: string; depth: number; root: string };
+
 type SitemapWalk = {
-  /** Page URL to its `<lastmod>`, in sitemap order. */
-  urls: Map<string, string | null>;
+  /** Page URL to its `<lastmod>` and the source sitemap that led to it, in
+   *  sitemap order. */
+  urls: Map<string, { lastmod: string | null; sitemap: string }>;
   /** A URL or document cap stopped the walk before every sitemap was read. */
   truncated: boolean;
   /** Documents that could not be read this time (timeout, network, 429, 5xx). */
@@ -331,18 +335,16 @@ async function walkSitemaps(
   maxUrls: number,
   access?: CrawlerAccess | null,
 ): Promise<SitemapWalk> {
-  const allUrls = new Map<string, string | null>();
+  const allUrls: SitemapWalk["urls"] = new Map();
 
-  const queue: Array<{ url: string; depth: number }> = Array.from(
-    sitemapSources,
-  )
+  const queue: QueuedSitemap[] = Array.from(sitemapSources)
     .map((url) => normalizeUrl(url, origin))
     .filter((url): url is string => url !== null)
     .filter((url) => isSameOrigin(url, origin))
-    .map((url) => ({ url, depth: MAX_SITEMAP_DEPTH }));
+    .map((url) => ({ url, depth: MAX_SITEMAP_DEPTH, root: url }));
   const seenSitemapDocs = new Set<string>();
   /** The entry as a document to read; null for a repeat or too deep. */
-  const unreadDoc = (item: { url: string; depth: number }) => {
+  const unreadDoc = (item: QueuedSitemap): QueuedSitemap | null => {
     const normalizedUrl = normalizeUrl(item.url);
     if (
       !normalizedUrl ||
@@ -352,7 +354,7 @@ async function walkSitemaps(
     ) {
       return null;
     }
-    return { url: normalizedUrl, depth: item.depth };
+    return { ...item, url: normalizedUrl };
   };
   let fetchedDocs = 0;
   let failedDocs = 0;
@@ -365,7 +367,7 @@ async function walkSitemaps(
     allUrls.size < maxUrls &&
     fetchedDocs < MAX_SITEMAP_DOCS
   ) {
-    const batch: Array<{ url: string; depth: number }> = [];
+    const batch: QueuedSitemap[] = [];
     for (const item of queue.splice(0, SITEMAP_CONCURRENCY)) {
       const doc = unreadDoc(item);
       if (!doc) continue;
@@ -381,7 +383,7 @@ async function walkSitemaps(
       })),
     );
 
-    for (const { url, depth, result } of results) {
+    for (const { url, depth, root, result } of results) {
       if (result.failed) failedSitemaps.push(url);
       if (
         result.pageEntries.length === 0 &&
@@ -402,7 +404,7 @@ async function walkSitemaps(
           truncated = true;
           break;
         }
-        allUrls.set(entry.url, entry.lastmod);
+        allUrls.set(entry.url, { lastmod: entry.lastmod, sitemap: root });
       }
 
       if (depth <= 1) continue;
@@ -410,7 +412,7 @@ async function walkSitemaps(
       for (const nestedUrl of result.nestedSitemaps) {
         if (!isSameOrigin(nestedUrl, origin)) continue;
         if (!seenSitemapDocs.has(nestedUrl)) {
-          queue.push({ url: nestedUrl, depth: depth - 1 });
+          queue.push({ url: nestedUrl, depth: depth - 1, root });
         }
       }
     }
@@ -481,7 +483,8 @@ export async function collectSitemapEntries(
   sitemapUrls: string[] = [],
 ): Promise<{
   origin: string;
-  entries: SitemapEntry[];
+  /** `sitemap` is the source sitemap whose walk listed the URL. */
+  entries: Array<SitemapEntry & { sitemap: string }>;
   truncated: boolean;
   failedSitemaps: string[];
 }> {
@@ -501,9 +504,9 @@ export async function collectSitemapEntries(
   const walk = await walkSitemaps(origin, sources, MAX_INVENTORY_URLS);
   return {
     origin,
-    entries: Array.from(walk.urls, ([pageUrl, lastmod]) => ({
+    entries: Array.from(walk.urls, ([pageUrl, entry]) => ({
       url: pageUrl,
-      lastmod,
+      ...entry,
     })),
     truncated: walk.truncated,
     failedSitemaps: walk.failedSitemaps,

@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { chunk } from "remeda";
 import { db } from "@/db";
 import { account } from "@/db/schema";
 import { GSC_OAUTH_PROVIDER_ID, GSC_WRITE_SCOPE } from "@/shared/gsc";
@@ -23,6 +24,7 @@ import {
   GscConnectionRepository,
   type GscConnection,
 } from "@/server/features/gsc/repositories/GscConnectionRepository";
+import { UrlInspectionService } from "@/server/features/gsc/services/UrlInspectionService";
 import type {
   GscSearchAnalyticsRequest,
   GscSearchAnalyticsRow,
@@ -221,6 +223,10 @@ type GscUrlInspection = {
   url: string;
   result: UrlInspectionResult | null;
   error?: string;
+  /** HTTP status of a failed Search Console answer. */
+  status?: number;
+  /** Not sent because Search Console had started rate-limiting. */
+  skipped?: boolean;
 };
 
 type GscInspectUrlsResult = {
@@ -229,10 +235,15 @@ type GscInspectUrlsResult = {
   results: GscUrlInspection[];
 };
 
-/** Inspect 1–N URLs against a project's connected property. Resolves the
- *  connection once, then inspects each URL; per-URL failures are captured
- *  inline so one bad URL doesn't fail the batch. Token/grant failures
- *  propagate so the caller can prompt a reconnect. */
+/** URL Inspection calls in flight at once: well under Google's 600 per
+ *  minute per property, and enough that ten URLs answer in a few seconds. */
+const INSPECT_CONCURRENCY = 5;
+
+/** Inspect 1–N URLs against a project's connected property, a few at a
+ *  time. Per-URL failures are captured inline so one bad URL doesn't fail
+ *  the batch; once Google rate-limits, the URLs not yet sent are skipped.
+ *  Token/grant failures propagate so the caller can prompt a reconnect.
+ *  Every answer is stored for the project's indexing monitor. */
 async function inspectUrls(input: {
   projectId: string;
   urls: string[];
@@ -244,27 +255,54 @@ async function inspectUrls(input: {
   if (!connection) {
     throw new GscNotConnectedError(input.projectId);
   }
-  const client = createGscClient({
-    userId: connection.connectedByUserId,
-    gscAccountId: connection.gscAccountId ?? undefined,
-  });
+  const client = clientFor(connection);
   const results: GscUrlInspection[] = [];
-  for (const url of input.urls) {
+  const inspectOne = async (url: string): Promise<GscUrlInspection> => {
     try {
       const result = await client.inspectUrl(
         connection.siteUrl,
         url,
         input.languageCode,
       );
-      results.push({ url, result });
+      return { url, result };
     } catch (error) {
       if (error instanceof GscTokenError) throw error;
-      results.push({
+      return {
         url,
         result: null,
         error: error instanceof Error ? error.message : "Inspection failed",
-      });
+        ...(error instanceof GscApiError ? { status: error.status } : {}),
+      };
     }
+  };
+  for (const [index, wave] of chunk(
+    input.urls,
+    INSPECT_CONCURRENCY,
+  ).entries()) {
+    if (results.some((result) => result.status === 429)) {
+      const skipped = input.urls.slice(index * INSPECT_CONCURRENCY);
+      results.push(
+        ...skipped.map((url) => ({
+          url,
+          result: null,
+          error: "Skipped: Search Console rate limit reached. Retry later.",
+          skipped: true,
+        })),
+      );
+      break;
+    }
+    results.push(...(await Promise.all(wave.map(inspectOne))));
+  }
+  try {
+    await UrlInspectionService.record(
+      input.projectId,
+      results.filter((result) => !result.skipped),
+    );
+  } catch (error) {
+    console.error("Failed to store URL inspections", {
+      projectId: input.projectId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
   return {
     siteUrl: connection.siteUrl,

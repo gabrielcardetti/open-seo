@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/client/components/PageHeader";
 import { QueryState } from "@/client/components/QueryState";
 import { getIndexingSetup } from "@/serverFunctions/indexing";
+import { GoogleIndexingSection } from "./GoogleIndexingSection";
 import { IndexingAutomationCard } from "./IndexingAutomationCard";
 import { IndexingLogSection } from "./IndexingLogSection";
 import { indexingQueryKeys } from "./indexingShared";
@@ -21,9 +22,10 @@ export function IndexingPage({ projectId }: { projectId: string }) {
     <div className="space-y-8">
       <PageHeader
         title="Indexing"
-        description="Keep Google and Bing registered with your sitemaps, tell Bing and the other IndexNow engines about new and changed pages, and keep a record of every notice. Google does not take part in IndexNow."
+        description="Keep Google and Bing registered with your sitemaps, see which sitemap URLs Google has indexed, tell Bing and the other IndexNow engines about new and changed pages, and keep a record of every notice. Google does not take part in IndexNow."
       />
       <SitemapsCard projectId={projectId} />
+      <GoogleIndexingSection projectId={projectId} />
       <QueryState query={setup} errorFallback="Could not load indexing setup.">
         {(data) => (
           <div className="space-y-6">

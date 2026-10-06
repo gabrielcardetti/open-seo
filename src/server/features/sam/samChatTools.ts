@@ -67,6 +67,7 @@ import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import { getIndexingStatusTool } from "@/server/mcp/tools/indexing-monitor-tools";
 import {
   getIndexingCandidatesTool,
   getIndexingLogTool,
@@ -414,6 +415,7 @@ export function buildSamMcpTools(
     explore_ai_prompt: adaptTool(exploreAiPromptTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
+    get_indexing_status: adaptTool(getIndexingStatusTool),
     get_bing_overview: adaptTool(getBingOverviewTool),
     get_bing_search_performance: adaptTool(getBingSearchPerformanceTool),
     get_bing_crawl_health: adaptTool(getBingCrawlHealthTool),
