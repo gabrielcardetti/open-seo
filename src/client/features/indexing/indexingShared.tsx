@@ -12,6 +12,8 @@ export const indexingQueryKeys = {
   log: (projectId: string) => ["indexing", projectId, "log"] as const,
   candidates: (projectId: string) =>
     ["indexing", projectId, "candidates"] as const,
+  googleStatus: (projectId: string) =>
+    ["indexing", projectId, "google-status"] as const,
 };
 
 export const STATUS_LABELS: Record<UrlSubmissionStatus, string> = {

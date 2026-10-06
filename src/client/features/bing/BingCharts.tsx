@@ -38,7 +38,7 @@ type SeriesLine = { key: string; axis?: "left" | "right" };
 
 /** A daily line chart. Series on the right axis have their own scale, for
  *  counts far smaller than the left-axis ones. */
-function DailyLineChart({
+export function DailyLineChart({
   data,
   config,
   lines,
