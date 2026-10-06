@@ -183,7 +183,7 @@ describe("crawlPage", () => {
         },
       ],
       hasStructuredData: true,
-      hreflangTags: ["en"],
+      hreflangLinks: [{ hreflang: "en", href: "https://example.com/en" }],
       isIndexable: false,
       crawlDepth: 2,
       inSitemap: true,

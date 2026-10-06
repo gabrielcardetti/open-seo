@@ -15,6 +15,12 @@
  * counts mix real fixes with pages that merely entered or left the sample.
  * The `common` block repeats the issue comparison on the URLs both audits
  * crawled, overall and per URL template — which is how a template fix shows.
+ *
+ * Drift compares the SEO signals of each URL both audits crawled — canonical,
+ * indexability, title, meta description, H1, Open Graph tags, structured
+ * data — and names what changed, by rule and severity. Unlike issues, drift
+ * catches a change that breaks nothing on its own: a rewritten title, a
+ * canonical pointed elsewhere, a schema type swapped out.
  */
 import { sort } from "remeda";
 import { urlTemplateOf } from "./url-utils";
@@ -33,11 +39,30 @@ interface EngineVerdicts {
   siteVerdict: string | null;
 }
 
+/** What drift compares for one crawled URL. */
+interface PageSignals {
+  statusCode: number | null;
+  /** The HTML canonical, else the Link header's. */
+  canonicalUrl: string | null;
+  isIndexable: boolean;
+  title: string | null;
+  metaDescription: string | null;
+  h1Text: string | null;
+  ogTitle: string | null;
+  ogDescription: string | null;
+  ogImage: string | null;
+  hasStructuredData: boolean;
+  /** Sorted schema.org types; empty for audits that predate their storage. */
+  schemaTypes: readonly string[];
+}
+
 /** Google's verdicts at the top level; Bing's when the audit was judged for it. */
 interface AuditSnapshot extends EngineVerdicts {
   pageUrls: readonly string[];
   /** Body-text fingerprint by URL, for pages that have one. */
   contentHashes: ReadonlyMap<string, string>;
+  /** Drift signals by URL. */
+  signals: ReadonlyMap<string, PageSignals>;
   issues: ReadonlyArray<{ issueType: string; pageUrl: string | null }>;
   bing?: EngineVerdicts;
 }
@@ -136,6 +161,148 @@ function compareVerdicts(base: EngineVerdicts, current: EngineVerdicts) {
   };
 }
 
+/** Drift rules and how much each matters. Order is the report's order. */
+const DRIFT_RULES = {
+  "canonical-changed": "critical",
+  "canonical-removed": "critical",
+  "noindex-added": "critical",
+  "title-removed": "critical",
+  "h1-removed": "critical",
+  "status-error": "critical",
+  "structured-data-removed": "critical",
+  "title-changed": "warning",
+  "meta-description-changed": "warning",
+  "h1-changed": "warning",
+  "og-tags-removed": "warning",
+  "schema-types-changed": "warning",
+  "structured-data-added": "info",
+} as const;
+
+type DriftRule = keyof typeof DRIFT_RULES;
+
+interface DriftChange {
+  url: string;
+  before: string | null;
+  after: string | null;
+}
+
+const isOk = (status: number | null) =>
+  status !== null && status >= 200 && status < 300;
+const isError = (status: number | null) => status !== null && status >= 400;
+/** Whitespace and padding differences are not edits. */
+const normalized = (value: string | null) =>
+  value?.replace(/\s+/g, " ").trim() || null;
+
+/** The rules one URL's before/after signals break. */
+function driftOf(before: PageSignals, after: PageSignals) {
+  const changes: Array<[DriftRule, string | null, string | null]> = [];
+  if (isError(after.statusCode)) {
+    // Fetch errors on both sides are not drift; a recovery is not either.
+    if (before.statusCode && !isError(before.statusCode)) {
+      changes.push([
+        "status-error",
+        String(before.statusCode),
+        String(after.statusCode),
+      ]);
+    }
+    return changes;
+  }
+  // Redirects and other non-content responses carry no signals to compare.
+  if (!isOk(before.statusCode) || !isOk(after.statusCode)) return changes;
+
+  if (before.canonicalUrl && !after.canonicalUrl) {
+    changes.push(["canonical-removed", before.canonicalUrl, null]);
+  } else if (
+    before.canonicalUrl &&
+    after.canonicalUrl &&
+    before.canonicalUrl !== after.canonicalUrl
+  ) {
+    changes.push([
+      "canonical-changed",
+      before.canonicalUrl,
+      after.canonicalUrl,
+    ]);
+  }
+  if (before.isIndexable && !after.isIndexable) {
+    changes.push(["noindex-added", "indexable", "noindex"]);
+  }
+
+  const edits: Array<[DriftRule, DriftRule, string | null, string | null]> = [
+    [
+      "title-removed",
+      "title-changed",
+      normalized(before.title),
+      normalized(after.title),
+    ],
+    [
+      "meta-description-changed",
+      "meta-description-changed",
+      normalized(before.metaDescription),
+      normalized(after.metaDescription),
+    ],
+    [
+      "h1-removed",
+      "h1-changed",
+      normalized(before.h1Text),
+      normalized(after.h1Text),
+    ],
+  ];
+  for (const [removedRule, changedRule, was, now] of edits) {
+    if (!was || was === now) continue;
+    changes.push([now ? changedRule : removedRule, was, now]);
+  }
+
+  const ogTags = (signals: PageSignals) =>
+    [
+      signals.ogTitle ? "og:title" : null,
+      signals.ogDescription ? "og:description" : null,
+      signals.ogImage ? "og:image" : null,
+    ].filter((tag) => tag !== null);
+  const afterOg = ogTags(after);
+  const removedOg = ogTags(before).filter((tag) => !afterOg.includes(tag));
+  if (removedOg.length > 0) {
+    changes.push(["og-tags-removed", removedOg.join(", "), null]);
+  }
+
+  const beforeTypes = before.schemaTypes.join(", ");
+  const afterTypes = after.schemaTypes.join(", ");
+  if (before.hasStructuredData && !after.hasStructuredData) {
+    changes.push(["structured-data-removed", beforeTypes || "JSON-LD", null]);
+  } else if (!before.hasStructuredData && after.hasStructuredData) {
+    changes.push(["structured-data-added", null, afterTypes || "JSON-LD"]);
+  } else if (beforeTypes && afterTypes && beforeTypes !== afterTypes) {
+    changes.push(["schema-types-changed", beforeTypes, afterTypes]);
+  }
+  return changes;
+}
+
+/**
+ * Per-rule counts and changes for the URLs both audits crawled, in
+ * DRIFT_RULES order, rules nothing broke left out.
+ */
+function compareSignals(base: AuditSnapshot, current: AuditSnapshot) {
+  const changesByRule = new Map<DriftRule, DriftChange[]>();
+  let urls = 0;
+  for (const [url, after] of current.signals) {
+    const before = base.signals.get(url);
+    if (!before) continue;
+    urls += 1;
+    for (const [rule, was, now] of driftOf(before, after)) {
+      const changes = changesByRule.get(rule) ?? [];
+      changes.push({ url, before: was, after: now });
+      changesByRule.set(rule, changes);
+    }
+  }
+  const rules = (Object.keys(DRIFT_RULES) as DriftRule[]).flatMap((rule) => {
+    const changes = changesByRule.get(rule);
+    if (!changes) return [];
+    return [
+      { rule, severity: DRIFT_RULES[rule], count: changes.length, changes },
+    ];
+  });
+  return { urls, rules };
+}
+
 const NO_VERDICTS: EngineVerdicts = { verdicts: new Map(), siteVerdict: null };
 
 export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
@@ -175,6 +342,7 @@ export function compareAudits(base: AuditSnapshot, current: AuditSnapshot) {
         })),
       },
     },
+    drift: compareSignals(base, current),
     guidelines: {
       ...compareVerdicts(base, current),
       bing:
