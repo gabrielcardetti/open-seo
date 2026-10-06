@@ -240,6 +240,27 @@ describe("BingSyncService", () => {
     });
   });
 
+  it("stops at the first unreachable call and retries when the breaker allows, not tomorrow", async () => {
+    await seedConnection({ nextSyncAt: "2026-09-10T07:00:00.000Z" });
+    // What the client leaves behind when the relay answers 530.
+    await testDb.client.execute(`INSERT INTO upstream_breakers
+      (upstream, state, consecutive_failures, opened_at, next_probe_at, last_error)
+      VALUES ('bing_api', 'open', 1, '2026-09-10T08:00:00.000Z',
+        '2026-09-10T08:15:00.000Z', 'HTTP 530')`);
+    const outage = "The Bing relay is unreachable since 2026-09-10T08:00:00.000Z";
+    client.getRankAndTrafficStats.mockRejectedValue(
+      new BingApiError("unreachable", outage, 530),
+    );
+
+    await BingSyncService.runScheduledSyncs();
+
+    expect(client.getQueryStats).not.toHaveBeenCalled();
+    expect(await connection()).toMatchObject({
+      next_sync_at: "2026-09-10T08:15:00.000Z",
+      last_sync_error: outage,
+    });
+  });
+
   it("refuses a manual sync within ten minutes of the last one", async () => {
     await seedConnection();
     await BingSyncService.syncNow("proj_1");

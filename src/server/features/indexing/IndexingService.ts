@@ -12,6 +12,7 @@ import { normalizeAndValidateStartUrl } from "@/server/lib/audit/url-policy";
 import { AppError } from "@/server/lib/errors";
 import { BingConnectionRepository } from "@/server/features/bing/repositories/BingConnectionRepository";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { UpstreamBreaker } from "@/server/features/upstreams/upstreamBreaker";
 import type {
   UrlSubmissionChannel,
   UrlSubmissionSource,
@@ -56,9 +57,10 @@ function deployHookUrl(publicOrigin: string, projectId: string) {
 
 async function getSetup(projectId: string, publicOrigin: string) {
   const project = await requireProject(projectId);
-  const [settings, bing] = await Promise.all([
+  const [settings, bing, outages] = await Promise.all([
     IndexingRepository.getSettings(projectId),
     BingConnectionRepository.getByProjectId(projectId),
+    UpstreamBreaker.listOutages(),
   ]);
   const host = projectHost(project.domain);
   const key = settings?.indexnowKey ?? null;
@@ -98,6 +100,9 @@ async function getSetup(projectId: string, publicOrigin: string) {
       projectId,
       settings,
     ),
+    // IndexNow or Bing's API (or the relay in front of them) unreachable:
+    // sending is paused for every project until the breaker closes.
+    outages,
   };
 }
 

@@ -8,6 +8,7 @@ import {
 } from "@/server/lib/bing/bingErrors";
 import { isSameSite } from "@/server/features/indexing/site";
 import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
+import { UpstreamBreaker } from "@/server/features/upstreams/upstreamBreaker";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Link counts change slowly and page through many calls: refresh weekly.
@@ -34,9 +35,12 @@ type BingSyncResult = {
   datasets: Record<string, DatasetStatus>;
   errors: string[];
   /** Why later datasets weren't tried: the key was rejected or lost access
-   *  to the site (`key`), or Bing throttled it (`throttled`). Every later
-   *  call would fail the same way and spend more of the key's allowance. */
-  stoppedBy: "key" | "throttled" | null;
+   *  to the site (`key`), Bing throttled it (`throttled`), or Bing or its
+   *  relay can't be reached (`unreachable`). Every later call would fail
+   *  the same way. */
+  stoppedBy: "key" | "throttled" | "unreachable" | null;
+  /** When `unreachable`: since when, and when the sync retries. */
+  outage: string | null;
 };
 
 function daysBetween(fromDate: string, toDate: string): number {
@@ -191,6 +195,7 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
   const datasets: Record<string, DatasetStatus> = {};
   const errors: string[] = [];
   let stoppedBy: BingSyncResult["stoppedBy"] = null;
+  let outageMessage: string | null = null;
   for (const [name, run] of steps) {
     if (stoppedBy) {
       datasets[name] = "skipped";
@@ -209,7 +214,18 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
         stoppedBy = "key";
       } else if (error.kind === "throttled") {
         stoppedBy = "throttled";
+      } else if (error.kind === "unreachable") {
+        stoppedBy = "unreachable";
+        outageMessage = error.message;
       }
+    }
+  }
+
+  if (stoppedBy === "unreachable") {
+    // Retry when the breaker lets a call through, not a day from now.
+    const outage = await UpstreamBreaker.getOutage("bing_api");
+    if (outage) {
+      await BingConnectionRepository.scheduleSyncBy(projectId, outage.retryAt);
     }
   }
 
@@ -218,18 +234,22 @@ async function syncProject(projectId: string): Promise<BingSyncResult> {
     // Only a sync that stored something counts as a sync; a dead key must not
     // block "Sync now" after the user fixes it.
     lastSyncedAt: Object.values(datasets).includes("ok") ? now : undefined,
+    // An outage is the whole story; the dataset prefixes would only repeat it.
     lastSyncError:
-      errors.length > 0 ? errors.join("; ").slice(0, MAX_ERROR_LENGTH) : null,
+      outageMessage ??
+      (errors.length > 0 ? errors.join("; ").slice(0, MAX_ERROR_LENGTH) : null),
     quota,
   });
-  return { siteUrl, datasets, errors, stoppedBy };
+  return { siteUrl, datasets, errors, stoppedBy, outage: outageMessage };
 }
 
 /**
  * Daily syncs, driven by the five-minute cron. Each due project is claimed
  * with a compare-and-set that also advances it a day, so overlapping ticks
  * never sync one project twice and a failing project is retried tomorrow, not
- * every five minutes. Never throws: one cron job must not stop the others.
+ * every five minutes. A sync stopped because Bing (or its relay) is
+ * unreachable is brought back to the breaker's retry time instead (see
+ * syncProject). Never throws: one cron job must not stop the others.
  */
 async function runScheduledSyncs(): Promise<{ ran: number; failed: number }> {
   const tally = { ran: 0, failed: 0 };

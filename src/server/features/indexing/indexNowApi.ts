@@ -5,6 +5,11 @@
  *
  * https://www.indexnow.org/documentation
  */
+import {
+  createUpstreamGate,
+  isTransportStatus,
+  type UpstreamOutage,
+} from "@/server/features/upstreams/upstreamBreaker";
 import { getOptionalEnvValue } from "@/server/lib/runtime-env";
 import type { UrlSubmissionStatus } from "@/shared/indexing";
 
@@ -74,14 +79,20 @@ const isRetryable = (outcome: Omit<IndexNowOutcome, "attempts">) =>
 
 /**
  * Send one host's URLs. 429, 5xx and network failures are retried up to three
- * attempts in total; the last outcome is what the ledger records.
+ * attempts in total; the last outcome is what the ledger records. When the
+ * last attempt still failed in transport (IndexNow or its relay unreachable,
+ * see isTransportStatus), or the breaker is already open, the result is the
+ * outage instead: nothing was asked of IndexNow, so there is no outcome.
  */
 export async function postIndexNow(input: {
   host: string;
   key: string;
   keyLocation: string | null;
   urlList: string[];
-}): Promise<IndexNowOutcome> {
+}): Promise<IndexNowOutcome | { unreachable: UpstreamOutage }> {
+  const gate = createUpstreamGate("indexnow");
+  const blocked = await gate.admit();
+  if (blocked) return { unreachable: blocked };
   const body = JSON.stringify({
     host: input.host,
     key: input.key,
@@ -101,6 +112,7 @@ export async function postIndexNow(input: {
     INDEXNOW_ORIGIN;
   const relaySecret = await getOptionalEnvValue("INDEXNOW_RELAY_SECRET");
   let attempts = 0;
+  let transportError: string | null = null;
   for (const delay of [0, ...RETRY_DELAYS_MS]) {
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     attempts += 1;
@@ -115,8 +127,15 @@ export async function postIndexNow(input: {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       await response.body?.cancel();
+      transportError = isTransportStatus(response.status)
+        ? `HTTP ${response.status}`
+        : null;
       outcome = outcomeFor(response.status);
-    } catch {
+    } catch (error) {
+      transportError =
+        error instanceof DOMException && error.name === "TimeoutError"
+          ? "timed out"
+          : "network error";
       outcome = {
         status: "failed",
         httpStatus: null,
@@ -125,5 +144,7 @@ export async function postIndexNow(input: {
     }
     if (!isRetryable(outcome)) break;
   }
+  if (transportError) return { unreachable: await gate.report(transportError) };
+  await gate.reachable();
   return { ...outcome, attempts };
 }

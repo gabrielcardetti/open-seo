@@ -154,6 +154,7 @@ export const {
   bingAiCitationsDaily,
   bingAiCitedPages,
   bingAiGroundingQueries,
+  upstreamBreakers,
   indexingSettings,
   urlSubmissions,
   sitemapUrls,

@@ -4,6 +4,8 @@
  * - `site_access`: the key works but its account can't read this site.
  * - `throttled`: Bing rate-limited the user or host; retry later.
  * - `invalid`: Bing rejected a parameter (bad URL, unknown method input).
+ * - `unreachable`: Bing (or the relay in front of it) could not be reached,
+ *   or the circuit breaker is open; nothing was asked of Bing.
  * - `other`: internal/unknown errors and unexpected responses.
  */
 export type BingErrorKind =
@@ -11,6 +13,7 @@ export type BingErrorKind =
   | "site_access"
   | "throttled"
   | "invalid"
+  | "unreachable"
   | "other";
 
 export class BingApiError extends Error {

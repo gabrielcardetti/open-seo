@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  createUpstreamGate,
+  isTransportStatus,
+} from "@/server/features/upstreams/upstreamBreaker";
 import { getOptionalEnvValue } from "@/server/lib/runtime-env";
 import { BingApiError, type BingErrorKind } from "./bingErrors";
 import {
@@ -125,11 +129,18 @@ async function toApiError(response: Response): Promise<BingApiError> {
  * charge for its webmaster data.
  */
 export function createBingClient(apiKey: string) {
+  // While Bing or its relay is unreachable, calls fail fast without a fetch.
+  const gate = createUpstreamGate("bing_api");
+  const unreachable = (message: string, status: number) =>
+    new BingApiError("unreachable", message, status);
+
   async function call(
     method: string,
     params: Record<string, string | number> = {},
     body?: Record<string, unknown>,
   ): Promise<unknown> {
+    const outage = await gate.admit();
+    if (outage) throw unreachable(outage.message, 503);
     // Bing throttles Cloudflare Workers' shared outbound IPs (ThrottleIP), so
     // a deployment can send its calls through a relay that forwards
     // /webmaster/api.svc/* to Bing and checks a shared secret.
@@ -158,14 +169,18 @@ export function createBingClient(apiKey: string) {
     } catch (error) {
       const timedOut =
         error instanceof DOMException && error.name === "TimeoutError";
-      throw new BingApiError(
-        "other",
-        timedOut
-          ? "Bing Webmaster Tools did not answer in time. Retry later."
-          : "Could not reach Bing Webmaster Tools. Retry later.",
-        timedOut ? 504 : 502,
+      const opened = await gate.report(
+        timedOut ? "timed out" : "network error",
       );
+      throw unreachable(opened.message, timedOut ? 504 : 502);
     }
+    if (isTransportStatus(response.status)) {
+      await response.body?.cancel();
+      console.warn("[bing] transport failure", { status: response.status });
+      const opened = await gate.report(`HTTP ${response.status}`);
+      throw unreachable(opened.message, response.status);
+    }
+    await gate.reachable();
     if (!response.ok) throw await toApiError(response);
 
     // Every JSON response is wrapped as {"d": ...}; a void method sends

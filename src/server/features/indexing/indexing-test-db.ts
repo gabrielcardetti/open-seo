@@ -54,6 +54,9 @@ export function resetTestDatabase() {
     readFileSync("drizzle/sqlite/0053_cynical_roughhouse.sql", "utf8"),
   );
   database.exec(readFileSync("drizzle/sqlite/0054_fixed_midnight.sql", "utf8"));
+  database.exec(
+    readFileSync("drizzle/sqlite/0057_upstream_breakers.sql", "utf8"),
+  );
 }
 
 /** Stand-in for runBatch's executeInBatches: one statement at a time. */

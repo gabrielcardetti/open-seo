@@ -75,6 +75,7 @@ export const getIndexingSetupTool = {
       `- Auto-submit ${setup.autoSubmitEnabled ? "on" : "off"}; dedupe window ${setup.dedupeHours} h.`,
       `- Deploy hook ${setup.deployHook.configured ? "configured" : "not configured"}: POST ${setup.deployHook.url}`,
       `- Last sitemap check: ${setup.sitemap.lastCheckAt ?? "never"}${setup.sitemap.lastError ? ` (${setup.sitemap.lastError})` : ""}.`,
+      ...setup.outages.map((outage) => `- Paused: ${outage.message}`),
     ];
     return mcpResponse({
       text: lines.join("\n"),
@@ -179,17 +180,22 @@ export const submitUrlsForIndexingTool = {
         "mcp",
         { channel: args.channel, force: args.force },
       );
-      const lines = result.problem
-        ? [`Nothing sent: ${result.problem}`]
-        : [
-            `${result.results.length} URL${result.results.length === 1 ? "" : "s"} via ${result.channel ?? "—"}: ${statusSummary(result.counts)}.`,
-            ...result.results
-              .filter(
-                (row) => row.errorMessage && row.status !== "skipped_duplicate",
-              )
-              .slice(0, 10)
-              .map((row) => `- ${row.status} ${row.url}: ${row.errorMessage}`),
-          ];
+      const lines =
+        result.problem && result.results.length === 0
+          ? [`Nothing sent: ${result.problem}`]
+          : [
+              `${result.results.length} URL${result.results.length === 1 ? "" : "s"} via ${result.channel ?? "—"}: ${statusSummary(result.counts)}.`,
+              ...(result.problem ? [result.problem] : []),
+              ...result.results
+                .filter(
+                  (row) =>
+                    row.errorMessage && row.status !== "skipped_duplicate",
+                )
+                .slice(0, 10)
+                .map(
+                  (row) => `- ${row.status} ${row.url}: ${row.errorMessage}`,
+                ),
+            ];
       if (result.dropped.length > 0) {
         lines.push(
           `Dropped ${result.dropped.length} not on the project's site or invalid, e.g. ${result.dropped[0]?.url}.`,

@@ -168,13 +168,15 @@ export const getBingOverviewTool = {
   name: "get_bing_overview",
   config: {
     title: "Get Bing Webmaster overview",
-    description: `The project's Bing Webmaster Tools picture: connection and last sync, URL submission quota, clicks/impressions/CTR for the range vs the previous equal-length range (from OpenSEO's stored daily history), crawl health (newest crawl day, open crawl issues, sitemaps), and AI citations when an AI Performance CSV was imported. ${BING_LIMITS} Read-only; uses no credits.`,
+    description: `The project's Bing Webmaster Tools picture: connection and last sync, URL submission quota, clicks/impressions/CTR for the range vs the previous equal-length range (from OpenSEO's stored daily history), crawl health (newest crawl day, open crawl issues, sitemaps), and AI citations when an AI Performance CSV was imported. When Bing's API (or the relay in front of it) is unreachable, outage says since when and when calls resume, and actionNeeded says so: stored data is current up to the last sync, and syncs retry by themselves. ${BING_LIMITS} Read-only; uses no credits.`,
     inputSchema: overviewInputSchema,
     outputSchema: z.looseObject({
       ...failureOutputShape,
       lastSyncedAt: z.string().nullable().optional(),
       lastSyncError: z.string().nullable().optional(),
       syncEnabled: z.boolean().optional(),
+      outage: z.looseObject({}).nullable().optional(),
+      actionNeeded: z.array(z.string()).optional(),
       range: z.looseObject({}).optional(),
       totals: z.looseObject({}).optional(),
       prevTotals: z.looseObject({}).optional(),
@@ -223,10 +225,15 @@ export const getBingOverviewTool = {
           }
         : null;
       const { range, totals, prevTotals } = summary;
+      const actionNeeded = status.outage
+        ? [
+            `${status.outage.message} Bing data stays as of the last sync, and syncs and URL submissions resume by themselves.`,
+          ]
+        : [];
       const lines = [
         `${summary.siteUrl} · ${range.startDate}→${range.endDate} vs ${range.prevStartDate}→${range.prevEndDate}`,
         `Clicks ${totals.clicks} (prev ${prevTotals.clicks}) · Impressions ${totals.impressions} (prev ${prevTotals.impressions}) · CTR ${percent(totals.ctr)} (prev ${percent(prevTotals.ctr)})`,
-        `Last sync: ${status.lastSyncedAt ?? "never"}${status.syncEnabled ? "" : " (daily sync off)"}${status.lastSyncError ? ` · last error: ${status.lastSyncError}` : ""}`,
+        `Last sync: ${status.lastSyncedAt ?? "never"}${status.syncEnabled ? "" : " (daily sync off)"}${status.lastSyncError && !status.outage ? ` · last error: ${status.lastSyncError}` : ""}`,
         status.quota
           ? `URL submission quota left: ${status.quota.dailyRemaining ?? "?"} today, ${status.quota.monthlyRemaining ?? "?"} this month`
           : "URL submission quota: not checked yet",
@@ -236,6 +243,7 @@ export const getBingOverviewTool = {
         ai.hasData
           ? `AI citations (imported): ${ai.totalCitations} in range`
           : "AI citations: none imported (import Bing's AI Performance CSV in the app)",
+        ...actionNeeded.map((line) => `Action needed: ${line}`),
       ].filter(Boolean);
 
       return mcpResponse({
@@ -251,6 +259,8 @@ export const getBingOverviewTool = {
           lastSyncedAt: status.lastSyncedAt,
           lastSyncError: status.lastSyncError,
           syncEnabled: status.syncEnabled,
+          outage: status.outage,
+          actionNeeded,
           quota: status.quota,
           range,
           totals,
@@ -1058,12 +1068,17 @@ export const syncBingNowTool = {
         .map(([name, status]) => `${name}: ${status}`)
         .join(", ");
       return mcpResponse({
-        text: `${result.siteUrl} synced · ${datasets}${result.errors.length > 0 ? `\nErrors: ${result.errors.join("; ")}` : ""}`,
+        text:
+          result.outage
+            ? `${result.siteUrl} sync stopped · ${datasets}\n${result.outage} The sync runs again by itself then.`
+            :`${result.siteUrl} synced · ${datasets}${result.errors.length > 0 ? `\nErrors: ${result.errors.join("; ")}` : ""}`,
         meta,
         structuredContent: {
           ok: result.errors.length === 0,
           siteUrl: result.siteUrl,
           status: result.status,
+          stoppedBy: result.stoppedBy,
+          outage: result.outage,
           datasets: result.datasets,
           errors: result.errors,
         },

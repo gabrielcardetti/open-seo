@@ -20,6 +20,7 @@ export async function createBingTestDb() {
         .split("--> statement-breakpoint")
         .filter((statement) => statement.includes("bing_")),
       readFileSync("drizzle/sqlite/0054_fixed_midnight.sql", "utf8"),
+      readFileSync("drizzle/sqlite/0057_upstream_breakers.sql", "utf8"),
     ].join("\n"),
   );
   return { client, db: drizzle(client) };

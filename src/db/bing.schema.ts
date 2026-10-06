@@ -322,3 +322,20 @@ export const bingAiGroundingQueries = sqliteTable(
     }),
   ],
 );
+
+// One circuit breaker per upstream ("bing_api", "indexnow") for the whole
+// deployment: the relay or network path in front of an upstream is shared by
+// every project, so one outage pauses every caller. `state` is "closed" or
+// "open"; an open breaker lets one call through as a probe once
+// `nextProbeAt` passes (claimed with compare-and-set on that column).
+export const upstreamBreakers = sqliteTable("upstream_breakers", {
+  upstream: text("upstream").primaryKey(),
+  state: text("state").notNull().default("closed"),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  openedAt: text("opened_at"),
+  nextProbeAt: text("next_probe_at"),
+  lastError: text("last_error"),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});

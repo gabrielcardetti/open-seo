@@ -6,6 +6,7 @@ import { BingApiKeyRepository } from "@/server/features/bing/repositories/BingAp
 import { BingConnectionRepository } from "@/server/features/bing/repositories/BingConnectionRepository";
 import { createBingClient, type BingSite } from "@/server/lib/bing/bingClient";
 import { BingApiError } from "@/server/lib/bing/bingErrors";
+import { UpstreamBreaker } from "@/server/features/upstreams/upstreamBreaker";
 import { AppError } from "@/server/lib/errors";
 import { openSecret, sealSecret } from "@/server/lib/secretBox";
 
@@ -190,9 +191,10 @@ async function getConnectionStatus(input: {
   projectId: string;
   userId: string;
 }) {
-  const [row, userKey] = await Promise.all([
+  const [row, userKey, outage] = await Promise.all([
     BingConnectionRepository.getWithConnectorByProjectId(input.projectId),
     BingApiKeyRepository.getByUserId(input.userId),
+    UpstreamBreaker.getOutage("bing_api"),
   ]);
   const connection = row?.connection ?? null;
   const connectorKey =
@@ -213,6 +215,9 @@ async function getConnectionStatus(input: {
     lastSyncedAt: connection?.lastSyncedAt ?? null,
     nextSyncAt: connection?.nextSyncAt ?? null,
     lastSyncError: connection?.lastSyncError ?? null,
+    // Bing's API (or its relay) is unreachable for the whole deployment;
+    // syncs wait for the breaker's retry time.
+    outage,
     quota:
       connection?.quotaCheckedAt != null
         ? {

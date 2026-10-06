@@ -302,3 +302,14 @@ export const bingAiGroundingQueries = pgTable(
     }),
   ],
 );
+
+// See src/db/bing.schema.ts.
+export const upstreamBreakers = pgTable("upstream_breakers", {
+  upstream: text("upstream").primaryKey(),
+  state: text("state").notNull().default("closed"),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  openedAt: text("opened_at"),
+  nextProbeAt: text("next_probe_at"),
+  lastError: text("last_error"),
+  updatedAt: text("updated_at").notNull().default(isoNow),
+});

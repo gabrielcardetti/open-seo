@@ -10,6 +10,7 @@ import { chunk, groupBy } from "remeda";
 import { openBingClientForProject } from "@/server/features/bing/bingAccess";
 import { BingConnectionRepository } from "@/server/features/bing/repositories/BingConnectionRepository";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
+import { UpstreamBreaker } from "@/server/features/upstreams/upstreamBreaker";
 import {
   BingApiError,
   BingNotConnectedError,
@@ -44,7 +45,9 @@ type Outcome = {
 export type SubmissionResult = {
   batchId: string | null;
   channel: UrlSubmissionChannel | null;
-  /** Why nothing was sent (no channel, no domain), in plain language. */
+  /** Why nothing was sent (no channel, no domain), or why some URLs were
+   *  not (the channel is unreachable: those have no result), in plain
+   *  language. */
   problem: string | null;
   results: Array<{ url: string } & Omit<Outcome, "attempts">>;
   counts: Partial<Record<UrlSubmissionStatus, number>>;
@@ -117,14 +120,24 @@ function filterUrls(urls: string[], siteHost: string) {
   return { accepted: [...accepted], dropped };
 }
 
+/**
+ * Per-URL outcomes of one send. URLs left out of `outcomes` were not sent
+ * because the channel is unreachable (`outage`): they get no ledger row, so
+ * nothing reads as the engine's refusal, and later checks send them again.
+ */
+type Sent = {
+  outcomes: Map<string, Outcome>;
+  outage: { message: string; retryAt: string | null } | null;
+};
+
 async function sendViaIndexNow(
   projectId: string,
   settings: IndexingSettings | null,
   urls: string[],
-): Promise<Map<string, Outcome>> {
+): Promise<Sent> {
   const outcomes = new Map<string, Outcome>();
   const key = settings?.indexnowKey;
-  if (!key) return outcomes;
+  if (!key) return { outcomes, outage: null };
   const keyLocation = settings.indexnowKeyLocation;
   // IndexNow requires every URL of one request to share its `host`.
   const byHost = groupBy(urls, (url) => new URL(url).hostname);
@@ -142,6 +155,9 @@ async function sendViaIndexNow(
         keyLocation: location,
         urlList,
       });
+      if ("unreachable" in outcome) {
+        return { outcomes, outage: outcome.unreachable };
+      }
       if (outcome.httpStatus === 403) {
         // The key file is gone or changed: stop treating the key as verified
         // so `auto` falls back to Bing until it is fixed and re-verified.
@@ -155,7 +171,16 @@ async function sendViaIndexNow(
       }
     }
   }
-  return outcomes;
+  return { outcomes, outage: null };
+}
+
+/** Bing's API (or its relay) is unreachable: the outage, when it is. */
+async function bingOutage(error: unknown): Promise<Sent["outage"]> {
+  if (!(error instanceof BingApiError) || error.kind !== "unreachable") {
+    return null;
+  }
+  const outage = await UpstreamBreaker.getOutage("bing_api");
+  return { message: error.message, retryAt: outage?.retryAt ?? null };
 }
 
 function bingFailure(error: unknown): Outcome {
@@ -188,10 +213,7 @@ function bingFailure(error: unknown): Outcome {
   };
 }
 
-async function sendViaBing(
-  projectId: string,
-  urls: string[],
-): Promise<Map<string, Outcome>> {
+async function sendViaBing(projectId: string, urls: string[]): Promise<Sent> {
   const outcomes = new Map<string, Outcome>();
   const setAll = (list: string[], outcome: Outcome) => {
     for (const url of list) outcomes.set(url, outcome);
@@ -205,8 +227,9 @@ async function sendViaBing(
     );
     await IndexingRepository.updateBingQuota(projectId, quota);
   } catch (error) {
-    setAll(urls, bingFailure(error));
-    return outcomes;
+    const outage = await bingOutage(error);
+    if (!outage) setAll(urls, bingFailure(error));
+    return { outcomes, outage };
   }
 
   const allowed = Math.max(0, Math.min(quota.daily, quota.monthly));
@@ -220,6 +243,7 @@ async function sendViaBing(
   });
   const batches = chunk(urls.slice(0, allowed), BING_MAX_URLS_PER_CALL);
   let sent = 0;
+  let outage: Sent["outage"] = null;
   for (const [index, batch] of batches.entries()) {
     try {
       await opened.client.submitUrlBatch(opened.connection.siteUrl, batch);
@@ -232,8 +256,10 @@ async function sendViaBing(
         attempts: 1,
       });
     } catch (error) {
-      // Whatever stopped this batch (bad key, throttling) stops the rest.
-      setAll(batches.slice(index).flat(), bingFailure(error));
+      // Whatever stopped this batch (bad key, throttling, an outage) stops
+      // the rest.
+      outage = await bingOutage(error);
+      if (!outage) setAll(batches.slice(index).flat(), bingFailure(error));
       break;
     }
   }
@@ -243,7 +269,7 @@ async function sendViaBing(
       monthly: quota.monthly - sent,
     });
   }
-  return outcomes;
+  return { outcomes, outage };
 }
 
 function countStatuses(results: SubmissionResult["results"]) {
@@ -309,21 +335,30 @@ async function submitUrls(
         new Date(now.getTime() - dedupeHours * HOUR_MS).toISOString(),
       );
   const toSend = accepted.filter((url) => !announced.has(url));
-  const outcomes =
+  const { outcomes, outage } =
     chosen.channel === "indexnow"
       ? await sendViaIndexNow(projectId, settings, toSend)
       : await sendViaBing(projectId, toSend);
+  if (outage?.retryAt) {
+    // The sitemap watch resends what didn't go out; run it once the breaker
+    // lets a call through instead of a day from now.
+    await IndexingRepository.scheduleSitemapCheckBy(projectId, outage.retryAt);
+  }
 
   const batchId = crypto.randomUUID();
   const submittedAt = new Date().toISOString();
-  const rows = accepted.map((url) => {
-    const outcome: Outcome = outcomes.get(url) ?? {
-      status: "skipped_duplicate",
-      channel: null,
-      httpStatus: null,
-      errorMessage: `Already announced in the last ${dedupeHours} h.`,
-      attempts: 0,
-    };
+  const rows = accepted.flatMap((url) => {
+    const outcome: Outcome | undefined = announced.has(url)
+      ? {
+          status: "skipped_duplicate",
+          channel: null,
+          httpStatus: null,
+          errorMessage: `Already announced in the last ${dedupeHours} h.`,
+          attempts: 0,
+        }
+      : outcomes.get(url);
+    // Not sent because the channel is unreachable: no row (see Sent).
+    if (!outcome) return [];
     return {
       id: crypto.randomUUID(),
       projectId,
@@ -343,10 +378,13 @@ async function submitUrls(
     httpStatus: row.httpStatus,
     errorMessage: row.errorMessage,
   }));
+  const unsent = accepted.length - rows.length;
   return {
-    batchId,
+    batchId: rows.length > 0 ? batchId : null,
     channel: chosen.channel,
-    problem: null,
+    problem: outage
+      ? `${outage.message} ${unsent} URL${unsent === 1 ? " was" : "s were"} not sent; the sitemap watch sends new and changed sitemap URLs once it is reachable again.`
+      : null,
     results,
     counts: countStatuses(results),
     dropped,

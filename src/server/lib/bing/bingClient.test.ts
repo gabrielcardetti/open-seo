@@ -3,6 +3,11 @@ import { BingApiError, createBingClient } from "./bingClient";
 
 const fetchMock = vi.fn<typeof fetch>();
 
+// The circuit breaker stays closed: these tests are about Bing's answers.
+vi.mock("@/server/features/upstreams/UpstreamBreakerRepository", () => ({
+  UpstreamBreakerRepository: { get: async () => null },
+}));
+
 function jsonResponse(body: unknown, status = 200) {
   return Response.json(body, { status });
 }

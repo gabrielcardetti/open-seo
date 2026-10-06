@@ -64,6 +64,7 @@ describe("SitemapWatchService.runSitemapCheck", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("records the first inventory as a baseline, then submits new and newer-lastmod URLs", async () => {
@@ -139,7 +140,7 @@ describe("SitemapWatchService.runSitemapCheck", () => {
         ["https://example.com/c", null],
       ]),
     );
-    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 503 }));
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
     const failed = await check();
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 200 }));
     const retried = await check();
@@ -147,6 +148,51 @@ describe("SitemapWatchService.runSitemapCheck", () => {
     expect(failed).toMatchObject({ submission: { counts: { failed: 1 } } });
     expect(retried).toMatchObject({
       diff: { newUrls: ["https://example.com/c"] },
+      submission: { counts: { received: 1 } },
+    });
+  });
+
+  it("holds URLs back without calling IndexNow while its relay is down, then sends them once a probe gets through", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T08:00:00.000Z"));
+    const urls = ["https://example.com/a", "https://example.com/c"];
+    mocks.collectSitemapEntries.mockResolvedValue(
+      sitemap([["https://example.com/a", null]]),
+    );
+    await check();
+    mocks.collectSitemapEntries.mockResolvedValue(
+      sitemap(urls.map((url) => [url, null])),
+    );
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 530 }));
+    const down = await check();
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 200 }));
+    const stillOpen = await check();
+    const callsWhileDown = vi.mocked(fetch).mock.calls.length;
+    vi.setSystemTime(new Date("2026-10-06T08:16:00.000Z"));
+    const probe = await check();
+    mocks.collectSitemapEntries.mockResolvedValue(
+      sitemap([...urls, "https://example.com/d"].map((url) => [url, null])),
+    );
+    const afterProbe = await check();
+
+    // One failed POST (three attempts); no row says IndexNow refused anything.
+    expect(down).toMatchObject({
+      submission: {
+        results: [],
+        problem: expect.stringContaining(
+          "IndexNow is unreachable since 2026-10-06T08:00:00.000Z (HTTP 530); retrying at 2026-10-06T08:15:00.000Z.",
+        ),
+      },
+    });
+    expect(callsWhileDown).toBe(3);
+    expect(stillOpen).toMatchObject({ submission: { results: [] } });
+    expect(probe).toMatchObject({
+      diff: { newUrls: ["https://example.com/c"] },
+      submission: { problem: null, counts: { received: 1 } },
+    });
+    // The probe closed the breaker: the next check sends straight away.
+    expect(afterProbe).toMatchObject({
+      diff: { newUrls: ["https://example.com/d"] },
       submission: { counts: { received: 1 } },
     });
   });

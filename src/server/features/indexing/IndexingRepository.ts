@@ -2,7 +2,17 @@
  * Indexing settings, the sitemap URL inventory, and the cached Bing URL
  * submission quota. Written once for D1 and Postgres.
  */
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { chunk } from "remeda";
 import { db } from "@/db";
 import { executeInBatches } from "@/db/runBatch";
@@ -146,6 +156,20 @@ async function claimSitemapCheck(input: {
   return claimed.length > 0;
 }
 
+/** Bring the next sitemap check forward to `at` (never push it back), so
+ *  URLs an outage kept from going out are resent when the breaker allows. */
+async function scheduleSitemapCheckBy(projectId: string, at: string) {
+  await db
+    .update(indexingSettings)
+    .set({ nextSitemapCheckAt: at })
+    .where(
+      and(
+        eq(indexingSettings.projectId, projectId),
+        gt(indexingSettings.nextSitemapCheckAt, at),
+      ),
+    );
+}
+
 async function recordSitemapCheck(projectId: string, error: string | null) {
   await upsertSettings(projectId, {
     lastSitemapCheckAt: new Date().toISOString(),
@@ -225,6 +249,7 @@ export const IndexingRepository = {
   updateBingQuota,
   getDueSitemapChecks,
   claimSitemapCheck,
+  scheduleSitemapCheckBy,
   recordSitemapCheck,
   listSitemapUrls,
   applySitemapInventory,

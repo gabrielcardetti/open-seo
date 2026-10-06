@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { bingConnections, projects, user } from "@/db/schema";
 
@@ -102,6 +102,20 @@ async function scheduleSyncForConnector(
     .where(eq(bingConnections.connectedByUserId, userId));
 }
 
+/** Bring the project's next sync forward to `at` (never push it back), so a
+ *  sync that found Bing unreachable runs again when the breaker allows. */
+async function scheduleSyncBy(projectId: string, at: string): Promise<void> {
+  await db
+    .update(bingConnections)
+    .set({ nextSyncAt: at })
+    .where(
+      and(
+        eq(bingConnections.projectId, projectId),
+        gt(bingConnections.nextSyncAt, at),
+      ),
+    );
+}
+
 /** Only lands while the project is still connected to the site the sync
  *  read: a sync that outlives a site switch must not mark the new site
  *  synced (or show the old site's errors and quota on it). */
@@ -186,6 +200,7 @@ export const BingConnectionRepository = {
   deleteByProjectId,
   setSyncEnabled,
   scheduleSyncForConnector,
+  scheduleSyncBy,
   recordSyncResult,
   getDue,
   claimSync,

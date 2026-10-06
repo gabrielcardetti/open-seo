@@ -246,6 +246,13 @@
       "when": 1791300198106,
       "tag": "0034_audit_page_signals",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791322341335,
+      "tag": "0035_upstream_breakers",
+      "breakpoints": true
     }
   ]
 }

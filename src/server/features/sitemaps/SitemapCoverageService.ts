@@ -21,6 +21,8 @@ import {
   RECONNECT_GSC_FOR_WRITE,
 } from "./searchConsoleProperty";
 import { SitemapRegistryService } from "./SitemapRegistryService";
+import { IndexingRepository } from "@/server/features/indexing/IndexingRepository";
+import { UpstreamBreaker } from "@/server/features/upstreams/upstreamBreaker";
 
 type CoverageState = "submitted" | "missing" | "not_connected" | "unknown";
 
@@ -163,11 +165,25 @@ function plural(count: number, word: string) {
 }
 
 async function coverage(projectId: string) {
-  const [registry, gscConnection, bing] = await Promise.all([
-    SitemapRegistryService.list(projectId),
-    GscConnectionRepository.getByProjectId(projectId),
-    readBing(projectId),
-  ]);
+  const [registry, gscConnection, bing, indexing, allOutages] =
+    await Promise.all([
+      SitemapRegistryService.list(projectId),
+      GscConnectionRepository.getByProjectId(projectId),
+      readBing(projectId),
+      IndexingRepository.getSettings(projectId),
+      UpstreamBreaker.listOutages(),
+    ]);
+  // Only the channels this project uses: Bing's API when connected, IndexNow
+  // once it has a key.
+  const outages = allOutages.filter((outage) =>
+    outage.upstream === "bing_api"
+      ? Boolean(bing.connection)
+      : Boolean(indexing?.indexnowKey),
+  );
+  const bingOutage = outages.find((outage) => outage.upstream === "bing_api");
+  const indexNowOutage = outages.find(
+    (outage) => outage.upstream === "indexnow",
+  );
   const google = await readGoogle(gscConnection);
   const siteUrl = gscConnection?.siteUrl ?? null;
 
@@ -253,7 +269,19 @@ async function coverage(projectId: string) {
   const bingStale = bing.connection
     ? bingStaleness(bing.connection, Date.now())
     : null;
-  if (bingStale) actionNeeded.push(bingStale);
+  if (bingOutage) {
+    // Syncing now can't help: the sync resumes by itself at the retry time.
+    actionNeeded.push(
+      `${bingOutage.message} Bing gaps may be out of date until the next sync, which runs by itself then.`,
+    );
+  } else if (bingStale) {
+    actionNeeded.push(bingStale);
+  }
+  if (indexNowOutage) {
+    actionNeeded.push(
+      `${indexNowOutage.message} New and changed sitemap URLs are sent once it is reachable again.`,
+    );
+  }
   if (engineOnly.length > 0) {
     actionNeeded.push(
       `${plural(engineOnly.length, "sitemap")} registered in Google or Bing ${engineOnly.length === 1 ? "is" : "are"} unknown to OpenSEO: track or ignore ${engineOnly.length === 1 ? "it" : "them"}.`,
@@ -293,6 +321,7 @@ async function coverage(projectId: string) {
     suggestedCount: registry.suggested.length,
     missing,
     gscCanSubmit: google.canSubmit,
+    outages,
     actionNeeded,
   };
 }

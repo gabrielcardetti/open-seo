@@ -10,8 +10,9 @@
  *
  * A URL's inventory row only moves forward (inserted, or its new lastmod
  * stored) once its announcement got an answer that resending would not
- * change. Failed, throttled and over-quota sends, and those IndexNow refused
- * for a key file problem, leave it new or changed for the next check.
+ * change. Failed, throttled and over-quota sends, those IndexNow refused for
+ * a key file problem, and URLs never sent because the channel was unreachable
+ * (no result at all), leave it new or changed for the next check.
  */
 import { collectSitemapEntries } from "@/server/lib/audit/discovery";
 import { AppError } from "@/server/lib/errors";
