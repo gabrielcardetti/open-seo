@@ -8,6 +8,7 @@
 import { sortBy } from "remeda";
 import type { UrlInspectionResult } from "@/server/lib/gscClient";
 import { urlTemplateOf } from "@/server/lib/audit/url-utils";
+import { GscConnectionRepository } from "@/server/features/gsc/repositories/GscConnectionRepository";
 import {
   INDEXED_VERDICT,
   UrlInspectionRepository,
@@ -185,9 +186,6 @@ function pathOf(url: string): string {
 }
 
 function matches(row: UrlInspectionRow, filters: IndexingStatusFilters) {
-  if (filters.template && urlTemplateOf(row.url) !== filters.template) {
-    return false;
-  }
   if (filters.pathPrefix && !pathOf(row.url).startsWith(filters.pathPrefix)) {
     return false;
   }
@@ -251,12 +249,22 @@ async function trend(projectId: string, nowMs: number) {
  */
 async function status(projectId: string, filters: IndexingStatusFilters) {
   const nowMs = Date.now();
-  const [monitor, all, trendPoints] = await Promise.all([
+  const [connection, monitor, all, trendPoints] = await Promise.all([
+    GscConnectionRepository.getByProjectId(projectId),
     UrlInspectionRepository.getMonitor(projectId),
     UrlInspectionRepository.listMonitored(projectId),
     trend(projectId, nowMs),
   ]);
-  const rows = all.filter((row) => matches(row, filters));
+  const templateOf = new Map(
+    all.map((row) => [row.url, urlTemplateOf(row.url)]),
+  );
+  const template = (row: UrlInspectionRow) =>
+    templateOf.get(row.url) ?? row.url;
+  const rows = all.filter(
+    (row) =>
+      (!filters.template || template(row) === filters.template) &&
+      matches(row, filters),
+  );
   const notIndexedSince = new Date(
     nowMs - filters.notIndexedDays * DAY_MS,
   ).toISOString();
@@ -278,11 +286,12 @@ async function status(projectId: string, filters: IndexingStatusFilters) {
       INDEXING_PROBLEM_KINDS.indexOf(entry.kinds[0] ?? "inspection_failed"),
     (entry) => entry.row.firstSeenAt,
   );
-  const templates = tally(rows, (row) => urlTemplateOf(row.url));
+  const templates = tally(rows, template);
   const count = (wanted: UrlStatus, list: UrlInspectionRow[]) =>
     list.filter((row) => statusOf(row) === wanted).length;
 
   return {
+    siteUrl: connection?.siteUrl ?? null,
     monitor: {
       lastRunAt: monitor?.lastRunAt ?? null,
       urlsRefreshedAt: monitor?.urlsRefreshedAt ?? null,
@@ -301,12 +310,10 @@ async function status(projectId: string, filters: IndexingStatusFilters) {
       notInspected: count("not_inspected", rows),
     },
     byState: tally(rows, stateLabel).map(([state, urls]) => ({ state, urls })),
-    byTemplate: templates.slice(0, MAX_TEMPLATES).map(([template]) => {
-      const inTemplate = rows.filter(
-        (row) => urlTemplateOf(row.url) === template,
-      );
+    byTemplate: templates.slice(0, MAX_TEMPLATES).map(([name]) => {
+      const inTemplate = rows.filter((row) => template(row) === name);
       return {
-        template,
+        template: name,
         urls: inTemplate.length,
         indexed: count("indexed", inTemplate),
         notIndexed: count("not_indexed", inTemplate),
@@ -320,7 +327,7 @@ async function status(projectId: string, filters: IndexingStatusFilters) {
     problems: sortedProblems.slice(0, filters.limit).map(({ row, kinds }) => ({
       url: row.url,
       kinds,
-      template: urlTemplateOf(row.url),
+      template: template(row),
       coverageState: row.coverageState,
       indexingState: row.indexingState,
       pageFetchState: row.pageFetchState,

@@ -101,6 +101,7 @@ import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
+import { getIndexingStatusTool } from "@/server/mcp/tools/indexing-monitor-tools";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
@@ -273,6 +274,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(exploreAiPromptTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
+  register(getIndexingStatusTool);
   register(getGoogleSearchUpdatesTool);
   register(getBingOverviewTool);
   register(getBingSearchPerformanceTool);

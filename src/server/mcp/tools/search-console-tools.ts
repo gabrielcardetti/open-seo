@@ -419,7 +419,7 @@ export const inspectUrlsTool = {
   config: {
     title: "Inspect URLs in Google Search Console",
     description:
-      "Run Google Search Console's URL Inspection on up to 10 URLs of the connected property: index/coverage state, last crawl time, Google-selected vs declared canonical, and mobile/rich-results verdicts. Use it to answer 'is this page indexed? why not?'. Per-URL failures are reported inline. Read-only; uses no credits.",
+      "Run Google Search Console's URL Inspection on up to 10 URLs of the connected property: index/coverage state, last crawl time, Google-selected vs declared canonical, and mobile/rich-results verdicts. Use it to answer 'is this page indexed? why not?', or to re-check URLs now: results are stored for the project's indexing monitor (get_indexing_status). URLs are inspected a few at a time; per-URL failures are reported inline, and after a Search Console rate limit the rest come back skipped. Uses no credits.",
     inputSchema: inspectInputSchema,
     outputSchema: z.looseObject({
       ok: z.boolean(),

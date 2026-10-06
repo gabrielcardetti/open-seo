@@ -21,3 +21,8 @@ export const GSC_OAUTH_SCOPES = [
 
 export const GSC_SELF_HOSTED_SETUP_DOCS_URL =
   "https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_GOOGLE_SEARCH_CONSOLE.md";
+
+/** Search Console's URL Inspection page for one URL of a property. */
+export function searchConsoleInspectionUrl(siteUrl: string, url: string) {
+  return `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(siteUrl)}&id=${encodeURIComponent(url)}`;
+}
