@@ -25,7 +25,7 @@ export const getUmamiOverviewTool = {
   name: "get_umami_overview",
   config: {
     title: "Get Umami overview",
-    description: `Answer whether traffic is improving from the project's Umami website: visitors, visits, pageviews, bounce rate, average visit time and views per visit, compared with the previous equal-length period, plus a daily visitors/pageviews trend. Organic search by default; channel=all for every source. ${UMAMI_NOTES}`,
+    description: `Answer whether traffic is improving from the project's Umami website: visitors, visits, pageviews, bounce rate, average visit time and views per visit, compared with the previous equal-length period, plus a daily visitors/pageviews trend. Organic search by default; channel=all for every source. When traffic drops or jumps, check get_google_search_updates for a Google update in the same weeks. ${UMAMI_NOTES}`,
     inputSchema: overviewShape,
     outputSchema,
     annotations: READ_ONLY,

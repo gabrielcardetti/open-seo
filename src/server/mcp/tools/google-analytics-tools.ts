@@ -519,7 +519,7 @@ export const getGoogleAnalyticsOrganicOverviewTool = {
   config: {
     title: "Get Google Analytics organic overview",
     description:
-      "Answer whether organic traffic is improving with top-line sessions, users, engagement, key events, transactions, revenue, an equal-length previous-period comparison, and a daily or weekly trend. Read-only and uses no OpenSEO credits.",
+      "Answer whether organic traffic is improving with top-line sessions, users, engagement, key events, transactions, revenue, an equal-length previous-period comparison, and a daily or weekly trend. When traffic drops or jumps, check get_google_search_updates for a Google update in the same weeks. Read-only and uses no OpenSEO credits.",
     inputSchema: overviewInputSchema,
     outputSchema: overviewOutputSchema,
     annotations: {

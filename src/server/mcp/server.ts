@@ -127,6 +127,7 @@ import {
   updateSitemapsTool,
 } from "@/server/mcp/tools/sitemap-tools";
 import { whoamiTool } from "@/server/mcp/tools/whoami";
+import { getGoogleSearchUpdatesTool } from "@/server/mcp/tools/google-updates-tool";
 import {
   compareSearchEnginesTool,
   getBingAiCitationsTool,
@@ -262,6 +263,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getKeywordMetricsTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
+  register(getGoogleSearchUpdatesTool);
   register(getBingOverviewTool);
   register(getBingSearchPerformanceTool);
   register(getBingCrawlHealthTool);
