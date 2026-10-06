@@ -90,6 +90,11 @@ Want to go deeper?
 - `keyword-clustering`: groups keywords by intent and maps clusters to existing or proposed pages.
 - `competitive-landscape`: identifies who wins across a market and what content/backlink patterns are working.
 - `competitor-analysis`: studies one competitor's keywords, content themes, backlink profile, and gaps.
+- `content-brief`: builds a competitive brief for one keyword or page — intent, the pages to beat, gaps, an outline, meta tags, and internal links.
+- `search-experience`: checks whether a page is the type of page the results reward for its query, and what to change when it is not.
+- `comparison-pages`: plans or reviews "X vs Y", "alternatives to X", and "best X" pages with an honest, sourced feature matrix.
+- `programmatic-seo`: reviews or plans pages generated at scale from data, with the safeguards against thin and scaled content.
+- `ai-search-optimization`: checks whether AI answers can reach, read, and cite the site, measures AI assistant traffic and citations, and finds the pages to strengthen.
 - `local-seo`: audits a Google Business Profile against local competitors and maps Maps visibility around a location.
 - `link-prospecting`: finds likely link opportunities, discovers contact paths, and drafts outreach.
 - `seo-report`: the report-writing skill the workflows above deliver through. It carries the starter template and the save rules; users do not run it on its own.
@@ -152,6 +157,11 @@ Offer 2-4 options based on context, each tied to the skill that delivers it:
 - "Cluster your GSC queries into page targets." → `keyword-clustering`
 - "Map the competitive landscape before choosing pages." → `competitive-landscape`
 - "Study one competitor." → `competitor-analysis`
+- "Brief the next page before writing it." → `content-brief`
+- "Find out why this page is stuck for its query." → `search-experience`
+- "Plan comparison and alternatives pages." → `comparison-pages`
+- "Review your generated location or template pages." → `programmatic-seo`
+- "Check whether AI answers cite you." → `ai-search-optimization`
 - "Find link prospects for your best linkable asset." → `link-prospecting`
 
 ## Guardrails

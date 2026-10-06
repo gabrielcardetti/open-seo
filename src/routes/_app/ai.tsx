@@ -49,6 +49,17 @@ const SKILLS = [
     "competitor-analysis",
     "Studies one competitor's keywords, content, and backlinks.",
   ],
+  ["content-brief", "Writes a competitive brief and outline for one page."],
+  [
+    "search-experience",
+    "Checks whether a page is the type the results reward.",
+  ],
+  ["comparison-pages", "Plans honest X vs Y and alternatives pages."],
+  ["programmatic-seo", "Reviews pages generated at scale from data."],
+  [
+    "ai-search-optimization",
+    "Checks whether AI answers can find, read, and cite you.",
+  ],
   ["link-prospecting", "Finds link prospects and drafts outreach."],
   ["local-seo", "Audits a Google Business Profile and Maps visibility."],
   ["seo-report", "Saves any of the above as a report on your Reports page."],
