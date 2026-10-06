@@ -25,6 +25,7 @@
     "types:check": "tsc --noEmit",
     "eval:guidelines": "tsx scripts/guidelines-golden-eval.ts",
     "check:bing-quotes": "tsx scripts/check-bing-guideline-quotes.ts",
+    "refresh:google-updates": "tsx scripts/refresh-google-updates.ts",
     "format:check": "prettier --check .",
     "format:write": "prettier . --write",
     "auth:generate": "npm run auth:generate:d1 && npm run auth:generate:pg",

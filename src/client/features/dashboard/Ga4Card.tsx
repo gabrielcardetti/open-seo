@@ -1,4 +1,5 @@
 import { CardShell } from "@/client/components/CardShell";
+import { GoogleUpdateMarkers } from "@/client/components/GoogleUpdateMarkers";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
@@ -148,6 +149,9 @@ export function Ga4Card({
                 strokeWidth={2}
                 fill="var(--color-sessions)"
                 fillOpacity={0.08}
+              />
+              <GoogleUpdateMarkers
+                dates={report.trend.map((point) => point.date)}
               />
             </AreaChart>
           </ChartContainer>

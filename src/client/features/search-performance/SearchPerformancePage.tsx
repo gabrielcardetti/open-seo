@@ -11,9 +11,11 @@ import { QueryError } from "@/client/components/QueryState";
 import { ExportMenu } from "@/client/components/ExportMenu";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
+import { Card } from "@/client/components/ui/card";
 import { Spinner } from "@/client/components/ui/spinner";
 import { DataTableTabs } from "@/client/components/table/DataTableToolbar";
 import { TabsTrigger } from "@/client/components/ui/tabs";
+import { SearchTrafficChart } from "@/client/features/bing/BingCharts";
 import { GoogleConnectionCard } from "@/client/features/integrations/GoogleConnectionCard";
 import { DimensionSection } from "@/client/features/search-performance/SearchPerformanceDimensionSection";
 import { SearchPerformanceSelects } from "@/client/features/search-performance/SearchPerformanceSelects";
@@ -253,7 +255,17 @@ export function SearchPerformancePage({
             {reportQuery.isPlaceholderData ? (
               <SearchPerformanceLoadingState />
             ) : (
-              <TotalsCards report={report} />
+              <>
+                <TotalsCards report={report} />
+                {report.daily.length > 0 ? (
+                  <Card className="p-4">
+                    <SearchTrafficChart
+                      data={report.daily}
+                      label="Search Console clicks and impressions per day"
+                    />
+                  </Card>
+                ) : null}
+              </>
             )}
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <DataTableTabs

@@ -17,7 +17,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { TabsTrigger } from "@/client/components/ui/tabs";
 import { BingAiCitationsTab } from "@/client/features/bing/BingAiCitationsTab";
 import { BingBacklinksTab } from "@/client/features/bing/BingBacklinksTab";
-import { BingTrafficChart } from "@/client/features/bing/BingCharts";
+import { SearchTrafficChart } from "@/client/features/bing/BingCharts";
 import { BingConnectionCard } from "@/client/features/bing/BingConnectionCard";
 import {
   BingConnectionLost,
@@ -293,7 +293,10 @@ function BingInsightsBody({
         {summaryQuery.isPlaceholderData ? (
           <Skeleton className="h-56" />
         ) : summary.daily.length > 0 ? (
-          <BingTrafficChart data={summary.daily} />
+          <SearchTrafficChart
+            data={summary.daily}
+            label="Bing clicks and impressions per day"
+          />
         ) : (
           <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
             No Bing traffic stored for these dates.

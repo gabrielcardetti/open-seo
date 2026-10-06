@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { sort } from "remeda";
 import {
   GscNotConnectedError,
   GscService,
@@ -127,6 +128,14 @@ export const getSearchPerformanceReport = createServerFn({ method: "POST" })
           prevEndDate: prev.endDate,
         },
         totals: sumSearchTotals(current.rows),
+        daily: sort(
+          toDimensionRows(current.rows).map(({ key, clicks, impressions }) => ({
+            date: key,
+            clicks,
+            impressions,
+          })),
+          (a, b) => a.date.localeCompare(b.date),
+        ),
         prevTotals: sumSearchTotals(previous.rows),
         strikingDistance: buildStrikingDistanceRows(queryPages.rows),
         countries: toDimensionRows(countries.rows),

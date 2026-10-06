@@ -12,6 +12,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/client/components/ui/chart";
+import { GoogleUpdateMarkers } from "@/client/components/GoogleUpdateMarkers";
 import { formatBingTick } from "@/client/features/bing/bingQueries";
 import { formatCount } from "@/client/features/search-performance/SearchPerformanceColumns";
 
@@ -64,6 +65,12 @@ function DailyLineChart({
         ) : null}
         {tooltip}
         {legend}
+        <GoogleUpdateMarkers
+          dates={data.flatMap((point) =>
+            typeof point.date === "string" ? [point.date] : [],
+          )}
+          yAxisId="left"
+        />
         {lines.map((line) => (
           <Line
             key={line.key}
@@ -85,16 +92,19 @@ const trafficConfig = {
   impressions: { label: "Impressions", color: "#8b5cf6" },
 } satisfies ChartConfig;
 
-export function BingTrafficChart({
+/** Daily clicks and impressions; Bing's and Search Console's share it. */
+export function SearchTrafficChart({
   data,
+  label,
 }: {
   data: Array<{ date: string; clicks: number; impressions: number }>;
+  label: string;
 }) {
   return (
     <DailyLineChart
       data={data}
       config={trafficConfig}
-      label="Bing clicks and impressions per day"
+      label={label}
       lines={[{ key: "clicks" }, { key: "impressions", axis: "right" }]}
     />
   );

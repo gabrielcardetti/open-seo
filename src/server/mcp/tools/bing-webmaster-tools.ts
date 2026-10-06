@@ -407,7 +407,7 @@ export const getBingSearchPerformanceTool = {
   name: "get_bing_search_performance",
   config: {
     title: "Get Bing search performance",
-    description: `Bing clicks, impressions, CTR and average position by query or page over any range of OpenSEO's stored Bing history, or site-wide per day (dimension 'date'). Bing buckets query/page rows by week: a week counts when its date falls in the range, and position is the impression-weighted average over those weeks. Pass page (queries for that page) or query (pages for that query) to drill down live from Bing. ${BING_LIMITS} ctr is a 0-1 fraction. Read-only; uses no credits.`,
+    description: `Bing clicks, impressions, CTR and average position by query or page over any range of OpenSEO's stored Bing history, or site-wide per day (dimension 'date'). Bing buckets query/page rows by week: a week counts when its date falls in the range, and position is the impression-weighted average over those weeks. Pass page (queries for that page) or query (pages for that query) to drill down live from Bing. ${BING_LIMITS} ctr is a 0-1 fraction. When traffic drops or jumps, check get_google_search_updates for a Google update in the same weeks. Read-only; uses no credits.`,
     inputSchema: performanceInputSchema,
     outputSchema: z.looseObject({
       ...failureOutputShape,
