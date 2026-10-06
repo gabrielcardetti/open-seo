@@ -47,11 +47,14 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
   const bodyText = bodyClone.text().replace(/\s+/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
 
-  const images: Array<{ src: string | null; alt: string | null }> = [];
+  const images: PageAnalysis["images"] = [];
   $("img").each((_, el) => {
     images.push({
       src: $(el).attr("src") ?? null,
       alt: $(el).attr("alt") ?? null,
+      hasDimensions:
+        $(el).attr("width") !== undefined && $(el).attr("height") !== undefined,
+      lazy: $(el).attr("loading")?.toLowerCase() === "lazy",
     });
   });
 
@@ -74,14 +77,32 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
   });
 
   let hasStructuredData = false;
-  $('script[type="application/ld+json"]').each(() => {
+  const jsonLdBlocks: string[] = [];
+  $('script[type="application/ld+json"]').each((_, el) => {
     hasStructuredData = true;
+    jsonLdBlocks.push($(el).text());
   });
 
-  const hreflangTags: string[] = [];
-  $('link[rel="alternate"][hreflang]').each((_, el) => {
-    const hreflang = $(el).attr("hreflang");
-    if (hreflang) hreflangTags.push(hreflang);
+  const hreflangLinks: PageAnalysis["hreflangLinks"] = [];
+  $("link[hreflang][href]").each((_, el) => {
+    const rel = $(el).attr("rel")?.toLowerCase().split(/\s+/) ?? [];
+    const href = normalizeUrl($(el).attr("href") ?? "", pageUrl);
+    if (rel.includes("alternate") && href) {
+      hreflangLinks.push({ hreflang: $(el).attr("hreflang")!.trim(), href });
+    }
+  });
+
+  const insecureSubresources: string[] = [];
+  $(
+    "img[src], script[src], iframe[src], video[src], audio[src], source[src], embed[src], link[href]",
+  ).each((_, el) => {
+    const isLink = "tagName" in el && el.tagName === "link";
+    const rel = $(el).attr("rel")?.toLowerCase().split(/\s+/) ?? [];
+    if (isLink && !rel.includes("stylesheet") && !rel.includes("preload")) {
+      return;
+    }
+    const url = (isLink ? $(el).attr("href") : $(el).attr("src"))?.trim();
+    if (url && /^http:\/\//i.test(url)) insecureSubresources.push(url);
   });
 
   return {
@@ -97,13 +118,17 @@ function analyzeHtmlWithCheerio(html: string, pageUrl: string): PageAnalysis {
     ogDescription,
     ogImage,
     h1s,
+    h1Text: h1s.find((h1) => h1.length > 0)?.replace(/\s+/g, " ") ?? null,
     headingOrder,
     wordCount,
     bodyText,
     images,
     links: Array.from(linksByTarget.values()),
     hasStructuredData,
-    hreflangTags,
+    jsonLdBlocks,
+    hreflangLinks,
+    insecureSubresources,
+    insecureSubresourceCount: insecureSubresources.length,
   };
 }
 
@@ -128,6 +153,7 @@ describe("analyzeHtml parity with the DOM reference", () => {
         <link rel="canonical" href="https://example.com/blog/post">
         <link rel="alternate" hreflang="en" href="/en">
         <link rel="alternate" hreflang="de" href="/de">
+        <link rel="stylesheet" href="http://cdn.example/site.css">
         <script type="application/ld+json">{"@type":"Article"}</script>
       </head><body>
         <h1>Main <em>Heading</em></h1>
@@ -141,6 +167,8 @@ describe("analyzeHtml parity with the DOM reference", () => {
         <img src="/b.png" alt="">
         <img src="/c.png">
         <img alt="no src">
+        <img src="http://cdn.example/d.png" width="10" height="10" loading="LAZY">
+        <iframe src="http://video.example/embed"></iframe>
         <a href="/relative">Relative <span>link</span></a>
         <a href="https://example.com/relative">Duplicate target</a>
         <a href="https://other.example/x" rel="NoFollow sponsored">External</a>

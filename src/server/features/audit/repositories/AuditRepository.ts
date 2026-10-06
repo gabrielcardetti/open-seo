@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { executeInBatches } from "@/db/runBatch";
 import { insertIssues } from "./auditIssueWrites";
+import { replacePageChildRows } from "./auditPageChildWrites";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type {
@@ -171,6 +172,7 @@ async function insertCrawledBatch(
       ogDescription: page.ogDescription,
       ogImage: page.ogImage,
       h1Count: page.h1Count,
+      h1Text: page.h1Text,
       h2Count: page.h2Count,
       h3Count: page.h3Count,
       h4Count: page.h4Count,
@@ -185,7 +187,7 @@ async function insertCrawledBatch(
       internalLinkCount: page.links.filter((l) => l.isInternal).length,
       externalLinkCount: page.links.filter((l) => !l.isInternal).length,
       hasStructuredData: page.hasStructuredData,
-      hreflangTagsJson: JSON.stringify(page.hreflangTags),
+      hasHsts: page.hasHsts,
       isIndexable: page.isIndexable,
       fetchClass: page.fetchClass,
       crawlDepth: page.crawlDepth,
@@ -198,6 +200,7 @@ async function insertCrawledBatch(
       .onConflictDoUpdate({ target: auditPages.id, set: dataColumns });
   });
 
+  await replacePageChildRows(auditId, pages);
   await insertIssues(auditId, issues);
 }
 

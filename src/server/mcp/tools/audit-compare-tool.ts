@@ -22,6 +22,10 @@ import { verdictsByEngine } from "@/shared/guidelines/engine-verdicts";
 const MAX_LISTED = 50;
 /** Template rows in the text answer; the full list is in structuredContent. */
 const MAX_TEMPLATE_LINES = 20;
+/** Drift changes listed per rule; the count is always exact. */
+const MAX_DRIFT_EXAMPLES = 10;
+/** Drift examples per rule in the text answer. */
+const MAX_DRIFT_TEXT_EXAMPLES = 3;
 
 const inputSchema = {
   projectId: projectIdSchema,
@@ -85,17 +89,35 @@ async function guidelineVerdicts(audit: { id: string; config: string }) {
 }
 
 async function snapshot(audit: { id: string; config: string }) {
-  const [pages, issues, guidelines] = await Promise.all([
-    AuditComparisonRepository.getPageHashesForAudit(audit.id),
+  const [pages, schemaTypes, issues, guidelines] = await Promise.all([
+    AuditComparisonRepository.getPageSignalsForAudit(audit.id),
+    AuditComparisonRepository.getSchemaTypesForAudit(audit.id),
     AuditRepository.getIssuesForAudit(audit.id, {}),
     guidelineVerdicts(audit),
   ]);
+  const typesByUrl = new Map<string, string[]>();
+  for (const row of schemaTypes) {
+    typesByUrl.set(row.url, [
+      ...(typesByUrl.get(row.url) ?? []),
+      row.schemaType,
+    ]);
+  }
   return {
     pageUrls: pages.map((page) => page.url),
     contentHashes: new Map(
       pages.flatMap((page) =>
         page.contentHash ? [[page.url, page.contentHash] as const] : [],
       ),
+    ),
+    signals: new Map(
+      pages.map((page) => [
+        page.url,
+        {
+          ...page,
+          canonicalUrl: page.canonicalUrl ?? page.headerCanonicalUrl,
+          schemaTypes: typesByUrl.get(page.url) ?? [],
+        },
+      ]),
     ),
     issues,
     ...guidelines,
@@ -107,7 +129,9 @@ export const compareAuditsTool = {
   config: {
     title: "Compare two site audits",
     description:
-      "Before/after between two audits of the same project: pages added and removed, pages whose visible text changed (pages.changed, matched by URL and content hash), each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after — Google's at the top of `guidelines`, Bing's side by side in `guidelines.bing` when either audit was judged against Bing's guidelines (null otherwise). issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
+      "Before/after between two audits of the same project: pages added and removed, pages whose visible text changed (pages.changed, matched by URL and content hash), each issue type's count with how many were resolved and how many are new (matched by issue type and URL), and content-guideline verdict counts with the pages that improved or worsened, plus the whole-site guideline verdict before and after — Google's at the top of `guidelines`, Bing's side by side in `guidelines.bing` when either audit was judged against Bing's guidelines (null otherwise). issues.common repeats the issue comparison on only the URLs both audits crawled — overall, by type and by URL template — so pages that entered or left the crawl sample don't read as fixes or regressions; prefer it when the page sets differ. drift lists, for the URLs both audits crawled, the SEO signals that changed, by rule with a severity and a count plus up to " +
+      MAX_DRIFT_EXAMPLES +
+      " examples (url, before, after) each: critical — canonical-changed, canonical-removed, noindex-added, title-removed, h1-removed, status-error (became 4xx/5xx), structured-data-removed; warning — title-changed, meta-description-changed, h1-changed, og-tags-removed, schema-types-changed; info — structured-data-added. Drift needs no issue to fire, so it also catches an edit that is fine on its own but unintended. Use it after deploying fixes and re-running run_site_audit to see what actually moved. Free — reads OpenSEO state.",
     inputSchema,
     outputSchema: z
       .object({
@@ -120,6 +144,7 @@ export const compareAuditsTool = {
           changedCount: z.number(),
         }),
         issues: looseObjectOutputSchema,
+        drift: looseObjectOutputSchema,
         guidelines: looseObjectOutputSchema,
         ...optionalMetaOutputSchema,
       })
@@ -172,6 +197,16 @@ export const compareAuditsTool = {
           (t) =>
             `- ${t.issueType} on ${t.template}: ${t.before} → ${t.after} (resolved ${t.resolved}, new ${t.introduced})`,
         ),
+      `Drift on the ${diff.drift.urls} URLs both audits crawled:${diff.drift.rules.length === 0 ? " none." : ""}`,
+      ...diff.drift.rules.map(
+        (r) =>
+          `- [${r.severity}] ${r.rule}: ${r.count} (e.g. ${r.changes
+            .slice(0, MAX_DRIFT_TEXT_EXAMPLES)
+            .map(
+              (c) => `${c.url}: ${c.before ?? "none"} → ${c.after ?? "none"}`,
+            )
+            .join("; ")})`,
+      ),
       `Guideline verdicts: ${JSON.stringify(diff.guidelines.before)} → ${JSON.stringify(diff.guidelines.after)}; improved ${diff.guidelines.improved.length}, worsened ${diff.guidelines.worsened.length}.`,
       ...(diff.guidelines.site.before || diff.guidelines.site.after
         ? [
@@ -206,6 +241,13 @@ export const compareAuditsTool = {
             byTemplate: diff.issues.common.byTemplate.slice(0, MAX_LISTED),
             byTemplateCount: diff.issues.common.byTemplate.length,
           },
+        },
+        drift: {
+          urls: diff.drift.urls,
+          rules: diff.drift.rules.map(({ changes, ...rule }) => ({
+            ...rule,
+            examples: changes.slice(0, MAX_DRIFT_EXAMPLES),
+          })),
         },
         guidelines: {
           ...diff.guidelines,

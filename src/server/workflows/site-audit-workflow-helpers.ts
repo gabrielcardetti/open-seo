@@ -4,6 +4,10 @@ import { sha256Hex } from "@/server/lib/audit/ids";
 import { normalizeUrl } from "@/server/lib/audit/url-utils";
 import type { CrawlThrottle } from "@/server/lib/audit/crawl-throttle";
 import { crawlerHeadersFor, type CrawlerAccess } from "@/shared/crawler-access";
+import {
+  EMPTY_STRUCTURED_DATA,
+  summarizeStructuredData,
+} from "@/server/lib/audit/structured-data";
 
 const CRAWL_USER_AGENT = "OpenSEO-Audit/1.0";
 const MAX_HTML_BYTES = 1024 * 1024;
@@ -123,6 +127,7 @@ export async function crawlPage(
     const { response, responseTimeMs, rateLimited } = fetched;
     const statusCode = response.status;
     const xRobotsTag = response.headers.get("x-robots-tag");
+    const hasHsts = response.headers.has("strict-transport-security");
     const headerCanonicalUrl = parseLinkHeaderCanonical(
       response.headers.get("link"),
       url,
@@ -139,6 +144,7 @@ export async function crawlPage(
         responseTimeMs,
         xRobotsTag,
         headerCanonicalUrl,
+        hasHsts,
         crawlDepth,
         inSitemap,
         rateLimited,
@@ -165,6 +171,7 @@ export async function crawlPage(
         responseTimeMs,
         xRobotsTag,
         headerCanonicalUrl,
+        hasHsts,
         crawlDepth,
         inSitemap,
         // The body was still fetched and buffered; report its size so the
@@ -209,6 +216,7 @@ export async function crawlPage(
       ogDescription: analysis.ogDescription,
       ogImage: analysis.ogImage,
       h1Count: analysis.h1s.filter((h) => h.length > 0).length,
+      h1Text: analysis.h1Text,
       h2Count: headingCount(2),
       h3Count: headingCount(3),
       h4Count: headingCount(4),
@@ -227,10 +235,22 @@ export async function crawlPage(
       // markup for decorative images.
       imagesMissingAlt: analysis.images.filter((img) => img.alt === null)
         .length,
-      images: analysis.images,
+      // data: URIs are inline placeholders with no layout box of their own.
+      imagesMissingDimensions: analysis.images.filter(
+        (img) => img.src && !img.src.startsWith("data:") && !img.hasDimensions,
+      ).length,
+      firstImageLazy: analysis.images[0]?.lazy ?? false,
+      images: analysis.images.map(({ src, alt }) => ({ src, alt })),
       links: analysis.links,
       hasStructuredData: analysis.hasStructuredData,
-      hreflangTags: analysis.hreflangTags,
+      structuredData: summarizeStructuredData(
+        analysis.jsonLdBlocks,
+        new Date(),
+      ),
+      hreflangLinks: analysis.hreflangLinks,
+      hasHsts,
+      insecureSubresources: analysis.insecureSubresources,
+      insecureSubresourceCount: analysis.insecureSubresourceCount,
       isIndexable,
       responseTimeMs,
       crawlDepth,
@@ -296,6 +316,7 @@ function emptyPageResult(input: {
   responseTimeMs: number;
   xRobotsTag: string | null;
   headerCanonicalUrl: string | null;
+  hasHsts?: boolean;
   crawlDepth: number | null;
   inSitemap: boolean;
   htmlBytes?: number;
@@ -317,6 +338,7 @@ function emptyPageResult(input: {
     ogDescription: null,
     ogImage: null,
     h1Count: 0,
+    h1Text: null,
     h2Count: 0,
     h3Count: 0,
     h4Count: 0,
@@ -330,10 +352,16 @@ function emptyPageResult(input: {
     rateLimited: input.rateLimited ?? false,
     imagesTotal: 0,
     imagesMissingAlt: 0,
+    imagesMissingDimensions: 0,
+    firstImageLazy: false,
     images: [],
     links: [],
     hasStructuredData: false,
-    hreflangTags: [],
+    structuredData: EMPTY_STRUCTURED_DATA,
+    hreflangLinks: [],
+    hasHsts: input.hasHsts ?? false,
+    insecureSubresources: [],
+    insecureSubresourceCount: 0,
     isIndexable: false,
     responseTimeMs: input.responseTimeMs,
     crawlDepth: input.crawlDepth,

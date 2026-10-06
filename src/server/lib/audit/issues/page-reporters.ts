@@ -9,6 +9,7 @@
  * live in multipage.ts and run over D1 after the crawl.
  */
 import type { AuditIssueType } from "@/shared/audit-issues";
+import type { StructuredDataSummary } from "@/server/lib/audit/structured-data";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
 
 export interface DetectedIssue {
@@ -31,6 +32,33 @@ const META_DESCRIPTION_MIN_CHARS = 70;
 const THIN_CONTENT_WORDS = 150;
 const SLOW_RESPONSE_MS = 1500;
 const DEEP_PAGE_DEPTH = 5;
+/** Structured-data findings listed per issue; the rest are counted. */
+const MAX_DETAIL_ITEMS = 10;
+
+/**
+ * hreflang values: an ISO 639-1 language, then an optional ISO 15924 script
+ * and an optional ISO 3166-1 alpha-2 region, or x-default.
+ */
+const HREFLANG_PATTERN = /^([a-z]{2})(?:-[a-z]{4})?(?:-([a-z]{2}))?$/i;
+const LANGUAGE_NAMES = new Intl.DisplayNames(["en"], {
+  type: "language",
+  fallback: "none",
+});
+const REGION_NAMES = new Intl.DisplayNames(["en"], {
+  type: "region",
+  fallback: "none",
+});
+
+function isValidHreflang(code: string): boolean {
+  if (code.toLowerCase() === "x-default") return true;
+  const match = HREFLANG_PATTERN.exec(code);
+  if (!match) return false;
+  const [, language, region] = match;
+  if (!LANGUAGE_NAMES.of(language)) return false;
+  if (!region) return true;
+  // ICU accepts UK as an alias, but hreflang needs ISO 3166-1's GB.
+  return region.toUpperCase() !== "UK" && Boolean(REGION_NAMES.of(region));
+}
 
 function hasHeadingLevelSkip(headingOrder: number[]): boolean {
   for (let i = 1; i < headingOrder.length; i++) {
@@ -39,12 +67,93 @@ function hasHeadingLevelSkip(headingOrder: number[]): boolean {
   return false;
 }
 
+type Report = (
+  issueType: AuditIssueType,
+  details?: Record<string, unknown>,
+) => void;
+
+function reportImagesAndPreviews(page: CrawledPageResult, report: Report) {
+  if (page.imagesMissingDimensions > 0) {
+    report("images-missing-dimensions", {
+      imagesMissingDimensions: page.imagesMissingDimensions,
+      imagesTotal: page.imagesTotal,
+    });
+  }
+  if (page.firstImageLazy) {
+    report("first-image-lazy-loaded", { src: page.images[0]?.src ?? null });
+  }
+  // Link previews matter for pages people share, which noindex pages are not.
+  if (page.isIndexable) {
+    const missing = [
+      page.ogTitle ? null : "og:title",
+      page.ogDescription ? null : "og:description",
+      page.ogImage ? null : "og:image",
+    ].filter((tag) => tag !== null);
+    if (missing.length > 0) report("missing-og-tags", { missing });
+  }
+}
+
+function reportStructuredData(
+  structuredData: StructuredDataSummary,
+  report: Report,
+) {
+  if (structuredData.invalidBlocks > 0) {
+    report("structured-data-invalid", {
+      invalidBlocks: structuredData.invalidBlocks,
+    });
+  }
+  if (structuredData.missingProperties.length > 0) {
+    report("structured-data-missing-properties", {
+      items: structuredData.missingProperties.slice(0, MAX_DETAIL_ITEMS),
+      itemCount: structuredData.missingProperties.length,
+    });
+  }
+  if (structuredData.retiredTypes.length > 0) {
+    report("structured-data-retired-type", {
+      types: structuredData.retiredTypes,
+    });
+  }
+  if (structuredData.expiredJobPostings.length > 0) {
+    report("job-posting-expired", {
+      postings: structuredData.expiredJobPostings.slice(0, MAX_DETAIL_ITEMS),
+    });
+  }
+}
+
+/** Hreflang annotations of this page alone; return links are cross-page. */
+function reportHreflang(
+  page: CrawledPageResult,
+  effectiveCanonical: string | null,
+  report: Report,
+) {
+  if (page.hreflangLinks.length === 0) return;
+  const codes = new Set(page.hreflangLinks.map((link) => link.hreflang));
+  const invalidCodes = Array.from(codes).filter(
+    (code) => !isValidHreflang(code),
+  );
+  if (invalidCodes.length > 0) {
+    report("hreflang-invalid-code", { codes: invalidCodes });
+  }
+  const hrefs = page.hreflangLinks.map((link) => link.href);
+  if (
+    hrefs.some((href) => href.startsWith("http://")) &&
+    hrefs.some((href) => href.startsWith("https://"))
+  ) {
+    report("hreflang-mixed-protocol");
+  }
+  if (effectiveCanonical && effectiveCanonical !== page.url) {
+    report("hreflang-on-canonicalized-page", {
+      canonicalUrl: effectiveCanonical,
+    });
+  } else if (!hrefs.includes(page.url)) {
+    report("hreflang-missing-self-reference");
+  }
+}
+
 export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
   const issues: DetectedIssue[] = [];
-  const report = (
-    issueType: AuditIssueType,
-    details?: Record<string, unknown>,
-  ) => issues.push({ issueType, pageId: page.id, pageUrl: page.url, details });
+  const report: Report = (issueType, details) =>
+    issues.push({ issueType, pageId: page.id, pageUrl: page.url, details });
 
   if (page.fetchClass === "blocked") {
     report("blocked-page", { statusCode: page.statusCode });
@@ -73,6 +182,10 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
 
   if (page.responseTimeMs > SLOW_RESPONSE_MS) {
     report("slow-response", { responseTimeMs: page.responseTimeMs });
+  }
+  const isHttps = page.url.startsWith("https://");
+  if (!isHttps) {
+    report("page-not-https");
   }
 
   // Content checks only make sense for analyzed HTML documents (a PDF has no
@@ -146,6 +259,17 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
     report("images-missing-alt", {
       imagesMissingAlt: page.imagesMissingAlt,
       imagesTotal: page.imagesTotal,
+    });
+  }
+  reportImagesAndPreviews(page, report);
+  reportStructuredData(page.structuredData, report);
+  reportHreflang(page, effectiveCanonical, report);
+
+  // Security. Missing HSTS is a site-wide header, reported once in multipage.
+  if (isHttps && page.insecureSubresourceCount > 0) {
+    report("mixed-content", {
+      insecureCount: page.insecureSubresourceCount,
+      samples: page.insecureSubresources,
     });
   }
 

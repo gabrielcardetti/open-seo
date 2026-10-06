@@ -3,7 +3,7 @@
  *
  * Extracts SEO-relevant data from a page's HTML: title, meta description,
  * headings, images, links, canonical, OG tags, structured data, robots meta,
- * word count, hreflang.
+ * word count, hreflang, JSON-LD blocks, insecure subresources.
  *
  * Deliberately NOT a DOM parser: the previous cheerio implementation built a
  * full DOM (~5-10x the HTML's size) per page, and with 25 concurrent parses
@@ -35,6 +35,22 @@ const MAX_ANCHOR_CHARS = 200;
  */
 const MAX_EXTRACTED_LINKS = 1_000;
 const MAX_EXTRACTED_IMAGES = 1_000;
+const MAX_EXTRACTED_HREFLANG = 200;
+const MAX_HREF_CHARS = 2_048;
+/** JSON-LD text kept per page; real markup is a few KB. */
+const MAX_JSON_LD_CHARS = 200_000;
+const MAX_INSECURE_SAMPLES = 10;
+const MAX_H1_CHARS = 300;
+/** Elements whose `src` loads a subresource into the page. */
+const SUBRESOURCE_SRC_TAGS = new Set([
+  "img",
+  "script",
+  "iframe",
+  "video",
+  "audio",
+  "source",
+  "embed",
+]);
 
 interface OpenAnchor {
   href: string;
@@ -65,13 +81,18 @@ export function analyzeHtml(
   let ogDescription: string | null = null;
   let ogImage: string | null = null;
   let hasStructuredData = false;
-  const hreflangTags: string[] = [];
+  const jsonLdBlocks: string[] = [];
+  let openJsonLd: string[] | null = null;
+  let jsonLdChars = 0;
+  const hreflangLinks: Array<{ hreflang: string; href: string }> = [];
+  const insecureSubresources: string[] = [];
+  let insecureSubresourceCount = 0;
 
   const h1s: string[] = [];
   const headingOrder: number[] = [];
   let openH1: string[] | null = null;
 
-  const images: Array<{ src: string | null; alt: string | null }> = [];
+  const images: PageAnalysis["images"] = [];
   const linksByTarget = new Map<string, PageLink>();
   let openAnchor: OpenAnchor | null = null;
 
@@ -101,10 +122,30 @@ export function analyzeHtml(
   };
 
   const handleLinkTag = (attribs: Record<string, string>) => {
-    if (attribs["rel"] === "canonical") {
+    const rel = attribs["rel"]?.toLowerCase().split(/\s+/) ?? [];
+    if (rel.includes("canonical")) {
       canonical ??= attribs["href"] ?? null;
-    } else if (attribs["rel"] === "alternate" && attribs["hreflang"]) {
-      hreflangTags.push(attribs["hreflang"]);
+    } else if (
+      rel.includes("alternate") &&
+      attribs["hreflang"] &&
+      attribs["href"] &&
+      hreflangLinks.length < MAX_EXTRACTED_HREFLANG
+    ) {
+      const href = normalizeUrl(attribs["href"], pageUrl);
+      if (href && href.length <= MAX_HREF_CHARS) {
+        hreflangLinks.push({ hreflang: attribs["hreflang"].trim(), href });
+      }
+    }
+    if (rel.includes("stylesheet") || rel.includes("preload")) {
+      noteSubresource(attribs["href"]);
+    }
+  };
+
+  const noteSubresource = (url: string | undefined) => {
+    if (!url || !/^http:\/\//i.test(url.trim())) return;
+    insecureSubresourceCount += 1;
+    if (insecureSubresources.length < MAX_INSECURE_SAMPLES) {
+      insecureSubresources.push(url.trim().slice(0, MAX_HREF_CHARS));
     }
   };
 
@@ -162,12 +203,15 @@ export function analyzeHtml(
               images.push({
                 src: attribs["src"] ?? null,
                 alt: "alt" in attribs ? attribs["alt"] : null,
+                hasDimensions: "width" in attribs && "height" in attribs,
+                lazy: attribs["loading"]?.toLowerCase() === "lazy",
               });
             }
             break;
           case "script":
-            if (attribs["type"] === "application/ld+json") {
+            if (attribs["type"]?.toLowerCase() === "application/ld+json") {
               hasStructuredData = true;
+              openJsonLd = [];
             }
             break;
           case "a": {
@@ -185,6 +229,7 @@ export function analyzeHtml(
             break;
           }
         }
+        if (SUBRESOURCE_SRC_TAGS.has(name)) noteSubresource(attribs["src"]);
         const headingLevel = HEADING_LEVELS[name];
         if (headingLevel !== undefined) {
           headingOrder.push(headingLevel);
@@ -192,6 +237,10 @@ export function analyzeHtml(
         }
       },
       ontext(text) {
+        if (openJsonLd && jsonLdChars < MAX_JSON_LD_CHARS) {
+          openJsonLd.push(text);
+          jsonLdChars += text.length;
+        }
         if (suppressDepth > 0) return;
         if (titleDepth > 0) {
           if (title !== null) title += text;
@@ -206,6 +255,12 @@ export function analyzeHtml(
         }
       },
       onclosetag(name) {
+        if (name === "script" && openJsonLd) {
+          if (jsonLdChars <= MAX_JSON_LD_CHARS) {
+            jsonLdBlocks.push(openJsonLd.join(""));
+          }
+          openJsonLd = null;
+        }
         if (NON_CONTENT_TAGS.has(name) && suppressDepth > 0) {
           suppressDepth -= 1;
         }
@@ -250,12 +305,20 @@ export function analyzeHtml(
     ogDescription,
     ogImage,
     h1s,
+    h1Text:
+      h1s
+        .find((h1) => h1.length > 0)
+        ?.replace(/\s+/g, " ")
+        .slice(0, MAX_H1_CHARS) ?? null,
     headingOrder,
     wordCount,
     bodyText,
     images,
     links: Array.from(linksByTarget.values()),
     hasStructuredData,
-    hreflangTags,
+    jsonLdBlocks,
+    hreflangLinks,
+    insecureSubresources,
+    insecureSubresourceCount,
   };
 }

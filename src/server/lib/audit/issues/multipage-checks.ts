@@ -1,12 +1,13 @@
 /**
- * Pure cross-page checks (no database access): duplicate grouping and
- * redirect chain/loop detection. The D1-backed checks (broken links,
- * orphans) live in multipage.ts.
+ * Pure cross-page checks (no database access): duplicate grouping, redirect
+ * chain/loop detection, hreflang return links and the site's HSTS header.
+ * The queries that feed them live in multipage.ts.
  */
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type { PageFetchClass } from "@/shared/audit-fetch-class";
 
 const DUPLICATE_GROUP_SAMPLE = 3;
+const HREFLANG_GAP_SAMPLE = 10;
 
 export interface SlimPage {
   id: string;
@@ -21,6 +22,13 @@ export interface SlimPage {
   isIndexable: boolean;
   canonicalUrl: string | null;
   headerCanonicalUrl: string | null;
+  hasHsts: boolean;
+}
+
+/** A crawled alternate that does not name its source page in return. */
+export interface HreflangGap {
+  sourcePageId: string;
+  targetPageId: string;
 }
 
 function isOkHtmlPage(page: SlimPage): boolean {
@@ -38,9 +46,77 @@ function isOkHtmlPage(page: SlimPage): boolean {
  * user to fix something they already fixed.
  */
 function isDuplicateCandidate(page: SlimPage): boolean {
-  if (!isOkHtmlPage(page) || !page.isIndexable) return false;
+  return isOkHtmlPage(page) && page.isIndexable && isSelfCanonical(page);
+}
+
+function isSelfCanonical(page: SlimPage): boolean {
   const effectiveCanonical = page.canonicalUrl ?? page.headerCanonicalUrl;
   return !effectiveCanonical || effectiveCanonical === page.url;
+}
+
+/**
+ * One issue per page whose alternates were crawled but do not link back.
+ * Only canonical 2xx pages on both ends count: a canonicalized source is
+ * already reported as hreflang-on-canonicalized-page, and an alternate that
+ * redirects or canonicalizes elsewhere is a different problem.
+ */
+export function findMissingHreflangReturnLinks(
+  pages: SlimPage[],
+  gaps: HreflangGap[],
+): DetectedIssue[] {
+  const byId = new Map(pages.map((page) => [page.id, page]));
+  const isCanonicalOk = (page: SlimPage | undefined): page is SlimPage =>
+    page !== undefined && isOkHtmlPage(page) && isSelfCanonical(page);
+
+  const alternatesBySource = new Map<string, string[]>();
+  for (const gap of gaps) {
+    const sourcePage = byId.get(gap.sourcePageId);
+    const targetPage = byId.get(gap.targetPageId);
+    if (!isCanonicalOk(sourcePage) || !isCanonicalOk(targetPage)) continue;
+    const alternates = alternatesBySource.get(sourcePage.id);
+    if (alternates) alternates.push(targetPage.url);
+    else alternatesBySource.set(sourcePage.id, [targetPage.url]);
+  }
+
+  return Array.from(alternatesBySource, ([pageId, alternates]) => ({
+    issueType: "hreflang-missing-return-link" as const,
+    pageId,
+    pageUrl: byId.get(pageId)!.url,
+    details: {
+      alternates: alternates.slice(0, HREFLANG_GAP_SAMPLE),
+      alternateCount: alternates.length,
+    },
+  }));
+}
+
+/**
+ * HSTS is a site-wide header, so it is reported once per https origin whose
+ * crawled pages never sent it, not on every page.
+ */
+export function findMissingHsts(pages: SlimPage[]): DetectedIssue[] {
+  const originsWithHsts = new Set<string>();
+  const pagesByOrigin = new Map<string, SlimPage[]>();
+  for (const page of pages) {
+    if (!isOkHtmlPage(page) || !page.url.startsWith("https://")) continue;
+    const origin = new URL(page.url).origin;
+    if (page.hasHsts) originsWithHsts.add(origin);
+    const group = pagesByOrigin.get(origin);
+    if (group) group.push(page);
+    else pagesByOrigin.set(origin, [page]);
+  }
+
+  const issues: DetectedIssue[] = [];
+  for (const [origin, group] of pagesByOrigin) {
+    if (originsWithHsts.has(origin)) continue;
+    const home = group.find((page) => page.url === `${origin}/`);
+    issues.push({
+      issueType: "missing-hsts",
+      pageId: home?.id ?? null,
+      pageUrl: `${origin}/`,
+      details: { pagesChecked: group.length },
+    });
+  }
+  return issues;
 }
 
 export function findDuplicates(pages: SlimPage[]): DetectedIssue[] {

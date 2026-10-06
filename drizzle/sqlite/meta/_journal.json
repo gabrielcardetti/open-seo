@@ -393,6 +393,13 @@
       "when": 1790985996510,
       "tag": "0055_umami_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1791300193860,
+      "tag": "0056_audit_page_signals",
+      "breakpoints": true
     }
   ]
 }

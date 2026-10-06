@@ -4,6 +4,7 @@ import {
   integer,
   real,
   index,
+  primaryKey,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { PAGE_FETCH_CLASSES } from "@/shared/audit-fetch-class";
@@ -78,6 +79,8 @@ export const auditPages = sqliteTable(
     ogImage: text("og_image"),
     // Headings
     h1Count: integer("h1_count").notNull().default(0),
+    // First non-empty H1, truncated: what drift compares between audits
+    h1Text: text("h1_text"),
     h2Count: integer("h2_count").notNull().default(0),
     h3Count: integer("h3_count").notNull().default(0),
     h4Count: integer("h4_count").notNull().default(0),
@@ -97,7 +100,7 @@ export const auditPages = sqliteTable(
     hasStructuredData: integer("has_structured_data", { mode: "boolean" })
       .notNull()
       .default(false),
-    // Hreflang
+    // Legacy: hreflang codes only, unwritten since audit_page_hreflang
     hreflangTagsJson: text("hreflang_tags_json"),
     // Indexability
     isIndexable: integer("is_indexable", { mode: "boolean" })
@@ -106,6 +109,8 @@ export const auditPages = sqliteTable(
     // Indexability/canonical signals from response headers
     xRobotsTag: text("x_robots_tag"),
     headerCanonicalUrl: text("header_canonical_url"),
+    // The response sent Strict-Transport-Security
+    hasHsts: integer("has_hsts", { mode: "boolean" }).notNull().default(false),
     // Crawl metadata
     // null depth = not reached via links (e.g. sitemap-seeded)
     crawlDepth: integer("crawl_depth"),
@@ -121,6 +126,47 @@ export const auditPages = sqliteTable(
     responseTimeMs: integer("response_time_ms"),
   },
   (table) => [index("audit_pages_audit_url_idx").on(table.auditId, table.url)],
+);
+
+// One row per schema.org type a page declares in JSON-LD (top-level and
+// @graph nodes). Lets a later audit tell structured data that changed type
+// from structured data that disappeared.
+export const auditPageSchemaTypes = sqliteTable(
+  "audit_page_schema_types",
+  {
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => auditPages.id, { onDelete: "cascade" }),
+    schemaType: text("schema_type").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.pageId, table.schemaType] }),
+    index("audit_page_schema_types_audit_id_idx").on(table.auditId),
+  ],
+);
+
+// One row per <link rel="alternate" hreflang> a page declares, href resolved
+// against the page. The cross-page hreflang checks (return links, self
+// references) read these after the crawl.
+export const auditPageHreflang = sqliteTable(
+  "audit_page_hreflang",
+  {
+    auditId: text("audit_id")
+      .notNull()
+      .references(() => audits.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => auditPages.id, { onDelete: "cascade" }),
+    hreflang: text("hreflang").notNull(),
+    href: text("href").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.pageId, table.hreflang, table.href] }),
+    index("audit_page_hreflang_audit_id_idx").on(table.auditId),
+  ],
 );
 
 // Link edges live in the per-audit AuditScratchpad Durable Object for the

@@ -122,6 +122,8 @@ export const {
   auditPages,
   auditIssues,
   auditLighthouseResults,
+  auditPageHreflang,
+  auditPageSchemaTypes,
   auditPageEvaluations,
   auditRuleResults,
   agentReadinessConfigs,

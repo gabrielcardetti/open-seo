@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { PageFetchClass } from "@/shared/audit-fetch-class";
 import { MIN_AUDIT_PAGES, PAID_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 import { jsonCodec } from "@/shared/json";
+import type { StructuredDataSummary } from "./structured-data";
 import {
   DEFAULT_ENGINES,
   ENGINES,
@@ -111,6 +112,8 @@ export interface PageAnalysis {
 
   // Headings
   h1s: string[];
+  /** First non-empty H1, whitespace-collapsed and truncated. */
+  h1Text: string | null;
   headingOrder: number[];
 
   // Content
@@ -118,16 +121,33 @@ export interface PageAnalysis {
   bodyText: string;
 
   // Images
-  images: Array<{ src: string | null; alt: string | null }>;
+  images: Array<{
+    src: string | null;
+    alt: string | null;
+    /** Both width and height attributes are set, so the box is reserved. */
+    hasDimensions: boolean;
+    lazy: boolean;
+  }>;
 
   // Links (normalized, deduped by target)
   links: PageLink[];
 
   // Structured data
   hasStructuredData: boolean;
+  /** Raw text of each JSON-LD script, for summarizeStructuredData. */
+  jsonLdBlocks: string[];
 
-  // Hreflang
-  hreflangTags: string[];
+  // Hreflang alternates, href resolved against the page URL
+  hreflangLinks: HreflangLink[];
+
+  // http:// subresources (a sample) and how many there were
+  insecureSubresources: string[];
+  insecureSubresourceCount: number;
+}
+
+export interface HreflangLink {
+  hreflang: string;
+  href: string;
 }
 
 /** Lighthouse result for a single URL+strategy. */
@@ -169,6 +189,7 @@ export interface CrawledPageResult {
   ogDescription: string | null;
   ogImage: string | null;
   h1Count: number;
+  h1Text: string | null;
   h2Count: number;
   h3Count: number;
   h4Count: number;
@@ -197,10 +218,21 @@ export interface CrawledPageResult {
   rateLimited: boolean;
   imagesTotal: number;
   imagesMissingAlt: number;
+  /** Transient: images without both width and height attributes. */
+  imagesMissingDimensions: number;
+  /** Transient: the first image in the HTML is loading="lazy". */
+  firstImageLazy: boolean;
   images: Array<{ src: string | null; alt: string | null }>;
   links: PageLink[];
   hasStructuredData: boolean;
-  hreflangTags: string[];
+  /** Types are persisted; the findings become issues and are not stored. */
+  structuredData: StructuredDataSummary;
+  hreflangLinks: HreflangLink[];
+  /** The response carried a Strict-Transport-Security header. */
+  hasHsts: boolean;
+  /** Transient: http:// subresources (a sample) and their count. */
+  insecureSubresources: string[];
+  insecureSubresourceCount: number;
   isIndexable: boolean;
   responseTimeMs: number;
   /** null = not reached via links (e.g. sitemap-seeded). */
