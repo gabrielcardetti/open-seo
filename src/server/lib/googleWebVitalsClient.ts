@@ -40,7 +40,7 @@ async function googleFetch(
   url: string,
   apiKey: string,
   init: { method: "GET" | "POST"; body?: unknown; timeoutMs: number },
-): Promise<unknown | null> {
+): Promise<unknown> {
   const response = await fetch(url, {
     method: init.method,
     headers: {
@@ -122,7 +122,7 @@ const cruxHistorySchema = z.object({
 });
 
 export type CruxRecord = z.infer<typeof cruxRecordSchema>["record"];
-export type CruxHistoryRecord = z.infer<typeof cruxHistorySchema>["record"];
+type CruxHistoryRecord = z.infer<typeof cruxHistorySchema>["record"];
 
 function cruxBody(target: CruxTarget, formFactor: CruxFormFactor) {
   return {
@@ -245,7 +245,7 @@ const pagespeedSchema = z.object({
   }),
 });
 
-export type PagespeedResult = z.infer<typeof pagespeedSchema>;
+type PagespeedResult = z.infer<typeof pagespeedSchema>;
 export type PagespeedLoadingExperience = z.infer<
   typeof loadingExperienceSchema
 >;

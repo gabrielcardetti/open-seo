@@ -4,6 +4,7 @@
  * Search's page experience signals), its weekly history, and PageSpeed
  * Insights runs. Needs GOOGLE_API_KEY; nothing is stored.
  */
+import { sortBy } from "remeda";
 import {
   queryCruxHistory,
   queryCruxRecord,
@@ -59,9 +60,9 @@ export type FieldMetric = {
   poor: number | null;
 };
 
-export type CoreWebVitalsAssessment = "passed" | "failed" | null;
+type CoreWebVitalsAssessment = "passed" | "failed" | null;
 
-export type HistoryWeek = { endDate: string } & Record<WebVital, number | null>;
+type HistoryWeek = { endDate: string } & Record<WebVital, number | null>;
 
 async function requireApiKey(): Promise<string> {
   const apiKey = await getOptionalEnvValue(CRUX_API_KEY_ENV);
@@ -203,22 +204,24 @@ async function getHistory(
 ): Promise<HistoryWeek[] | null> {
   const record = await queryCruxHistory(apiKey, target, formFactor);
   if (!record) return null;
-  const series = Object.fromEntries(
-    WEB_VITALS.map((metric) => {
-      const name = CRUX_METRIC_NAMES[metric].find((key) => record.metrics[key]);
-      const p75s = name
-        ? (record.metrics[name]?.percentilesTimeseries?.p75s ?? [])
-        : [];
-      return [metric, p75s.map(toNumber)];
-    }),
-  ) as Record<WebVital, Array<number | null>>;
+  const p75sOf = (metric: WebVital) => {
+    const name = CRUX_METRIC_NAMES[metric].find((key) => record.metrics[key]);
+    return name
+      ? (record.metrics[name]?.percentilesTimeseries?.p75s ?? []).map(toNumber)
+      : [];
+  };
+  const lcp = p75sOf("lcp");
+  const inp = p75sOf("inp");
+  const cls = p75sOf("cls");
+  const fcp = p75sOf("fcp");
+  const ttfb = p75sOf("ttfb");
   return record.collectionPeriods.map((period, index) => ({
     endDate: isoDate(period.lastDate),
-    lcp: series.lcp[index] ?? null,
-    inp: series.inp[index] ?? null,
-    cls: series.cls[index] ?? null,
-    fcp: series.fcp[index] ?? null,
-    ttfb: series.ttfb[index] ?? null,
+    lcp: lcp[index] ?? null,
+    inp: inp[index] ?? null,
+    cls: cls[index] ?? null,
+    fcp: fcp[index] ?? null,
+    ttfb: ttfb[index] ?? null,
   }));
 }
 
@@ -285,13 +288,11 @@ async function runPagespeed(input: {
     lab: buildStoredLighthouseMetrics({ audits }),
     field,
     // Biggest estimated savings first, as PageSpeed ranks them.
-    opportunities: issues
-      .filter((issue) => issue.category === "performance")
-      .sort(
-        (a, b) =>
-          (b.impactMs ?? 0) - (a.impactMs ?? 0) ||
-          (b.impactBytes ?? 0) - (a.impactBytes ?? 0),
-      )
+    opportunities: sortBy(
+      issues.filter((issue) => issue.category === "performance"),
+      [(issue) => issue.impactMs ?? 0, "desc"],
+      [(issue) => issue.impactBytes ?? 0, "desc"],
+    )
       .slice(0, 10)
       .map((issue) => ({
         auditKey: issue.auditKey,
