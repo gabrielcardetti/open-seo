@@ -226,7 +226,7 @@ export const getBusinessProfileTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
@@ -375,7 +375,7 @@ export const getBusinessReviewsTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
@@ -515,7 +515,7 @@ export const getBusinessUpdatesTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
@@ -909,7 +909,7 @@ export const getLocalRankGridTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },

@@ -17,11 +17,19 @@ import {
   type SealedCrawlerAccess,
 } from "@/server/features/audit/services/CrawlerCredentialService";
 import { classifyAuditError } from "@/server/lib/audit/audit-errors";
+import {
+  settleRenderingLocks,
+  type RenderingLock,
+} from "@/server/lib/audit/rendering-billing";
 import type { AuditConfig } from "@/server/lib/audit/types";
 import { captureServerError, captureServerEvent } from "@/server/lib/posthog";
 import { runAuditPhases } from "@/server/workflows/siteAuditWorkflowPhases";
 import { pgStep } from "@/server/workflows/pgStep";
-import { DB_STEP } from "@/server/workflows/auditStepConfigs";
+import {
+  DB_STEP,
+  SETTLE_RENDERING_STEP,
+} from "@/server/workflows/auditStepConfigs";
+import type { RenderUsage } from "@/shared/audit-rendering";
 
 interface AuditParams {
   auditId: string;
@@ -37,6 +45,8 @@ interface AuditParams {
    * below, outside any step whose result would be checkpointed.
    */
   access?: SealedCrawlerAccess | null;
+  /** Credits held for a hosted rendered audit, settled when the audit ends. */
+  renderLocks?: RenderingLock[];
 }
 
 export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
@@ -53,6 +63,11 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
   ) {
     const { auditId, billingCustomer, projectId, startUrl, config, access } =
       event.payload;
+    // Summed from checkpointed chunk results, so a replay rebuilds it exactly.
+    const renderUsage: RenderUsage = {
+      cloudflareAttempts: 0,
+      contextCredits: 0,
+    };
 
     try {
       // Inside a step so the D1 read is retried and replay-cached; a bare
@@ -81,6 +96,7 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
         startUrl,
         config,
         access: await CrawlerCredentialService.openCrawlerAccess(access),
+        renderUsage,
       });
     } catch (error) {
       console.error(`Audit ${auditId} failed:`, error);
@@ -133,6 +149,21 @@ export class SiteAuditWorkflow extends WorkflowEntrypoint<Env, AuditParams> {
         });
       });
       throw error;
+    } finally {
+      // Once, whether the audit completed or failed, after the failure is
+      // recorded. Outside the try so a settlement error cannot fail a
+      // completed audit.
+      const locks = event.payload.renderLocks ?? [];
+      if (locks.length > 0) {
+        await pgStep(step, "settle-render-credits", SETTLE_RENDERING_STEP, () =>
+          settleRenderingLocks({
+            customer: billingCustomer,
+            auditId,
+            locks,
+            usage: renderUsage,
+          }),
+        );
+      }
     }
   }
 }

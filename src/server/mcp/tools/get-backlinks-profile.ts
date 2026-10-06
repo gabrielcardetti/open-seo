@@ -135,7 +135,7 @@ export const getBacklinksProfileTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },

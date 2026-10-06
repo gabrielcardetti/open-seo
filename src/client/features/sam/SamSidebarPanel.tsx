@@ -87,9 +87,9 @@ export function SamChatListSkeleton() {
 }
 
 /**
- * The sidebar's Chat tab: the active project's chat history plus a new-chat
- * button. Selecting (or creating) a session navigates to the SAM route; the
- * conversation itself renders in the main content panel.
+ * The sidebar while the SAM route is open: the active project's chat history
+ * plus a new-chat button. Selecting (or creating) a session navigates to the
+ * SAM route; the conversation itself renders in the main content panel.
  */
 export function SamSidebarPanel({
   projectId,
@@ -122,12 +122,12 @@ export function SamSidebarPanel({
     },
   });
 
-  // Until the user opts in, the chat route shows SamBetaGate; the tab just
-  // points there instead of offering a chat list that can't be used yet.
+  // Until the user opts in, the chat route shows SamBetaGate, so there is no
+  // chat list that can be used yet.
   if (!optedIn) {
     return (
       <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-        Sam is in beta and opt-in. Open Chat to read more and decide.
+        Your chats will show here once you opt in to the beta.
       </p>
     );
   }

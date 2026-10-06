@@ -31,7 +31,7 @@ export function PagesFilterBar({
 }) {
   return (
     <DataTableFilterPanel activeCount={activeFilterCount} onReset={onReset}>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
         <TextFilter
           label="Search"
           value={filters.query}
@@ -48,6 +48,18 @@ export function PagesFilterBar({
             ["redirect", "3xx"],
             ["error", "4xx/5xx"],
             ["missing", "Missing"],
+          ]}
+        />
+        <SelectFilter
+          label="Crawl result"
+          value={filters.fetchClass}
+          onChange={(fetchClass) => onChange({ ...filters, fetchClass })}
+          options={[
+            ["all", "All"],
+            ["ok", "Read"],
+            ["error", "Failed"],
+            ["blocked", "Blocked"],
+            ["rate_limited", "Rate limited"],
           ]}
         />
         <SelectFilter

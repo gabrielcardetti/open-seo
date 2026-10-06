@@ -2,6 +2,12 @@ import {
   isUnderPaths,
   normalizeScopePaths,
 } from "@/server/lib/audit/crawl-scope";
+import { isAuditRenderingAllowed } from "@/server/lib/audit/rendering-policy";
+import {
+  lockRenderingCredits,
+  releaseRenderingLocks,
+  type RenderingLock,
+} from "@/server/lib/audit/rendering-billing";
 import { env } from "cloudflare:workers";
 import {
   customerHasManagedAccess,
@@ -18,6 +24,7 @@ import {
   type AuditLimitTier,
 } from "@/server/features/audit/services/audit-capacity";
 import { AppError } from "@/server/lib/errors";
+import { RENDERED_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import {
   parseAuditConfig,
@@ -84,11 +91,25 @@ async function startAudit(input: {
   includedPaths?: string[];
   excludedPaths?: string[];
   limitTier: AuditLimitTier;
+  renderJavaScript?: boolean;
 }) {
+  const renderJavaScript = input.renderJavaScript ?? false;
+  if (renderJavaScript && !(await isAuditRenderingAllowed())) {
+    throw new AppError(
+      "FORBIDDEN",
+      "JavaScript rendering is not available on this deployment. It needs a Cloudflare deployment with Browser Run, or CONTEXT_API_KEY. Run the audit without rendering instead.",
+    );
+  }
   const limits = AUDIT_LIMITS[input.limitTier];
   const maxPages = clampAuditMaxPages(input.maxPages);
   if (maxPages > limits.maxPagesPerAudit) {
     throw new AppError("AUDIT_PAGE_LIMIT_EXCEEDED");
+  }
+  if (renderJavaScript && maxPages > RENDERED_MAX_AUDIT_PAGES) {
+    throw new AppError(
+      "AUDIT_PAGE_LIMIT_EXCEEDED",
+      `Audits that render JavaScript are limited to ${RENDERED_MAX_AUDIT_PAGES.toLocaleString("en-US")} pages.`,
+    );
   }
 
   const lighthouseStrategy = input.lighthouseStrategy ?? "auto";
@@ -155,6 +176,7 @@ async function startAudit(input: {
       : [...DEFAULT_ENGINES],
     includedPaths,
     excludedPaths,
+    renderJavaScript,
     // Shopify storefronts answer with `powered-by: Shopify`; knowing this is
     // what lets the report explain a throttled crawl instead of shrugging.
     sitePlatform: probe.poweredBy?.toLowerCase().includes("shopify")
@@ -174,6 +196,7 @@ async function startAudit(input: {
     lighthouseTotal: reservation.lighthouseTotal,
   });
 
+  let renderLocks: RenderingLock[] = [];
   try {
     // Concurrency and capacity are enforced after the insert, not before: a
     // pre-insert read is a check-then-act race, so parallel requests would all
@@ -191,6 +214,15 @@ async function startAudit(input: {
     if (usage.capacityUnits > limits.maxCapacityUnits) {
       throw new AppError("AUDIT_CAPACITY_REACHED");
     }
+    // Holds the worst-case rendering cost for the whole audit. Refused here,
+    // the audit never runs; the workflow settles the hold when it ends.
+    if (renderJavaScript) {
+      renderLocks = await lockRenderingCredits({
+        customer: input.billingCustomer,
+        auditId,
+        maxPages,
+      });
+    }
 
     await env.SITE_AUDIT_WORKFLOW.create({
       id: auditId,
@@ -206,6 +238,7 @@ async function startAudit(input: {
         startUrl,
         config,
         access: credential?.sealed,
+        renderLocks,
       },
     });
   } catch (error) {
@@ -215,6 +248,7 @@ async function startAudit(input: {
     } catch {
       // The workflow may never have been created, or may already be gone.
     }
+    await releaseRenderingLocks(renderLocks);
 
     await AuditRepository.deleteAuditForProject(auditId, input.projectId);
     throw error;

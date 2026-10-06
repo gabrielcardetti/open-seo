@@ -5,6 +5,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ExternalLink } from "lucide-react";
+import { Badge } from "@/client/components/ui/badge";
 import { DataTable, useDataTable } from "@/client/components/table/DataTable";
 import { SortableHeader } from "@/client/components/table/SortableHeader";
 import {
@@ -109,7 +110,19 @@ function buildPagesColumns({
     }),
     pageColumnHelper.accessor("statusCode", {
       header: ({ column }) => <SortableHeader column={column} label="Status" />,
-      cell: ({ getValue }) => <HttpStatusBadge code={getValue()} />,
+      // A failed fetch or render has no HTTP status to show.
+      cell: ({ getValue, row }) =>
+        row.original.fetchClass === "error" ? (
+          <Badge
+            variant="destructive"
+            size="sm"
+            title="Fetching or rendering failed, so this page was not checked for content issues."
+          >
+            Failed
+          </Badge>
+        ) : (
+          <HttpStatusBadge code={getValue()} />
+        ),
       sortingFn: nullableNumberSort,
     }),
     pageColumnHelper.accessor("title", {

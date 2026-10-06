@@ -107,9 +107,17 @@ export function AuditDetail({
   // banner and the zero-page banner, so the zero-page banner doesn't flash.
   const failedWithoutResults =
     isFailed && resultsQuery.isSuccess && !failedWithResults;
-  // A completed crawl that reached one page or none was blocked by the site.
+  const results = resultsQuery.data;
+  // A completed crawl that reached one page or none was blocked by the site,
+  // unless that page is an app shell, which the results explain instead.
   // A failed audit stopped on our side, so it gets the error code instead.
-  const showBlockedCta = isComplete && status.pagesCrawled <= 1;
+  const siteBlocked =
+    isComplete &&
+    status.pagesCrawled <= 1 &&
+    results !== undefined &&
+    !results.issues.some(
+      (issue) => issue.issueType === "javascript-rendering-suspected",
+    );
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 pb-24 md:pb-8 overflow-auto">
@@ -156,15 +164,17 @@ export function AuditDetail({
           </Alert>
         )}
 
-        {showBlockedCta && (
+        {siteBlocked && results && (
           <Alert variant="warning">
             <AlertCircle />
             <AlertTitle>
-              Site audit couldn't fully crawl this website.
+              This site's bot protection blocked our crawler.
             </AlertTitle>
             <AlertDescription>
-              Sorry! This site's bot protection blocked our crawler.{" "}
-              <BotProtectionAdvice />
+              <BotProtectionAdvice
+                projectId={projectId}
+                rendered={results.audit.config.renderJavaScript === true}
+              />
             </AlertDescription>
           </Alert>
         )}
@@ -197,6 +207,7 @@ export function AuditDetail({
                   data={data}
                   tab={tab}
                   onTabChange={onTabChange}
+                  siteBlocked={siteBlocked}
                 />
               )
             }

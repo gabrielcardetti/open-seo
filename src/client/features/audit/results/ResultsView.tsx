@@ -14,6 +14,7 @@ import {
 import { GuidelinesTab } from "@/client/features/audit/results/GuidelinesTab";
 import { PagesTable } from "@/client/features/audit/results/PagesTable";
 import { ShopifyCrawlWarning } from "@/client/features/audit/results/ShopifyCrawlWarning";
+import { RenderingWarnings } from "@/client/features/audit/results/RenderingWarnings";
 import { PerformanceTable } from "@/client/features/audit/results/ResultsTables";
 import {
   BotProtectionAdvice,
@@ -38,11 +39,14 @@ export function ResultsView({
   data,
   onTabChange,
   tab,
+  siteBlocked,
 }: {
   projectId: string;
   data: AuditResultsData;
   tab: string;
   onTabChange: (tab: ResultsTab) => void;
+  /** The page already says bot protection blocked the whole site. */
+  siteBlocked: boolean;
 }) {
   const { audit, pages, lighthouse, issues } = data;
   const crawlStopped = issues.some(
@@ -95,16 +99,18 @@ export function ResultsView({
         <ShopifyCrawlWarning projectId={projectId} audit={audit} />
       )}
 
-      {!shopifyLimited && blockedCount > 0 && (
+      {!shopifyLimited && !siteBlocked && blockedCount > 0 && (
         <Alert variant="warning">
           <ShieldAlert />
           <AlertTitle>
-            We were blocked on {blockedCount}{" "}
+            Bot protection blocked our crawler on {blockedCount}{" "}
             {blockedCount === 1 ? "page" : "pages"}.
           </AlertTitle>
           <AlertDescription>
-            The site's bot protection challenged our crawler, so those pages
-            couldn't be audited. <BotProtectionAdvice />
+            <BotProtectionAdvice
+              projectId={projectId}
+              rendered={audit.config.renderJavaScript === true}
+            />
           </AlertDescription>
         </Alert>
       )}
@@ -126,6 +132,8 @@ export function ResultsView({
           </AlertDescription>
         </Alert>
       )}
+
+      <RenderingWarnings data={data} />
 
       {audit.config.includedPaths.length > 0 && (
         <p className="text-sm text-muted-foreground">

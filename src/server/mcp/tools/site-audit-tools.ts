@@ -12,6 +12,8 @@ import {
 } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import { guidelineEnginesSchema, projectIdSchema } from "@/server/mcp/schemas";
+import { renderingEstimateText } from "@/shared/audit-rendering";
+import { RENDERED_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 
 const auditIdSchema = z
   .string()
@@ -49,6 +51,12 @@ const runInputSchema = {
     .max(10_000)
     .optional()
     .describe("Page budget for the crawl (default 50)."),
+  renderJavaScript: z
+    .boolean()
+    .optional()
+    .describe(
+      `Render JavaScript before auditing, for sites whose content or links load client-side or whose bot protection blocks the plain crawler. Slower, and limited to ${RENDERED_MAX_AUDIT_PAGES.toLocaleString("en-US")} pages. On hosted plans: ${renderingEstimateText(100)} Billing counts pages actually rendered. Hosted plans hold the high end until the audit ends; an account that cannot cover it is refused. Default false.`,
+    ),
   runLighthouse: z
     .boolean()
     .optional()
@@ -99,7 +107,7 @@ export const runSiteAuditTool = {
       .passthrough(),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
@@ -125,6 +133,7 @@ export const runSiteAuditTool = {
         includedPaths: args.includePaths,
         excludedPaths: args.excludePaths,
         limitTier,
+        renderJavaScript: args.renderJavaScript,
       }));
     } catch (error) {
       // Expected refusals become readable answers instead of protocol errors:
@@ -134,7 +143,13 @@ export const runSiteAuditTool = {
           ? "Audit capacity reached for this account — delete old audits in the dashboard to free capacity, then try again."
           : error instanceof AppError && error.code === "AUDIT_ALREADY_RUNNING"
             ? "This account is at its limit of concurrently running audits. Poll get_audit_status until one finishes, then try again."
-            : null;
+            : // startAudit refuses only rendering with FORBIDDEN; its message
+              // says why and what to do instead.
+              error instanceof AppError &&
+                error.code === "FORBIDDEN" &&
+                args.renderJavaScript
+              ? error.message
+              : null;
       if (refusalText) {
         return mcpResponse({
           text: refusalText,

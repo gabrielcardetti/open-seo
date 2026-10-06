@@ -44,7 +44,7 @@ export function CompetitorsSection({
       hint="The sites you measure yourself against."
       addLabel="Add competitor"
       emptyTitle="No competitors yet"
-      emptyDescription="Add the sites you compete with, or ask SAM to find them from your rankings and save them here."
+      emptyDescription="Add the sites you compete with, or ask your agent to find them from your rankings and save them here."
       items={competitors}
       getId={(item) => item.id}
       getLabel={(item) => item.domain}

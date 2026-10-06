@@ -14,6 +14,13 @@ const mocks = vi.hoisted(() => ({
   sleepUntil: vi.fn(),
   getCrawlThrottle: vi.fn(),
   saveCrawlThrottle: vi.fn(),
+  renderPage: vi.fn<typeof RenderedPageService.renderPage>(),
+}));
+vi.mock("cloudflare:workers", () => ({
+  env: { CONTEXT_API_KEY: "context-test-key" },
+}));
+vi.mock("@/server/lib/audit/rendered-page", () => ({
+  RenderedPageService: { renderPage: mocks.renderPage },
 }));
 vi.mock("cloudflare:workflows", () => ({
   NonRetryableError: class extends Error {},
@@ -38,11 +45,13 @@ vi.mock("@/server/lib/audit/ids", () => ({
 
 import { runCrawlPhase } from "@/server/workflows/siteAuditWorkflowCrawl";
 import { parseRobotsTxt } from "@/server/lib/audit/discovery";
+import type { RenderedPageService } from "@/server/lib/audit/rendered-page";
 
 const ORIGIN = "https://example.com";
 const HTML = "<html><title>A page</title><body><h1>A page</h1></body></html>";
 let saved: CrawledPageResult[];
 let urls: string[];
+let renderUsage: { cloudflareAttempts: number; contextCredits: number };
 
 beforeEach(async () => {
   // Load the lazy HTML parser before advancing the fake network clock.
@@ -50,6 +59,7 @@ beforeEach(async () => {
   vi.useFakeTimers();
   vi.setSystemTime(0);
   saved = [];
+  renderUsage = { cloudflareAttempts: 0, contextCredits: 0 };
   let checkpoint: unknown;
   mocks.getCrawlThrottle.mockImplementation(async () =>
     structuredClone(checkpoint),
@@ -94,7 +104,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function crawl(maxPages = 100) {
+function crawl(maxPages = 100, renderJavaScript = false) {
   urls = Array.from({ length: maxPages }, (_, i) => `${ORIGIN}/${i}`);
   return runCrawlPhase(
     {
@@ -109,7 +119,9 @@ function crawl(maxPages = 100) {
       origin: ORIGIN,
       maxPages,
       seededCount: maxPages,
+      renderJavaScript,
       robots: parseRobotsTxt(ORIGIN, ""),
+      renderUsage,
     },
   );
 }
@@ -284,5 +296,24 @@ describe("crawl pacing and cooldowns", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(mocks.sleepUntil).not.toHaveBeenCalled();
     expect(mocks.releaseUrls.mock.calls[0][0]).toHaveLength(99);
+  });
+});
+
+describe("rendering usage", () => {
+  it("sums what every chunk rendered for the audit's one settlement", async () => {
+    serve(() => 200);
+    mocks.renderPage.mockImplementation(async (_url, { usage }) => {
+      usage.cloudflareAttempts += 1;
+      usage.contextCredits += 1;
+      return { html: HTML, status: 200 };
+    });
+    // 250 pages take two chunks of at most 200.
+    const run = crawl(250, true);
+    await vi.runAllTimersAsync();
+    await run;
+    expect(renderUsage).toEqual({
+      cloudflareAttempts: 250,
+      contextCredits: 250,
+    });
   });
 });

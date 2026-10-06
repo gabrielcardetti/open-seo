@@ -10,6 +10,7 @@ import { ENGINES } from "@/shared/guidelines/engines";
 
 export const startAuditSchema = z.object({
   projectId: z.string().min(1),
+  renderJavaScript: z.boolean().optional().default(false),
   startUrl: z.string().min(1, "URL is required").max(2048),
   maxPages: z
     .number()

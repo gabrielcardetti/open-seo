@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+  AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
   creditsForProviderUsd,
 } from "@/shared/billing";
 
@@ -131,6 +132,7 @@ import { dataforseoPricing } from "@/server/lib/dataforseo/pricing";
 import { DataforseoChargedTaskError } from "@/server/lib/dataforseo/envelope";
 import { AppError } from "@/server/lib/errors";
 import { fetchBacklinksSummary } from "@/server/lib/dataforseo/backlinks";
+import { fetchRankCheckSerp } from "@/server/lib/dataforseo/serp";
 
 const billingCustomer = {
   organizationId: "org_123",
@@ -284,6 +286,110 @@ describe("meterDataforseoCall", () => {
 
     expect(vi.mocked(waitUntil)).toHaveBeenCalledTimes(1);
     expect(finalizeMock.mock.calls[0][0]).toMatchObject({ action: "release" });
+  });
+});
+
+describe("rankCheckBatch", () => {
+  const input = {
+    keyword: "running shoes",
+    keywordId: "kw_1",
+    locationCode: 2840,
+    languageCode: "en",
+    device: "desktop" as const,
+    targetDomain: "example.com",
+    depth: 10,
+  };
+  const callEstimate = creditsForProviderUsd(
+    dataforseoPricing.serp.rankCheck(input),
+  );
+  // 2 * ceil(1.28) = 4 credits for two calls, not ceil(2.56) = 3 for their
+  // summed cost: each call is credited as it would be unbatched.
+  const billed = {
+    data: {
+      keywordId: "kw_1",
+      keyword: "running shoes",
+      position: 3,
+      url: null,
+      serpFeatures: [],
+    },
+    billing: {
+      costUsd: 0.001,
+      path: ["v3", "serp", "google", "organic", "live", "advanced"],
+    },
+  };
+
+  it("bills the batch with one hold on the summed estimate and one confirm on the billed calls", async () => {
+    setupHostedMode();
+    mockMonthlyBalance(5000);
+    vi.mocked(fetchRankCheckSerp)
+      .mockResolvedValueOnce(billed)
+      .mockRejectedValueOnce(
+        new AppError("UPSTREAM_UNAVAILABLE", "DataForSEO timed out"),
+      )
+      .mockResolvedValueOnce(billed);
+
+    const client = createDataforseoClient(billingCustomer);
+    const settled = await client.serp.rankCheckBatch([input, input, input]);
+
+    expect(settled.map((outcome) => outcome.status)).toEqual([
+      "fulfilled",
+      "rejected",
+      "fulfilled",
+    ]);
+    expect(checkMock).toHaveBeenCalledTimes(1);
+    expect(checkMock.mock.calls[0][0]).toMatchObject({
+      requiredBalance: 3 * callEstimate,
+    });
+    expect(finalizeMock).toHaveBeenCalledTimes(1);
+    expect(finalizeMock.mock.calls[0][0]).toMatchObject({
+      action: "confirm",
+      overrideValue: 2 * creditsForProviderUsd(0.001),
+    });
+  });
+
+  it("splits a batch across monthly and top-up when only both together cover it", async () => {
+    setupHostedMode();
+    // Monthly covers two calls, top-up one: neither covers all three.
+    checkMock.mockImplementation(async (args) => {
+      const balance =
+        args.featureId === AUTUMN_SEO_DATA_BALANCE_FEATURE_ID
+          ? 2 * callEstimate
+          : callEstimate;
+      return {
+        allowed: balance >= (args.requiredBalance ?? 1),
+        balance: { remaining: balance },
+      };
+    });
+    vi.mocked(fetchRankCheckSerp).mockResolvedValue(billed);
+
+    const client = createDataforseoClient(billingCustomer);
+    const settled = await client.serp.rankCheckBatch([input, input, input]);
+
+    expect(settled.every((outcome) => outcome.status === "fulfilled")).toBe(
+      true,
+    );
+    // After the refused whole-batch monthly hold.
+    const [monthlyHold, topupHold] = checkMock.mock.calls
+      .slice(1)
+      .map(([arg]) => arg);
+    expect(monthlyHold).toMatchObject({
+      featureId: AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+      requiredBalance: 2 * callEstimate,
+    });
+    expect(topupHold).toMatchObject({
+      featureId: AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
+      requiredBalance: callEstimate,
+    });
+    expect(finalizeMock.mock.calls.map(([arg]) => arg)).toMatchObject([
+      {
+        lockId: monthlyHold.lock?.lockId,
+        overrideValue: 2 * creditsForProviderUsd(0.001),
+      },
+      {
+        lockId: topupHold.lock?.lockId,
+        overrideValue: creditsForProviderUsd(0.001),
+      },
+    ]);
   });
 });
 

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- the org billing seam: customer lookup, credit gates, and credit holds with their settlement */
 import { env } from "cloudflare:workers";
 import type { EnsuredUserContext } from "@/middleware/ensure-user/types";
 import {
@@ -99,7 +100,7 @@ export async function customerHasManagedAccess(customerId: string) {
 // Remaining shared usage credits — the monthly `usage_credits` balance plus the
 // rolled-over `topup_credits` balance. Both DataForSEO and LLM spend draw from
 // these (the `seo_data_usage` and `llm_usage` features both map into them).
-async function getUsageCreditsRemaining(customerId: string): Promise<{
+export async function getUsageCreditsRemaining(customerId: string): Promise<{
   monthlyRemaining: number;
   topupRemaining: number;
 }> {
@@ -208,14 +209,16 @@ export async function checkUsageCreditsDepleted(
 // death between check and finalize) releases at this TTL with no deduction.
 const HOLD_TTL_MS = 30 * 60_000;
 
-type UsageCreditFeatureId =
+export type UsageCreditFeatureId =
   | typeof AUTUMN_SEO_DATA_BALANCE_FEATURE_ID
   | typeof AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID;
 
-type UsageCreditHold = {
+export type UsageCreditHold = {
   lockId: string;
   featureId: UsageCreditFeatureId;
   estimatedCredits: number;
+  /** Indexes of the reserved provider calls this hold covers. */
+  callIndexes: readonly number[];
 };
 
 /**
@@ -234,14 +237,32 @@ type UsageCreditHold = {
  * absent feature reads `allowed: false, balance: null` and is a genuine
  * refusal.
  */
-async function holdCredits(
-  customerId: string,
-  featureId: UsageCreditFeatureId,
-  estimatedCredits: number,
-  properties: Record<string, unknown>,
-) {
-  const lockId = `dfs_${customerId}_${crypto.randomUUID()}`;
-  const hold: UsageCreditHold = { lockId, featureId, estimatedCredits };
+export async function holdCredits(args: {
+  customerId: string;
+  featureId: UsageCreditFeatureId;
+  estimatedCredits: number;
+  callIndexes: readonly number[];
+  properties: Record<string, unknown>;
+  // A site audit's rendering hold must outlive the whole crawl, not one call.
+  ttlMs?: number;
+  lockPrefix?: string;
+}) {
+  const {
+    customerId,
+    featureId,
+    estimatedCredits,
+    callIndexes,
+    properties,
+    ttlMs = HOLD_TTL_MS,
+    lockPrefix = "dfs",
+  } = args;
+  const lockId = `${lockPrefix}_${customerId}_${crypto.randomUUID()}`;
+  const hold: UsageCreditHold = {
+    lockId,
+    featureId,
+    estimatedCredits,
+    callIndexes,
+  };
   const attempt = () =>
     autumn.check(
       {
@@ -250,7 +271,7 @@ async function holdCredits(
         requiredBalance: estimatedCredits,
         sendEvent: true,
         properties,
-        lock: { lockId, enabled: true, expiresAt: Date.now() + HOLD_TTL_MS },
+        lock: { lockId, enabled: true, expiresAt: Date.now() + ttlMs },
       },
       AUTUMN_TRACK_RETRY_OPTIONS,
     );
@@ -276,56 +297,121 @@ async function holdCredits(
 }
 
 /**
- * Reserves the estimated credits for one provider call before it is made:
- * monthly `usage_credits` first, else the whole estimate on `topup_credits`.
- * Throws INSUFFICIENT_CREDITS (and emits the refusal event) when neither
- * covers it. The caller must settle the returned hold with
- * `settleUsageCredits` once the call's real cost is known.
+ * Reserves credits for a batch of provider calls before they are made, from
+ * one estimate per call, and places each call where a hold of its own would
+ * land: in order, on monthly `usage_credits` while they cover it, else on
+ * `topup_credits`, else the call is refused. At most one hold per pool, so
+ * the common case (monthly covers the batch) is a single Autumn request.
+ *
+ * Throws INSUFFICIENT_CREDITS when no call fits; `refusedCalls` lists the
+ * ones that did not when some did. Either way the refusal event is emitted.
+ * The caller must settle every returned hold with `settleUsageCredits` once
+ * its calls' real cost is known.
  */
 export async function reserveUsageCredits(args: {
   customer: BillingCustomerContext;
   customerId: string;
-  estimatedCredits: number;
+  callCredits: number[];
   creditFeature?: CreditFeature;
-}): Promise<UsageCreditHold> {
-  const estimatedCredits = Math.max(1, args.estimatedCredits);
+}): Promise<{ holds: UsageCreditHold[]; refusedCalls: number[] }> {
+  const callCredits = args.callCredits.map((credits) => Math.max(1, credits));
+  const allCalls = callCredits.map((_, index) => index);
+  const creditsFor = (calls: number[]) =>
+    calls.reduce((sum, index) => sum + callCredits[index], 0);
   const properties = {
     creditFeature: args.creditFeature,
     provider: "dataforseo",
-    estimatedCredits,
+    estimatedCredits: creditsFor(allCalls),
+  };
+  // Holds `featureId` for the calls, in order, that fit `remaining`; null
+  // when none does. A refusal here means the balance moved since the read.
+  const holdFitting = async (
+    featureId: UsageCreditFeatureId,
+    calls: number[],
+    remaining = Infinity,
+  ) => {
+    const fitting: number[] = [];
+    let credits = 0;
+    for (const index of calls) {
+      if (credits + callCredits[index] > remaining) continue;
+      fitting.push(index);
+      credits += callCredits[index];
+    }
+    if (fitting.length === 0) return null;
+    return holdCredits({
+      customerId: args.customerId,
+      featureId,
+      estimatedCredits: credits,
+      callIndexes: fitting,
+      properties,
+    });
   };
 
-  const monthly = await holdCredits(
-    args.customerId,
-    AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-    estimatedCredits,
-    properties,
-  );
-  if (monthly.allowed) return monthly.hold;
+  const holds: UsageCreditHold[] = [];
+  let monthlyRemaining = 0;
+  let topupRemaining = 0;
+  let refusedCalls: number[] = [];
+  try {
+    const monthly = await holdFitting(
+      AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+      allCalls,
+    );
+    if (monthly?.allowed) return { holds: [monthly.hold], refusedCalls };
+    monthlyRemaining = monthly?.balance?.remaining ?? 0;
 
-  const topup = await holdCredits(
-    args.customerId,
-    AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-    estimatedCredits,
-    properties,
-  );
-  if (topup.allowed) return topup.hold;
+    const partial = await holdFitting(
+      AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
+      allCalls,
+      monthlyRemaining,
+    );
+    if (partial?.allowed) holds.push(partial.hold);
+    const topupCalls = allCalls.filter(
+      (index) => !holds.some((hold) => hold.callIndexes.includes(index)),
+    );
 
-  await captureServerEvent({
-    distinctId: args.customer.userId,
-    event: "usage:credits_gate_refused",
-    organizationId: args.customer.organizationId,
-    properties: {
-      project_id: args.customer.projectId,
-      reason: "estimate_exceeds_balance",
-      source: "dataforseo",
-      credit_feature: args.creditFeature,
-      estimated_credits: estimatedCredits,
-      monthly_remaining: monthly.balance?.remaining ?? 0,
-      topup_remaining: topup.balance?.remaining ?? 0,
-    },
-  });
-  throw new AppError("INSUFFICIENT_CREDITS");
+    let topup = await holdFitting(
+      AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
+      topupCalls,
+    );
+    if (topup && !topup.allowed) {
+      topupRemaining = topup.balance?.remaining ?? 0;
+      topup = await holdFitting(
+        AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
+        topupCalls,
+        topupRemaining,
+      );
+    }
+    if (topup?.allowed) holds.push(topup.hold);
+    refusedCalls = allCalls.filter(
+      (index) => !holds.some((hold) => hold.callIndexes.includes(index)),
+    );
+  } catch (error) {
+    // A later hold failed after earlier ones landed: release those rather
+    // than strand their credits until the hold TTL.
+    for (const hold of holds) {
+      await settleUsageCredits({ customer: args.customer, hold, costs: [] });
+    }
+    throw error;
+  }
+
+  if (refusedCalls.length > 0) {
+    await captureServerEvent({
+      distinctId: args.customer.userId,
+      event: "usage:credits_gate_refused",
+      organizationId: args.customer.organizationId,
+      properties: {
+        project_id: args.customer.projectId,
+        reason: "estimate_exceeds_balance",
+        source: "dataforseo",
+        credit_feature: args.creditFeature,
+        estimated_credits: creditsFor(refusedCalls),
+        monthly_remaining: monthlyRemaining,
+        topup_remaining: topupRemaining,
+      },
+    });
+  }
+  if (holds.length === 0) throw new AppError("INSUFFICIENT_CREDITS");
+  return { holds, refusedCalls };
 }
 
 // The SDK throws 4xx responses with the raw response body attached. Autumn
@@ -342,9 +428,53 @@ function errorBodyIncludes(error: unknown, text: string) {
 }
 
 /**
+ * Confirms `credits` against a hold (Autumn deducts that amount, above or
+ * below the hold, and returns the rest), or releases the hold when `credits`
+ * is 0. Retries once. `landed: false` means the deduction may be lost; the
+ * hold then expires at its TTL.
+ */
+export async function finalizeHold(
+  hold: UsageCreditHold,
+  credits: number,
+  properties: Record<string, unknown>,
+): Promise<{ landed: boolean; error?: unknown }> {
+  // No SDK-level 5xx retry (AUTUMN_TRACK_RETRY_OPTIONS): this loop owns
+  // the retry so a "Lock not found" can only be seen on our second attempt.
+  const finalize = () =>
+    autumn.balances.finalize(
+      {
+        lockId: hold.lockId,
+        ...(credits > 0
+          ? { action: "confirm", overrideValue: credits }
+          : { action: "release" }),
+        properties,
+      },
+      AUTUMN_TRACK_RETRY_OPTIONS,
+    );
+
+  let lastError: unknown;
+  for (const attempt of [1, 2]) {
+    if (attempt === 2) await sleep(250);
+    try {
+      if ((await finalize()).success) return { landed: true };
+    } catch (error) {
+      lastError = error;
+      if (errorBodyIncludes(error, "Lock not found")) {
+        // On the retry this means the first attempt landed; on the first
+        // attempt the hold has already expired and the deduction is lost.
+        return attempt === 2 ? { landed: true } : { landed: false, error };
+      }
+    }
+  }
+  return { landed: false, error: lastError };
+}
+
+/**
  * Settles a hold on the provider's real cost: confirms the deduction at the
  * actual credits (Autumn deducts the override, above or below the hold, and
- * returns the rest) or releases the hold when nothing was billed. Never
+ * returns the rest) or releases the hold when nothing was billed. A hold can
+ * cover several provider calls; each is credited separately, so a batch is
+ * charged exactly what the same calls would cost one by one. Never
  * throws: the customer already has the data, so a finalize that still fails
  * after one retry is logged with everything needed to reconcile it and the
  * hold expires at its TTL.
@@ -354,58 +484,32 @@ export async function settleUsageCredits(args: {
   hold: UsageCreditHold;
   /** Resolved from the billed path by the caller; unknown for an unbilled call. */
   creditFeature?: CreditFeature;
-  /** Billed provider cost, or null when the call was not charged. */
-  cost: { costUsd: number; path: string[] } | null;
+  /** Billed provider calls under this hold; empty when none was charged. */
+  costs: Array<{ costUsd: number; path: string[] }>;
 }): Promise<void> {
-  const { customer, hold, creditFeature, cost } = args;
-  const actualCredits = cost ? creditsForProviderUsd(cost.costUsd) : 0;
-  const totalCostUsd = cost ? applyBillingMarkupUsd(cost.costUsd) : 0;
-  const paths = cost ? [cost.path.join("/")] : [];
-
-  // No SDK-level 5xx retry (AUTUMN_TRACK_RETRY_OPTIONS): this loop owns
-  // the retry so a "Lock not found" can only be seen on our second attempt.
-  const finalize = () =>
-    autumn.balances.finalize(
-      {
-        lockId: hold.lockId,
-        ...(actualCredits > 0
-          ? { action: "confirm", overrideValue: actualCredits }
-          : { action: "release" }),
-        properties: {
-          creditFeature,
-          provider: "dataforseo",
-          paths,
-          totalCostUsd,
-          estimatedCredits: hold.estimatedCredits,
-        },
-      },
-      AUTUMN_TRACK_RETRY_OPTIONS,
-    );
-
-  let landed = false;
-  let lastError: unknown;
-  for (const attempt of [1, 2]) {
-    if (attempt === 2) await sleep(250);
-    try {
-      landed = (await finalize()).success;
-    } catch (error) {
-      lastError = error;
-      if (errorBodyIncludes(error, "Lock not found")) {
-        // On the retry this means the first attempt landed; on the first
-        // attempt the hold has already expired and the deduction is lost.
-        landed = attempt === 2;
-        break;
-      }
-    }
-    if (landed) break;
+  const { customer, hold, creditFeature, costs } = args;
+  let actualCredits = 0;
+  let totalCostUsd = 0;
+  for (const cost of costs) {
+    actualCredits += creditsForProviderUsd(cost.costUsd);
+    totalCostUsd += applyBillingMarkupUsd(cost.costUsd);
   }
+  const paths = [...new Set(costs.map((cost) => cost.path.join("/")))];
+
+  const { landed, error } = await finalizeHold(hold, actualCredits, {
+    creditFeature,
+    provider: "dataforseo",
+    paths,
+    totalCostUsd,
+    estimatedCredits: hold.estimatedCredits,
+  });
   if (!landed) {
     console.error("[autumn] finalize failed", {
       organizationId: customer.organizationId,
       lockId: hold.lockId,
       held: hold.estimatedCredits,
       actual: actualCredits,
-      error: lastError,
+      error,
     });
     return;
   }

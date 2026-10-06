@@ -120,7 +120,7 @@ export const saveReportTool = {
     outputSchema: saveOutputSchema,
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       // A save with a reportId overwrites the stored document, with no undo.
       destructiveHint: true,
     },
@@ -385,7 +385,7 @@ export const deleteReportTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: true,
     },
   },

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Engine } from "@/shared/guidelines/engines";
@@ -11,15 +11,20 @@ import {
 import {
   DEFAULT_LAUNCH_FORM_VALUES,
   getMaxPagesLimit,
-  MIN_PAGES,
   parseExcludedPathsInput,
+  clampMaxPagesInput,
   type LaunchFormValues,
 } from "@/client/features/audit/launch/types";
 import {
   createFormValidationErrors,
   shouldValidateFieldOnChange,
 } from "@/client/lib/forms";
-import { getStandardErrorMessage } from "@/client/lib/error-messages";
+import {
+  getErrorCode,
+  getStandardErrorMessage,
+} from "@/client/lib/error-messages";
+import { renderingCreditsNeededText } from "@/shared/audit-rendering";
+import { useAuditCapabilities } from "@/client/features/audit/shared";
 
 function getLaunchValidationErrors(
   value: LaunchFormValues,
@@ -51,7 +56,7 @@ export function useLaunchController({
   isFreePlan: boolean;
   onAuditStarted: (auditId: string) => void;
 }) {
-  const maxPagesLimit = getMaxPagesLimit(isFreePlan);
+  const capabilitiesQuery = useAuditCapabilities(projectId);
   const historyQuery = useQuery({
     queryKey: ["audit-history", projectId],
     queryFn: () => getAuditHistory({ data: { projectId } }),
@@ -77,7 +82,10 @@ export function useLaunchController({
       onSubmit: ({ value }) => getLaunchValidationErrors(value, true),
     },
     onSubmit: async ({ formApi, value }) => {
-      const effectiveMaxPages = commitMaxPagesInput(launchForm, maxPagesLimit);
+      const effectiveMaxPages = commitMaxPagesInput(
+        launchForm,
+        getMaxPagesLimit(isFreePlan, value.renderJavaScript),
+      );
       formApi.setErrorMap({ onSubmit: undefined });
 
       if (effectiveMaxPages > 500 && !largeCrawlConfirmed.current) {
@@ -98,23 +106,40 @@ export function useLaunchController({
               ? ["google", "bing"]
               : undefined,
           excludedPaths: parseExcludedPathsInput(value.excludedPathsInput),
+          renderJavaScript: value.renderJavaScript,
         });
         toast.success("Audit started!");
         onAuditStarted(result.auditId);
       } catch (error) {
+        // Starting an audit refuses for credits only when the rendering hold
+        // does not fit, so the form can say how much the audit needs.
+        const message =
+          value.renderJavaScript &&
+          getErrorCode(error) === "INSUFFICIENT_CREDITS"
+            ? renderingCreditsNeededText(effectiveMaxPages)
+            : getStandardErrorMessage(error, "Failed to start audit");
         formApi.setErrorMap({
-          onSubmit: createFormValidationErrors({
-            form: getStandardErrorMessage(error, "Failed to start audit"),
-          }),
+          onSubmit: createFormValidationErrors({ form: message }),
         });
       }
     },
   });
 
+  const renderJavaScript = useStore(
+    launchForm.store,
+    (state) => state.values.renderJavaScript,
+  );
+  const maxPagesLimit = getMaxPagesLimit(isFreePlan, renderJavaScript);
+  // What an upgrade offers with the current options, so the upgrade hint
+  // never promises pages a rendered audit cannot crawl.
+  const paidMaxPagesLimit = getMaxPagesLimit(false, renderJavaScript);
+
   return {
     launchForm,
     historyQuery,
+    canRenderJavaScript: capabilitiesQuery.data?.canRenderJavaScript,
     maxPagesLimit,
+    paidMaxPagesLimit,
     commitMaxPagesInput: () => commitMaxPagesInput(launchForm, maxPagesLimit),
     deleteAudit: (auditId: string) => deleteMutation.mutate(auditId),
     largeCrawlPages,
@@ -144,6 +169,7 @@ function useLaunchMutations({ projectId }: { projectId: string }) {
       guidelinesStrategy: "none" | "sample" | "all";
       guidelineEngines?: Engine[];
       excludedPaths: string[];
+      renderJavaScript: boolean;
     }) => startAudit({ data }),
     onSuccess: () => {
       void invalidateHistory();
@@ -169,11 +195,10 @@ function commitMaxPagesInput(
   },
   maxPagesLimit: number,
 ) {
-  const maxPagesInput = launchForm.state.values.maxPagesInput;
-  const value = maxPagesInput ? Number.parseInt(maxPagesInput, 10) : MIN_PAGES;
-  const safeValue = Number.isFinite(value)
-    ? Math.max(MIN_PAGES, Math.min(maxPagesLimit, Math.round(value)))
-    : MIN_PAGES;
+  const safeValue = clampMaxPagesInput(
+    launchForm.state.values.maxPagesInput,
+    maxPagesLimit,
+  );
   launchForm.setFieldValue("maxPagesInput", String(safeValue));
   return safeValue;
 }

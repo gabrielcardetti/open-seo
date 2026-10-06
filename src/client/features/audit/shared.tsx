@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   CheckCircle,
@@ -10,6 +11,7 @@ import {
 import { cn } from "cn";
 import { Badge } from "@/client/components/ui/badge";
 import { Spinner } from "@/client/components/ui/spinner";
+import { getAuditCapabilities } from "@/serverFunctions/audit";
 import type { IssueSeverity } from "@/shared/audit-issues";
 
 export function extractPathname(url: string): string {
@@ -136,12 +138,27 @@ export function SeverityBadge({
   );
 }
 
-/** Advice for a site whose bot protection blocked the crawler. */
-export function BotProtectionAdvice() {
-  return (
+/** Whether this deployment can render JavaScript in site audits. */
+export function useAuditCapabilities(projectId: string) {
+  return useQuery({
+    queryKey: ["audit-capabilities", projectId],
+    queryFn: () => getAuditCapabilities({ data: { projectId } }),
+  });
+}
+
+/** What to do when a site's bot protection blocked the crawler. */
+export function BotProtectionAdvice({
+  projectId,
+  rendered,
+}: {
+  projectId: string;
+  /** Whether this audit already rendered JavaScript. */
+  rendered: boolean;
+}) {
+  const canRender =
+    useAuditCapabilities(projectId).data?.canRenderJavaScript === true;
+  const desktopCrawlers = (
     <>
-      We don't have a workaround for this yet. Desktop crawlers run from your
-      own machine and usually get past it: try{" "}
       <a
         href="https://github.com/PhialsBasement/LibreCrawl"
         target="_blank"
@@ -149,15 +166,29 @@ export function BotProtectionAdvice() {
       >
         LibreCrawl
       </a>{" "}
-      (free, open source) or{" "}
+      or{" "}
       <a
         href="https://www.screamingfrog.co.uk/seo-spider/"
         target="_blank"
         rel="noreferrer"
       >
         Screaming Frog
-      </a>{" "}
-      (free up to 500 URLs).
+      </a>
+    </>
+  );
+
+  if (!rendered && canRender) {
+    return (
+      <>
+        Turn on Render JavaScript and run the audit again. To avoid the extra
+        cost, use a free desktop crawler like {desktopCrawlers}.
+      </>
+    );
+  }
+  return (
+    <>
+      {rendered ? "Rendering couldn't get past it. " : null}
+      Try a free desktop crawler like {desktopCrawlers}.
     </>
   );
 }

@@ -79,6 +79,7 @@ export function ShopifyCrawlWarning({
           startUrl: audit.startUrl,
           maxPages: audit.config.maxPages,
           lighthouseStrategy: audit.config.lighthouseStrategy,
+          renderJavaScript: audit.config.renderJavaScript,
         },
       }),
     onSuccess: (result) => {

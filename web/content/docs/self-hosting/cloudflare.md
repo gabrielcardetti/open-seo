@@ -3,7 +3,7 @@ title: "Cloudflare Self-Hosting"
 description: "Deploy OpenSEO to your own Cloudflare account for internet-facing, multi-device, or team use."
 ---
 
-Host OpenSEO on Cloudflare for internet-facing self-hosting across multiple devices or with your team. One deploy command provisions everything, including the Cloudflare Access login gate. Works on Cloudflare's free plan.
+Host OpenSEO on Cloudflare for internet-facing self-hosting across multiple devices or with your team. One deploy command provisions everything, including the Cloudflare Access login gate. Works on Cloudflare's free plan. JavaScript rendering in site audits needs a paid Workers plan.
 
 ## Prerequisites
 
@@ -99,5 +99,5 @@ pnpm deploy:selfhost --yes
 
 ## More guides on GitHub
 
-- [Operations](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_CLOUDFLARE_OPERATIONS.md): telemetry and other day-to-day tasks.
+- [Operations](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_CLOUDFLARE_OPERATIONS.md): JavaScript rendering for site audits, telemetry, and other day-to-day tasks.
 - [Legacy deployments](https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_CLOUDFLARE_LEGACY.md): maintenance for installs created with the retired Deploy-button or manual Wrangler flows.

@@ -202,12 +202,17 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
     },
     serp: {
       live: meter(customer, fetchLiveSerp, dataforseoPricing.serp.live),
-      rankCheck: meter(
-        customer,
-        fetchRankCheckSerp,
-        dataforseoPricing.serp.rankCheck,
-        "rank_tracking",
-      ),
+      // A rank check batch shares one credit hold and one settle across its
+      // live calls (see meterDataforseoCalls). Resolves per call, in order.
+      rankCheckBatch: (inputs: Parameters<typeof fetchRankCheckSerp>[0][]) =>
+        meterDataforseoCalls(
+          customer,
+          inputs.map((input) => () => fetchRankCheckSerp(input)),
+          inputs.map((input) =>
+            creditsForProviderUsd(dataforseoPricing.serp.rankCheck(input)),
+          ),
+          "rank_tracking",
+        ),
       // Posts up to 100 queued rank check tasks; one metered charge covers the
       // whole batch (DataForSEO bills task_post at post time, collection is
       // free).
@@ -279,68 +284,88 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
 
 /**
  * The one seam every DataForSEO charge passes through (hosted mode only).
- * Order: reserve the estimate on the org's credits -> provider call -> settle
- * the hold on the real cost. The hold is atomic in Autumn, so concurrent
+ * Order: reserve the estimate on the org's credits -> provider calls -> settle
+ * the hold on their real cost. The hold is atomic in Autumn, so concurrent
  * calls cannot all pass on one stale balance reading.
+ *
+ * A batch of calls shares one hold and one settle per credit pool it draws
+ * on, with each call placed and refused as its own hold would be (see
+ * reserveUsageCredits): holding and settling per call sent up to 40 Autumn
+ * requests per rank check batch, and enough of them hit the SDK's timeout to
+ * drop charges.
  */
-async function meterDataforseoCall<T>(
+async function meterDataforseoCalls<T>(
   customer: BillingCustomerContext,
-  execute: () => Promise<DataforseoApiResponse<T>>,
-  estimatedCredits: number,
+  executes: Array<() => Promise<DataforseoApiResponse<T>>>,
+  callCredits: number[],
   creditFeature?: CreditFeature,
-): Promise<T> {
+): Promise<PromiseSettledResult<T>[]> {
+  if (executes.length === 0) return [];
   const isHostedMode = await isHostedServerAuthMode();
 
   if (!isHostedMode) {
-    const result = await execute();
-    return result.data;
+    return Promise.allSettled(
+      executes.map(async (execute) => (await execute()).data),
+    );
   }
 
   const billingCustomer = await getOrCreateOrganizationCustomer(customer);
-  const hold = await reserveUsageCredits({
+  const { holds, refusedCalls } = await reserveUsageCredits({
     customer,
     customerId: billingCustomer.id,
-    estimatedCredits,
+    callCredits,
     creditFeature,
   });
 
-  const settle = (cost: DataforseoApiCallCost | null) =>
-    settleUsageCredits({
-      customer,
-      hold,
-      creditFeature:
-        creditFeature ??
-        (cost ? mapDataforseoPathToCreditFeature(cost.path) : undefined),
-      cost,
-    });
-
   const work = (async () => {
-    let result: DataforseoApiResponse<T>;
-    try {
-      result = await execute();
-    } catch (error) {
-      if (!(error instanceof DataforseoChargedTaskError)) {
-        // Transport / auth / upstream failure: nothing was billed.
-        await settle(null);
-        throw error;
-      }
-      // A malformed request (DataForSEO "Invalid Field: ...") that DataForSEO
-      // did not bill returns no value to the customer, so don't charge — surface
-      // it as a non-reportable VALIDATION_ERROR. If DataForSEO still billed us
-      // (costUsd > 0), settle on that cost so the spend stays metered and
-      // visible instead of silently eaten.
-      if (error.isInvalidField && error.billing.costUsd <= 0) {
-        await settle(null);
-        throw new AppError("VALIDATION_ERROR", error.message);
-      }
-      await settle(error.billing);
-      throw error;
+    const billed: Array<DataforseoApiCallCost | null> = executes.map(
+      () => null,
+    );
+    const settled = await Promise.allSettled(
+      executes.map(async (execute, index) => {
+        if (refusedCalls.includes(index)) {
+          throw new AppError("INSUFFICIENT_CREDITS");
+        }
+        try {
+          const result = await execute();
+          billed[index] = result.billing;
+          return result.data;
+        } catch (error) {
+          // Transport / auth / upstream failure: nothing was billed.
+          if (!(error instanceof DataforseoChargedTaskError)) throw error;
+          // A malformed request (DataForSEO "Invalid Field: ...") that
+          // DataForSEO did not bill returns no value to the customer, so don't
+          // charge — surface it as a non-reportable VALIDATION_ERROR. If
+          // DataForSEO still billed us (costUsd > 0), charge that cost so the
+          // spend stays metered and visible instead of silently eaten.
+          if (error.isInvalidField && error.billing.costUsd <= 0) {
+            throw new AppError("VALIDATION_ERROR", error.message);
+          }
+          billed[index] = error.billing;
+          throw error;
+        }
+      }),
+    );
+
+    for (const hold of holds) {
+      const costs = hold.callIndexes
+        .map((index) => billed[index])
+        .filter((cost) => cost !== null);
+      await settleUsageCredits({
+        customer,
+        hold,
+        creditFeature:
+          creditFeature ??
+          (costs.length > 0
+            ? mapDataforseoPathToCreditFeature(costs[0].path)
+            : undefined),
+        costs,
+      });
     }
-    await settle(result.billing);
-    return result.data;
+    return settled;
   })();
 
-  // Register the call + settle with the request: workerd cancels pending I/O
+  // Register the calls + settle with the request: workerd cancels pending I/O
   // once the client goes away, and a hold that never settles would let a
   // disconnect-after-dispatch skip the deduction. The rejection is handled by
   // the await below; the background handle only keeps the chain alive.
@@ -350,4 +375,20 @@ async function meterDataforseoCall<T>(
     // No request context (Workflow step, tests): the await below runs it.
   }
   return await work;
+}
+
+async function meterDataforseoCall<T>(
+  customer: BillingCustomerContext,
+  execute: () => Promise<DataforseoApiResponse<T>>,
+  estimatedCredits: number,
+  creditFeature?: CreditFeature,
+): Promise<T> {
+  const [result] = await meterDataforseoCalls(
+    customer,
+    [execute],
+    [estimatedCredits],
+    creditFeature,
+  );
+  if (result.status === "rejected") throw result.reason;
+  return result.value;
 }

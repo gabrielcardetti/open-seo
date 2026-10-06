@@ -110,7 +110,7 @@ export const getSerpResultsTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },

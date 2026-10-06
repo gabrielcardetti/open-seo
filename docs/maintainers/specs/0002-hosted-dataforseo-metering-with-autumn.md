@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Revised when the pre-call balance check became an atomic credit hold.
+Accepted. Revised when the pre-call balance check became an atomic credit hold, and again when live rank check batches began to share holds.
 
 ## Context
 
@@ -31,6 +31,8 @@ In hosted mode, every metered call:
 
 Estimate and deduction use one formula (`creditsForProviderUsd`), so they cannot drift apart. A hold that is never settled expires on its own and returns the credits.
 
+A live rank check batch shares its holds instead of taking one per call. It takes at most one hold on each balance, and each call goes where a hold of its own would go: in order, on `usage_credits` while they cover it, else on `topup_credits`, else that call alone is refused. Each hold is settled once, with only its own calls. Every call is still converted to credits on its own, so a batch costs exactly what the same calls would cost one at a time.
+
 In non-hosted mode, the client skips Autumn and executes the DataForSEO call directly.
 
 Raw fetch helpers remain low-level transport and parsing functions. They are not the application entry point for hosted features.
@@ -41,7 +43,7 @@ This makes the metered path the easiest path. Feature code asks for DataForSEO d
 
 Concurrent calls each take their own hold and do not wait on each other, so normal parallel work is unchanged. The sum of in-flight holds can never exceed the balance, so an organization can spend at most its balance plus any amount by which an estimate undershoots the real cost. An undershoot is reported so the price table can be corrected.
 
-A hold costs two Autumn round trips per call (hold, finalize), which is no more than the balance reads and usage tracking it replaces.
+A hold costs two Autumn round trips (hold, finalize), which is no more than the balance reads and usage tracking it replaces. A live rank check batch shares its holds because it starts many calls for one organization at once: a hold and a finalize for each call sent dozens of concurrent Autumn requests for one customer, and a finalize that times out loses its charge.
 
 ## Alternatives considered
 

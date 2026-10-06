@@ -8,7 +8,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import { devtools } from "@tanstack/devtools-vite";
 import { leanWorkerBundle } from "./vite-plugin-lean-worker-bundle";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   // Vitest sets mode to "test". Return a config without the Cloudflare and
   // TanStack Start plugins so unit tests never boot workerd or the SSR dev
   // server; only the tsconfig path alias is needed.
@@ -86,7 +86,17 @@ export default defineConfig(({ mode }) => {
         // beside the main worker in dev and preview, with the app's
         // cross-script SITE_AUDIT_WORKFLOW / AUDIT_SCRATCHPAD bindings
         // resolved against it.
-        auxiliaryWorkers: [{ configPath: "./wrangler.audit.jsonc" }],
+        // AUDIT_BROWSER_RENDERING=true attaches a remote Browser Run binding
+        // to it in dev, for rendered audits without a Context key.
+        auxiliaryWorkers: [
+          {
+            configPath: "./wrangler.audit.jsonc",
+            config:
+              command === "serve" && env.AUDIT_BROWSER_RENDERING === "true"
+                ? { browser: { binding: "BROWSER", remote: true } }
+                : {},
+          },
+        ],
       }),
       tsConfigPaths(),
       tanstackStart(),

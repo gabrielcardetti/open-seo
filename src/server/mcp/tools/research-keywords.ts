@@ -140,7 +140,7 @@ export const researchKeywordsTool = {
     }),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },

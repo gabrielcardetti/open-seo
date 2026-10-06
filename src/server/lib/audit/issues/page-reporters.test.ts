@@ -68,6 +68,33 @@ function issueTypes(page: CrawledPageResult): string[] {
 }
 
 describe("runPageReporters", () => {
+  it("keeps known signals on an unread shell without inventing missing-content issues", () => {
+    const types = issueTypes(
+      makePage({
+        javascriptShell: true,
+        title: "",
+        metaDescription: "",
+        h1Count: 0,
+        wordCount: 1,
+        links: [],
+        isIndexable: false,
+        robotsMeta: "noindex",
+        canonicalUrl: "https://example.com/canonical",
+        headerCanonicalUrl: "https://example.com/header-canonical",
+        responseTimeMs: 2000,
+        crawlDepth: 5,
+      }),
+    );
+    expect(types).toEqual([
+      "slow-response",
+      "noindex-page",
+      "canonical-conflict",
+      "canonicalized-page",
+      "deep-page",
+      "javascript-rendering-suspected",
+    ]);
+  });
+
   it("reports nothing for a healthy page", () => {
     expect(issueTypes(makePage({}))).toEqual([]);
   });

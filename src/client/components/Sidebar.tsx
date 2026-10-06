@@ -1,16 +1,14 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import type { LinkOptions } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, type ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeftRight,
   Check,
   CircleHelp,
   CreditCard,
-  LayoutGrid,
   LogOut,
-  MessageCircle,
   Settings,
   User,
 } from "lucide-react";
@@ -43,7 +41,6 @@ import {
   SidebarMenuSkeleton,
   useSidebar,
 } from "@/client/components/ui/sidebar";
-import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -121,38 +118,11 @@ export function Sidebar({
     projectId !== null || navPlaceholder
       ? getProjectNavGroups(projectId ?? "")
       : [connectNavGroup];
-  const navigate = useNavigate();
   const { pathname } = useLocation();
   const { setOpenMobile } = useSidebar();
+  // SAM is hidden from navigation: the chat route is only reachable by URL,
+  // and while it is open its chat list takes the nav's place.
   const onSamRoute = pathname.includes("/sam");
-  const [view, setView] = useState<"browse" | "chat">(
-    onSamRoute ? "chat" : "browse",
-  );
-
-  useEffect(() => {
-    setView(onSamRoute ? "chat" : "browse");
-  }, [onSamRoute]);
-
-  const openChat = (activeProjectId: string) => {
-    setView("chat");
-    if (onSamRoute) return;
-    void navigate({
-      to: "/p/$projectId/sam",
-      params: { projectId: activeProjectId },
-      search: {},
-    });
-    setOpenMobile(false);
-  };
-
-  const openBrowse = (activeProjectId: string) => {
-    setView("browse");
-    if (!onSamRoute) return;
-    void navigate({
-      to: "/p/$projectId",
-      params: { projectId: activeProjectId },
-    });
-    setOpenMobile(false);
-  };
 
   return (
     <UiSidebar variant="inset" collapsible="offcanvas" className="md:!p-0">
@@ -169,32 +139,10 @@ export function Sidebar({
           ready={ready}
           onCloseDrawer={() => setOpenMobile(false)}
         />
-        {projectId !== null || navPlaceholder ? (
-          <Tabs
-            value={view}
-            onValueChange={(value) => {
-              if (projectId === null) return;
-              if (value === "chat") openChat(projectId);
-              else openBrowse(projectId);
-            }}
-            className="pt-2"
-          >
-            <TabsList variant="line" className="w-full">
-              <TabsTrigger value="browse">
-                <LayoutGrid className="size-4" />
-                Browse
-              </TabsTrigger>
-              <TabsTrigger value="chat">
-                <MessageCircle className="size-4" />
-                Chat
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        ) : null}
       </SidebarHeader>
 
       <SidebarContent>
-        {view === "chat" && projectId ? (
+        {onSamRoute && projectId ? (
           ready ? (
             <SamSidebarPanel
               projectId={projectId}

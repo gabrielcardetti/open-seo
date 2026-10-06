@@ -32,6 +32,7 @@ export interface AuditConfig {
   includedPaths: string[];
   /** Path prefixes the crawl leaves out, e.g. "/archive" (see crawl-scope.ts). */
   excludedPaths: string[];
+  renderJavaScript?: boolean;
   /** Detected from the start URL's `powered-by` response header. */
   sitePlatform?: "shopify";
   /** Which crawler-access credential the crawl replayed, if any. */
@@ -72,6 +73,7 @@ const auditConfigSchema = z.object({
   // Audits predating path scoping have no such keys: they crawled everything.
   includedPaths: z.array(z.string()).catch([]).default([]),
   excludedPaths: z.array(z.string()).catch([]).default([]),
+  renderJavaScript: z.boolean().optional().default(false),
   // Absent on every audit stored before crawler access shipped, and a future
   // platform value must not make an old report unviewable.
   sitePlatform: z.literal("shopify").optional().catch(undefined),
@@ -119,6 +121,8 @@ export interface PageAnalysis {
   // Content
   wordCount: number;
   bodyText: string;
+  /** Conservative signal of an app shell, not proof of missing content. */
+  javascriptShell?: boolean;
 
   // Images
   images: Array<{
@@ -204,6 +208,8 @@ export interface CrawledPageResult {
    * checked; a PDF must not). Transient — not persisted.
    */
   isHtml: boolean;
+  /** App shell, rendered or not; transient signal for the per-page issue reporter. */
+  javascriptShell?: boolean;
   /**
    * HTML size read for this page (approximate; capped at MAX_HTML_BYTES).
    * Transient — feeds the crawl window's memory-pressure signal, since
