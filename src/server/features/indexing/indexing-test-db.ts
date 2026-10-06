@@ -1,6 +1,7 @@
 /**
- * An in-memory SQLite database with the real indexing, Bing and sitemap
- * registry migrations, for testing the indexing services against actual SQL.
+ * An in-memory SQLite database with the real indexing, Bing, sitemap
+ * registry and URL inspection migrations, for testing the indexing services
+ * against actual SQL.
  * Tests swap it in with
  *
  *   vi.mock("@/db", async () => ({ db: (await import("./indexing-test-db")).testDb }));
@@ -46,14 +47,31 @@ export function resetTestDatabase() {
     PRAGMA foreign_keys = ON;
     CREATE TABLE user (id text PRIMARY KEY);
     CREATE TABLE organization (id text PRIMARY KEY);
-    CREATE TABLE projects (id text PRIMARY KEY);
+    CREATE TABLE projects (id text PRIMARY KEY, archived_at text);
+    CREATE TABLE gsc_connections (
+      id text PRIMARY KEY, project_id text, organization_id text,
+      site_url text, connected_by_user_id text, gsc_account_id text,
+      connected_account_email text, created_at text, updated_at text
+    );
     INSERT INTO organization VALUES ('org-1');
-    INSERT INTO projects VALUES ('project-1');
+    INSERT INTO projects (id) VALUES ('project-1');
   `);
-  database.exec(
-    readFileSync("drizzle/sqlite/0053_cynical_roughhouse.sql", "utf8"),
-  );
-  database.exec(readFileSync("drizzle/sqlite/0054_fixed_midnight.sql", "utf8"));
+  for (const migration of [
+    "0053_cynical_roughhouse",
+    "0054_fixed_midnight",
+    "0057_url_inspections",
+  ]) {
+    database.exec(readFileSync(`drizzle/sqlite/${migration}.sql`, "utf8"));
+  }
+}
+
+/** Connect project-1 to a Search Console property. */
+export function connectSearchConsole(siteUrl: string) {
+  database
+    ?.prepare(
+      "INSERT INTO gsc_connections (id, project_id, organization_id, site_url, connected_by_user_id) VALUES ('gsc-1', 'project-1', 'org-1', ?, 'user-1')",
+    )
+    .run(siteUrl);
 }
 
 /** Stand-in for runBatch's executeInBatches: one statement at a time. */

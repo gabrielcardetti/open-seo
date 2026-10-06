@@ -257,6 +257,17 @@ export default {
     } catch (err) {
       console.error("[cron] Sitemap indexing checks failed:", err);
     }
+    // Google indexing monitor: URL Inspection of the sitemaps' URLs, a batch
+    // per tick within the daily quota. Same isolation and lazy loading.
+    try {
+      const { IndexingMonitorService } =
+        await import("@/server/features/gsc/services/IndexingMonitorService");
+      await withPgClient(() =>
+        IndexingMonitorService.runScheduledInspections(),
+      );
+    } catch (err) {
+      console.error("[cron] Indexing monitor failed:", err);
+    }
     if (watchdogError) throw watchdogError;
   },
 };
