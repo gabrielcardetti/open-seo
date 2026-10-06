@@ -1,0 +1,50 @@
+---
+title: "Search Experience Agent Skill"
+description: "Find out whether a page is the type of page the search results reward for its query, with your AI agent, and what to change when it is not."
+---
+
+<RunSkillCallout command="/search-experience" />
+
+The Search Experience Agent Skill explains why a page that looks fine still does not rank or convert for its query.
+
+A page can be technically clean and well written and still be the wrong type of page. If the results for a query are product pages and yours is a blog post, polishing the blog post will not close the gap. Your agent classifies the pages that rank, compares them with yours, and checks what searchers need from the page.
+
+You get a verdict, aligned or mismatched, and the change that matters most.
+
+## What this skill helps your agent do
+
+- Rule out indexing and canonical problems first.
+- Pick the query from your input or from the page's Search Console data.
+- Classify the top results by page type and note the result blocks shown.
+- Compare your page's type and promise with what the results reward.
+- Check whether the page meets the needs searchers bring to the query.
+- Recommend adjusting the page, adding what is missing, building a separate page, or retargeting the query.
+
+## When to use it
+
+Use this skill when a page is indexed and healthy but stuck, ranks for queries it was not written for, or gets impressions without clicks.
+
+## What you get back
+
+A report with the verdict, the page types that rank now, what your page is, the searcher needs it meets or misses, and the changes in order of importance.
+
+## How to get the best result
+
+- Give one page URL and, if you know it, the query it should rank for.
+- Connect Search Console and an analytics source so the agent can separate "does not rank" from "ranks but visitors leave".
+- Tell the agent what the business can honestly offer on the page.
+
+## Use it with OpenSEO MCP
+
+Set up [OpenSEO MCP](/docs/mcp) so your agent can read live search results, the page's queries, and the crawl data for the page.
+
+## Read the actual skill
+
+The source `SKILL.md` lives on GitHub:
+
+- [Search Experience skill](https://github.com/every-app/open-seo/tree/main/.agents/skills/search-experience)
+
+## Related skills
+
+- [Content Brief](/docs/skills/content-brief) to plan the page once you know which type it should be.
+- [SEO Audit](/docs/skills/seo-audit) for problems across the whole site.

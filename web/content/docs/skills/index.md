@@ -5,7 +5,7 @@ description: "Add OpenSEO Agent Skills to Claude Code, Codex, or another AI agen
 
 OpenSEO Agent Skills let you hand repeatable SEO workflows to your AI agent.
 
-Run a slash command when you need keyword research, clustering, competitor analysis, link prospecting, or project setup. The skill gives your agent the workflow instructions.
+Run a slash command when you need keyword research, clustering, competitor analysis, a content brief, an AI search check, link prospecting, or project setup. The skill gives your agent the workflow instructions.
 
 You stay in charge of strategy. Your agent uses OpenSEO data and the skill instructions to research the answer, then saves the result as a report in your project.
 
@@ -28,6 +28,9 @@ MCP connects your agent to OpenSEO data. Skills tell your agent which SEO workfl
 ## Audit workflows
 
 - [SEO Audit](/docs/skills/seo-audit): audit a site and understand its important problems, worthwhile improvements, and likely effects on traffic and the business.
+- [Search Experience](/docs/skills/search-experience): find out whether a page is the kind of page the results reward for its query, and what to change when it is not.
+- [Programmatic SEO](/docs/skills/programmatic-seo): review or plan pages generated at scale from data, so they stay useful, indexed, and clear of scaled-content problems.
+- [AI Search Optimization](/docs/skills/ai-search-optimization): check whether AI answers can find, read, and cite your site, and which pages to strengthen.
 
 ## Research workflows
 
@@ -36,6 +39,11 @@ MCP connects your agent to OpenSEO data. Skills tell your agent which SEO workfl
 - [Competitive Landscape](/docs/skills/competitive-landscape): map who is winning across a market and where your openings are.
 - [Competitor Analysis](/docs/skills/competitor-analysis): analyze one competitor and turn the research into strategic takeaways.
 - [Local SEO](/docs/skills/local-seo): audit a Google Business Profile, compare it to local competitors, and map Maps visibility around a location.
+
+## Content workflows
+
+- [Content Brief](/docs/skills/content-brief): brief one page before it is written or rewritten: intent, the pages to beat, gaps, outline, meta tags, and internal links.
+- [Comparison Pages](/docs/skills/comparison-pages): plan honest "X vs Y" and "alternatives to X" pages from real demand, with a sourced feature matrix.
 
 ## Promotion workflows
 
