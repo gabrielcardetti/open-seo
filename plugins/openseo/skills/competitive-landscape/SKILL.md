@@ -41,6 +41,7 @@ Deliver through the `seo-report` skill, saving with `skill: "competitive-landsca
 - `get_search_console_performance`: when the user's own domain is in the comparison and Search Console is connected, anchor their position with first-party clicks/impressions/CTR rather than third-party estimates.
 - `get_ranked_keywords`: find exact ranking keywords, URLs, ranks, intents, and SERP result types for leaders.
 - `get_backlinks_overview`: compare backlink/referring-domain strength where relevant.
+- `get_ai_brand_visibility`: when the user asks who wins in AI answers, compare Share of Voice across ChatGPT and Google AI Overview for the user and up to 5 leaders in one call (~1,300 credits); `explore_ai_prompt` shows who the assistants recommend and cite for one market query.
 - `search_local_businesses`, `get_local_serp_results`, and `get_google_business_questions`: use for local SEO markets where proximity, Maps rankings, business categories, reviews, or Google Q&A affect who is winning.
 
 ## Workflow

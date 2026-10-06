@@ -41,6 +41,7 @@ Deliver through the `seo-report` skill, saving with `skill: "competitor-analysis
 - `search_local_businesses`, `get_local_serp_results`, and `get_google_business_questions`: use for local SEO competitors when Maps/local-pack visibility, nearby businesses, categories, or Google Q&A matter.
 - `get_serp_results`: validate direct head-to-head SERPs for important keywords.
 - `research_keywords`: expand gaps or category terms when needed.
+- `get_ai_brand_visibility`: when AI search visibility matters, the competitor's ChatGPT and Google AI Overview mentions, the pages AI answers cite, and Share of Voice against the user (~1,300 credits with competitors).
 
 ## Workflow
 

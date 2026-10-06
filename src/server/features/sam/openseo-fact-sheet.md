@@ -38,7 +38,7 @@ The paid plan includes:
 - $10.00 of usage credits each billing cycle.
 - A 30-day money-back guarantee for the first charge.
 
-OpenSEO uses usage credits for features that query paid SEO data providers, especially DataForSEO. Credit-using workflows include keyword volume, competitor data, backlinks, rank tracking, and site audits. Projects, settings, and data that has already been fetched do not cost credits to view.
+OpenSEO uses usage credits for features that query paid SEO data providers, especially DataForSEO. Credit-using workflows include keyword volume, competitor data, backlinks, rank tracking, AI visibility (brand mentions and prompt answers from AI assistants), and site audits. Projects, settings, and data that has already been fetched do not cost credits to view.
 
 Subscribers can purchase top-up credits if monthly credits run out. Top-up credits roll over and do not expire. Monthly included credits reset each billing cycle. Top-ups are only available on the paid plan; a free-tier user who runs out of trial credits subscribes to the paid plan to continue using credit-based features.
 

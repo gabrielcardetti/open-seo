@@ -380,6 +380,30 @@
         "destructive_justification": "May use metered research credits but does not delete, overwrite, revoke access, send, or publish anything."
       }
     },
+    "get_ai_brand_visibility": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Fetches AI assistant mention data for a brand and records resulting usage against the user's OpenSEO credit balance.",
+        "open_world_justification": "Uses a private SEO research provider and cannot publish or modify publicly visible internet state.",
+        "destructive_justification": "May use metered research credits but does not delete, overwrite, revoke access, send, or publish anything."
+      }
+    },
+    "explore_ai_prompt": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Asks AI assistants one prompt through a research provider and records resulting usage against the user's OpenSEO credit balance.",
+        "open_world_justification": "Uses a private SEO research provider and cannot publish or modify publicly visible internet state.",
+        "destructive_justification": "May use metered research credits but does not delete, overwrite, revoke access, send, or publish anything."
+      }
+    },
     "get_search_console_performance": {
       "annotations": {
         "readOnlyHint": true,
