@@ -7,6 +7,7 @@ import {
   BacklinkPulseCard,
   GscCard,
 } from "@/client/features/dashboard/DashboardCards";
+import { CoreWebVitalsCard } from "@/client/features/dashboard/CoreWebVitalsCard";
 import { Ga4Card } from "@/client/features/dashboard/Ga4Card";
 import { UmamiCard } from "@/client/features/dashboard/UmamiCard";
 import { WorkspaceMergeBanner } from "@/client/features/dashboard/WorkspaceMergeBanner";
@@ -119,6 +120,16 @@ export function DashboardPage({ projectId }: { projectId: string }) {
             },
           ]
         : []),
+    // Hides itself when the deployment has no Google API key.
+    ...(activation.domain !== null
+      ? [
+          {
+            key: "core-web-vitals",
+            hasData: true,
+            node: <CoreWebVitalsCard projectId={projectId} />,
+          },
+        ]
+      : []),
     ...(overview
       ? [
           {
