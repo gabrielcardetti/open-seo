@@ -15,8 +15,8 @@ const MAX_TYPES = 30;
 /**
  * Rich results Google no longer shows. Sources: Google's "Simplifying search
  * results" (2025-06), "HowTo and FAQ changes" (2023-08) and the FAQ rich
- * result removal (2026-05-07). The list follows the deprecated-types table of
- * claude-seo (github.com/AgriciDaniel/claude-seo, MIT).
+ * result removal (2026-05-07). Course is left out: the Course info result was
+ * retired but Course still feeds the course list carousel.
  */
 const RETIRED_TYPES = new Set([
   "FAQPage",
@@ -28,6 +28,9 @@ const RETIRED_TYPES = new Set([
   "VehicleListing",
 ]);
 
+/** Learning video markup is a VideoObject that is also a LearningResource. */
+const LEARNING_VIDEO = "LearningVideo";
+
 type Node = Record<string, unknown>;
 
 /** A requirement is met when any one of its alternative properties is present. */
@@ -36,7 +39,8 @@ type Requirement = string[];
 /**
  * Required properties of Google rich-result types, per Google Search Central's
  * structured data documentation. Recommended properties are left out: their
- * absence costs a richer snippet, not eligibility.
+ * absence costs a richer snippet, not eligibility. Article and Organization
+ * have no required properties, so they never appear here.
  */
 const REQUIRED_PROPERTIES: Record<string, Requirement[]> = {
   BreadcrumbList: [["itemListElement"]],
@@ -60,11 +64,7 @@ const REQUIRED_PROPERTIES: Record<string, Requirement[]> = {
     ["datePosted"],
     ["text", "image", "video"],
   ],
-  SoftwareApplication: [
-    ["name"],
-    ["offers"],
-    ["aggregateRating", "review"],
-  ],
+  SoftwareApplication: [["name"], ["offers"], ["aggregateRating", "review"]],
   JobPosting: [
     ["title"],
     ["description"],
@@ -155,9 +155,12 @@ export function summarizeStructuredData(
   const types = new Set<string>();
   const missingProperties: StructuredDataSummary["missingProperties"] = [];
   const expiredJobPostings: StructuredDataSummary["expiredJobPostings"] = [];
+  const retired = new Set<string>();
   let invalidBlocks = 0;
 
   for (const block of blocks) {
+    // An empty script carries nothing to parse, not broken markup.
+    if (!block.trim()) continue;
     let parsed: unknown;
     try {
       parsed = JSON.parse(block);
@@ -166,7 +169,15 @@ export function summarizeStructuredData(
       continue;
     }
     for (const node of topLevelNodes(parsed)) {
-      for (const type of typesOf(node)) {
+      const nodeTypes = typesOf(node);
+      if (
+        nodeTypes.includes("VideoObject") &&
+        nodeTypes.includes("LearningResource")
+      ) {
+        retired.add(LEARNING_VIDEO);
+      }
+      for (const type of nodeTypes) {
+        if (RETIRED_TYPES.has(type)) retired.add(type);
         if (types.size < MAX_TYPES) types.add(type);
         const missing = missingFor(node, type);
         if (missing.length > 0) missingProperties.push({ type, missing });
@@ -189,7 +200,7 @@ export function summarizeStructuredData(
   return {
     types: sortedTypes,
     invalidBlocks,
-    retiredTypes: sortedTypes.filter((type) => RETIRED_TYPES.has(type)),
+    retiredTypes: Array.from(retired).sort(),
     missingProperties,
     expiredJobPostings,
   };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adjustCrawlWindow } from "@/server/lib/audit/crawl-window";
+import { EMPTY_STRUCTURED_DATA } from "@/server/lib/audit/structured-data";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
 import type { PageFetchClass } from "@/shared/audit-fetch-class";
 
@@ -24,6 +25,7 @@ function page(
     ogDescription: null,
     ogImage: null,
     h1Count: 0,
+    h1Text: null,
     h2Count: 0,
     h3Count: 0,
     h4Count: 0,
@@ -37,10 +39,16 @@ function page(
     rateLimited: false,
     imagesTotal: 0,
     imagesMissingAlt: 0,
+    imagesMissingDimensions: 0,
+    firstImageLazy: false,
     images: [],
     links: [],
     hasStructuredData: false,
-    hreflangTags: [],
+    structuredData: EMPTY_STRUCTURED_DATA,
+    hreflangLinks: [],
+    hasHsts: true,
+    insecureSubresources: [],
+    insecureSubresourceCount: 0,
     isIndexable: true,
     responseTimeMs,
     crawlDepth: 0,

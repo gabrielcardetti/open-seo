@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import { runPageReporters } from "@/server/lib/audit/issues/page-reporters";
 import {
   findDuplicates,
+  findMissingHreflangReturnLinks,
+  findMissingHsts,
   findRedirectChainsAndLoops,
   type SlimPage,
 } from "@/server/lib/audit/issues/multipage-checks";
+import {
+  EMPTY_STRUCTURED_DATA,
+  summarizeStructuredData,
+} from "@/server/lib/audit/structured-data";
 import type { CrawledPageResult, PageLink } from "@/server/lib/audit/types";
 
 const HEALTHY_LINK: PageLink = {
@@ -28,10 +34,11 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     robotsMeta: null,
     xRobotsTag: null,
     headerCanonicalUrl: null,
-    ogTitle: null,
-    ogDescription: null,
-    ogImage: null,
+    ogTitle: "A",
+    ogDescription: "A page",
+    ogImage: "https://example.com/a.png",
     h1Count: 1,
+    h1Text: "A heading",
     h2Count: 0,
     h3Count: 0,
     h4Count: 0,
@@ -45,10 +52,16 @@ function makePage(overrides: Partial<CrawledPageResult>): CrawledPageResult {
     rateLimited: false,
     imagesTotal: 0,
     imagesMissingAlt: 0,
+    imagesMissingDimensions: 0,
+    firstImageLazy: false,
     images: [],
     links: [HEALTHY_LINK],
     hasStructuredData: false,
-    hreflangTags: [],
+    structuredData: EMPTY_STRUCTURED_DATA,
+    hreflangLinks: [],
+    hasHsts: true,
+    insecureSubresources: [],
+    insecureSubresourceCount: 0,
     isIndexable: true,
     responseTimeMs: 200,
     crawlDepth: 1,
@@ -103,6 +116,11 @@ describe("runPageReporters", () => {
     [{ responseTimeMs: 3000 }, "slow-response"],
     [{ crawlDepth: 6 }, "deep-page"],
     [{ links: [] }, "no-outgoing-links"],
+    [{ imagesMissingDimensions: 2 }, "images-missing-dimensions"],
+    [{ firstImageLazy: true }, "first-image-lazy-loaded"],
+    [{ ogImage: null }, "missing-og-tags"],
+    [{ url: "http://example.com/a" }, "page-not-https"],
+    [{ insecureSubresourceCount: 1 }, "mixed-content"],
   ])("flags %o as %s", (overrides, issueType) => {
     expect(issueTypes(makePage(overrides))).toContain(issueType);
   });
@@ -115,6 +133,12 @@ describe("runPageReporters", () => {
     ],
     [{ crawlDepth: null }, "deep-page"],
     [{ links: [], isIndexable: false }, "no-outgoing-links"],
+    [{ ogImage: null, isIndexable: false }, "missing-og-tags"],
+    // An http page's own insecurity is the issue, not its subresources.
+    [
+      { url: "http://example.com/a", insecureSubresourceCount: 1 },
+      "mixed-content",
+    ],
     // Snippet checks: a noindex page never shows a title or description in
     // search results.
     [{ title: "x".repeat(90), isIndexable: false }, "title-too-long"],
@@ -182,6 +206,130 @@ describe("runPageReporters", () => {
   });
 });
 
+describe("structured data and hreflang reporters", () => {
+  const NOW = new Date("2026-10-06T00:00:00Z");
+  const withJsonLd = (...blocks: unknown[]) =>
+    issueTypes(
+      makePage({
+        structuredData: summarizeStructuredData(
+          blocks.map((block) =>
+            typeof block === "string" ? block : JSON.stringify(block),
+          ),
+          NOW,
+        ),
+      }),
+    );
+
+  it.each<[string, unknown, string[]]>([
+    ["invalid JSON", '{"@type": "Article",}', ["structured-data-invalid"]],
+    ["complete Article", { "@type": "Article" }, []],
+    [
+      "a Product with neither offers nor ratings",
+      { "@type": "Product", name: "Mug" },
+      ["structured-data-missing-properties"],
+    ],
+    [
+      "a retired FAQPage",
+      { "@type": "FAQPage", mainEntity: [] },
+      ["structured-data-retired-type"],
+    ],
+    [
+      "a learning video",
+      {
+        "@type": ["VideoObject", "LearningResource"],
+        name: "Lesson",
+        thumbnailUrl: "https://example.com/t.png",
+        uploadDate: "2026-01-01",
+      },
+      ["structured-data-retired-type"],
+    ],
+    [
+      "a remote job without applicant location",
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "JobPosting",
+            title: "Engineer",
+            description: "Build things",
+            datePosted: "2026-09-01",
+            hiringOrganization: { name: "Acme" },
+            jobLocationType: "TELECOMMUTE",
+            validThrough: "2026-09-30",
+          },
+        ],
+      },
+      ["structured-data-missing-properties", "job-posting-expired"],
+    ],
+  ])("reports %s as %j", (_case, block, expected) => {
+    expect(withJsonLd(block)).toEqual(expected);
+  });
+
+  const hreflangIssues = (
+    hreflangLinks: CrawledPageResult["hreflangLinks"],
+    overrides: Partial<CrawledPageResult> = {},
+  ) => issueTypes(makePage({ hreflangLinks, ...overrides }));
+  const SELF = { hreflang: "en", href: "https://example.com/a" };
+
+  it("accepts language, script and region codes and x-default", () => {
+    expect(
+      hreflangIssues([
+        SELF,
+        { hreflang: "es-ES", href: "https://example.com/es" },
+        { hreflang: "zh-Hant-TW", href: "https://example.com/tw" },
+        { hreflang: "x-default", href: "https://example.com/" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("lists invalid codes", () => {
+    const issues = runPageReporters(
+      makePage({
+        hreflangLinks: ["en-UK", "US", "jp", "en_US", "fr"]
+          .map((hreflang) => ({
+            hreflang,
+            href: `https://example.com/${hreflang}`,
+          }))
+          .concat(SELF),
+      }),
+    );
+    expect(
+      issues.find((issue) => issue.issueType === "hreflang-invalid-code")
+        ?.details,
+    ).toEqual({ codes: ["en-UK", "US", "jp", "en_US"] });
+  });
+
+  it.each<
+    [
+      string,
+      CrawledPageResult["hreflangLinks"],
+      Partial<CrawledPageResult>,
+      string[],
+    ]
+  >([
+    [
+      "a set without the page itself",
+      [{ hreflang: "es", href: "https://example.com/es" }],
+      {},
+      ["hreflang-missing-self-reference"],
+    ],
+    [
+      "a set on a canonicalized page",
+      [SELF],
+      { canonicalUrl: "https://example.com/b" },
+      ["canonicalized-page", "hreflang-on-canonicalized-page"],
+    ],
+    [
+      "http and https alternates",
+      [SELF, { hreflang: "es", href: "http://example.com/es" }],
+      {},
+      ["hreflang-mixed-protocol"],
+    ],
+  ])("flags %s", (_case, links, overrides, expected) => {
+    expect(hreflangIssues(links, overrides)).toEqual(expected);
+  });
+});
+
 function makeSlimPage(overrides: Partial<SlimPage>): SlimPage {
   return {
     id: overrides.url ?? "page",
@@ -196,9 +344,63 @@ function makeSlimPage(overrides: Partial<SlimPage>): SlimPage {
     isIndexable: true,
     canonicalUrl: null,
     headerCanonicalUrl: null,
+    hasHsts: false,
     ...overrides,
   };
 }
+
+describe("findMissingHreflangReturnLinks", () => {
+  const pages = [
+    makeSlimPage({ id: "en", url: "https://example.com/en" }),
+    makeSlimPage({ id: "es", url: "https://example.com/es" }),
+    makeSlimPage({
+      id: "fr",
+      url: "https://example.com/fr",
+      canonicalUrl: "https://example.com/en",
+    }),
+  ];
+
+  it("flags a page whose crawled alternates do not link back", () => {
+    expect(
+      findMissingHreflangReturnLinks(pages, [
+        { sourcePageId: "en", targetPageId: "es" },
+        // A canonicalized alternate is a different problem.
+        { sourcePageId: "en", targetPageId: "fr" },
+      ]),
+    ).toEqual([
+      {
+        issueType: "hreflang-missing-return-link",
+        pageId: "en",
+        pageUrl: "https://example.com/en",
+        details: { alternates: ["https://example.com/es"], alternateCount: 1 },
+      },
+    ]);
+  });
+});
+
+describe("findMissingHsts", () => {
+  it("reports an https origin once when none of its pages sent HSTS", () => {
+    const issues = findMissingHsts([
+      makeSlimPage({ id: "home", url: "https://example.com/" }),
+      makeSlimPage({ id: "a", url: "https://example.com/a" }),
+      makeSlimPage({
+        id: "b",
+        url: "https://blog.example.com/b",
+        hasHsts: true,
+      }),
+      makeSlimPage({ id: "c", url: "https://blog.example.com/c" }),
+      makeSlimPage({ id: "http", url: "http://legacy.example.com/" }),
+    ]);
+    expect(issues).toEqual([
+      {
+        issueType: "missing-hsts",
+        pageId: "home",
+        pageUrl: "https://example.com/",
+        details: { pagesChecked: 2 },
+      },
+    ]);
+  });
+});
 
 describe("findDuplicates", () => {
   it("flags duplicate titles across pages and includes the other URLs", () => {

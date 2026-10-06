@@ -284,7 +284,7 @@ export const AUDIT_ISSUE_TYPES = {
     severity: "warning",
     title: "Invalid hreflang code",
     explanation:
-      'An hreflang value is not a valid language code (ISO 639-1, optionally with an ISO 15924 script and an ISO 3166-1 region, e.g. "es", "es-ES", "zh-Hant-TW") or "x-default". Search engines ignore alternates with invalid codes. Classic mistakes: "en-UK" (the region is GB) and a region on its own ("ES").',
+      'An hreflang value is not a valid language code (ISO 639-1, optionally with an ISO 15924 script and an ISO 3166-1 region, e.g. "es", "es-ES", "zh-Hant-TW") or "x-default". Search engines ignore alternates with invalid codes. Classic mistakes: "en-UK" (the region is GB), "jp" (Japanese is ja) and a region on its own ("US").',
     howToFix:
       "Fix the codes listed in the issue details: language first, region second, separated by a hyphen.",
   },

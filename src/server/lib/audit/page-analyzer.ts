@@ -306,8 +306,10 @@ export function analyzeHtml(
     ogImage,
     h1s,
     h1Text:
-      h1s.find((h1) => h1.length > 0)?.replace(/\s+/g, " ").slice(0, MAX_H1_CHARS) ??
-      null,
+      h1s
+        .find((h1) => h1.length > 0)
+        ?.replace(/\s+/g, " ")
+        .slice(0, MAX_H1_CHARS) ?? null,
     headingOrder,
     wordCount,
     bodyText,
