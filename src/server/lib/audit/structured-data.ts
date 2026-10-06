@@ -12,6 +12,7 @@ import { sort } from "remeda";
 
 /** Distinct types kept per page; a page declaring more is pathological. */
 const MAX_TYPES = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Rich results Google no longer shows. Sources: Google's "Simplifying search
@@ -187,7 +188,10 @@ export function summarizeStructuredData(
         if (type !== "JobPosting") continue;
         const validThrough = node["validThrough"];
         if (typeof validThrough !== "string") continue;
-        const expiresAt = Date.parse(validThrough);
+        // A bare date means the posting is open through that whole day.
+        const expiresAt =
+          Date.parse(validThrough) +
+          (/^\d{4}-\d{2}-\d{2}$/.test(validThrough.trim()) ? DAY_MS : 0);
         if (!Number.isNaN(expiresAt) && expiresAt < now.getTime()) {
           const title = node["title"];
           expiredJobPostings.push({
