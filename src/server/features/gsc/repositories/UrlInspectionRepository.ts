@@ -332,14 +332,6 @@ async function listMonitored(projectId: string) {
     .orderBy(asc(urlInspections.url));
 }
 
-async function countMonitored(projectId: string): Promise<number> {
-  const [row] = await db
-    .select({ total: count() })
-    .from(urlInspections)
-    .where(and(projectScope(projectId), eq(urlInspections.inSitemap, true)));
-  return row?.total ?? 0;
-}
-
 /**
  * The monitored URLs' changes per UTC day, grouped by indexed and
  * previously indexed: a running sum of them gives each day's counts.
@@ -387,6 +379,5 @@ export const UrlInspectionRepository = {
   getByUrls,
   saveInspections,
   listMonitored,
-  countMonitored,
   dailyChanges,
 };

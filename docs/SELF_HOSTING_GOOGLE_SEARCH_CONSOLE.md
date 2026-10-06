@@ -101,6 +101,14 @@ project.
   with the ones Search Console lists, and sends the missing ones when you click
   **Submit missing to Google** on the Indexing page (or an agent calls
   `submit_sitemaps`).
+- On Cloudflare deployments, once a project is connected, a scheduled job
+  checks the URLs in its sitemaps with Search Console's URL Inspection API
+  and the Indexing page shows which ones Google has indexed. Google allows
+  2,000 inspections a day per property; the schedule uses at most 1,500 of
+  them, leaving room for manual checks. It needs no extra scope: the
+  read-only access the connection already has is enough. Docker deployments
+  don't run scheduled jobs, so this monitor doesn't run there; the
+  `inspect_urls` MCP tool still inspects URLs on demand.
 - Search Console data comes from your own Google account, so OpenSEO never meters credits for it.
 
 ## Troubleshooting

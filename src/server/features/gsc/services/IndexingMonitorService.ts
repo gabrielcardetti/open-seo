@@ -10,7 +10,10 @@ import { collectSitemapEntries } from "@/server/lib/audit/discovery";
 import { AppError } from "@/server/lib/errors";
 import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
-import { insideProperty } from "@/server/features/sitemaps/searchConsoleProperty";
+import {
+  insideProperty,
+  RECONNECT_GSC as RECONNECT,
+} from "@/server/features/sitemaps/searchConsoleProperty";
 import { GscConnectionRepository } from "@/server/features/gsc/repositories/GscConnectionRepository";
 import { UrlInspectionRepository } from "@/server/features/gsc/repositories/UrlInspectionRepository";
 import {
@@ -39,9 +42,6 @@ const IDLE_MS = 6 * HOUR_MS;
 const RATE_LIMITED_MS = HOUR_MS;
 /** At 1,500 a day, about a week's worth of rechecks. */
 const MAX_MONITORED_URLS = 10_000;
-
-const RECONNECT =
-  "The Search Console connection has expired or was revoked. Reconnect Search Console.";
 
 function startOfNextUtcDay(nowMs: number): string {
   const next = new Date(nowMs);
@@ -156,6 +156,12 @@ async function runProject(projectId: string): Promise<string> {
         new Date(Date.now() + RATE_LIMITED_MS).toISOString(),
         "Search Console rate limit reached; the monitor resumes in an hour.",
       );
+    }
+    // Google refusing every URL means the grant lost access to the property.
+    if (
+      results.every((result) => result.status === 401 || result.status === 403)
+    ) {
+      return finish(new Date(startedMs + DAY_MS).toISOString(), RECONNECT);
     }
   } catch (error) {
     if (!isExpectedGrantFailure(error)) throw error;
