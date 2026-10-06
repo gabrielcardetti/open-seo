@@ -9,6 +9,7 @@
  * live in multipage.ts and run over D1 after the crawl.
  */
 import type { AuditIssueType } from "@/shared/audit-issues";
+import type { StructuredDataSummary } from "@/server/lib/audit/structured-data";
 import type { CrawledPageResult } from "@/server/lib/audit/types";
 
 export interface DetectedIssue {
@@ -66,12 +67,93 @@ function hasHeadingLevelSkip(headingOrder: number[]): boolean {
   return false;
 }
 
+type Report = (
+  issueType: AuditIssueType,
+  details?: Record<string, unknown>,
+) => void;
+
+function reportImagesAndPreviews(page: CrawledPageResult, report: Report) {
+  if (page.imagesMissingDimensions > 0) {
+    report("images-missing-dimensions", {
+      imagesMissingDimensions: page.imagesMissingDimensions,
+      imagesTotal: page.imagesTotal,
+    });
+  }
+  if (page.firstImageLazy) {
+    report("first-image-lazy-loaded", { src: page.images[0]?.src ?? null });
+  }
+  // Link previews matter for pages people share, which noindex pages are not.
+  if (page.isIndexable) {
+    const missing = [
+      page.ogTitle ? null : "og:title",
+      page.ogDescription ? null : "og:description",
+      page.ogImage ? null : "og:image",
+    ].filter((tag) => tag !== null);
+    if (missing.length > 0) report("missing-og-tags", { missing });
+  }
+}
+
+function reportStructuredData(
+  structuredData: StructuredDataSummary,
+  report: Report,
+) {
+  if (structuredData.invalidBlocks > 0) {
+    report("structured-data-invalid", {
+      invalidBlocks: structuredData.invalidBlocks,
+    });
+  }
+  if (structuredData.missingProperties.length > 0) {
+    report("structured-data-missing-properties", {
+      items: structuredData.missingProperties.slice(0, MAX_DETAIL_ITEMS),
+      itemCount: structuredData.missingProperties.length,
+    });
+  }
+  if (structuredData.retiredTypes.length > 0) {
+    report("structured-data-retired-type", {
+      types: structuredData.retiredTypes,
+    });
+  }
+  if (structuredData.expiredJobPostings.length > 0) {
+    report("job-posting-expired", {
+      postings: structuredData.expiredJobPostings.slice(0, MAX_DETAIL_ITEMS),
+    });
+  }
+}
+
+/** Hreflang annotations of this page alone; return links are cross-page. */
+function reportHreflang(
+  page: CrawledPageResult,
+  effectiveCanonical: string | null,
+  report: Report,
+) {
+  if (page.hreflangLinks.length === 0) return;
+  const codes = new Set(page.hreflangLinks.map((link) => link.hreflang));
+  const invalidCodes = Array.from(codes).filter(
+    (code) => !isValidHreflang(code),
+  );
+  if (invalidCodes.length > 0) {
+    report("hreflang-invalid-code", { codes: invalidCodes });
+  }
+  const hrefs = page.hreflangLinks.map((link) => link.href);
+  if (
+    hrefs.some((href) => href.startsWith("http://")) &&
+    hrefs.some((href) => href.startsWith("https://"))
+  ) {
+    report("hreflang-mixed-protocol");
+  }
+  if (effectiveCanonical && effectiveCanonical !== page.url) {
+    report("hreflang-on-canonicalized-page", {
+      canonicalUrl: effectiveCanonical,
+    });
+  } else if (!hrefs.includes(page.url)) {
+    report("hreflang-missing-self-reference");
+  }
+}
+
 export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
   const issues: DetectedIssue[] = [];
-  const report = (
-    issueType: AuditIssueType,
-    details?: Record<string, unknown>,
-  ) => issues.push({ issueType, pageId: page.id, pageUrl: page.url, details });
+  const report: Report = (issueType, details) =>
+    issues.push({ issueType, pageId: page.id, pageUrl: page.url, details });
 
   if (page.fetchClass === "blocked") {
     report("blocked-page", { statusCode: page.statusCode });
@@ -179,73 +261,9 @@ export function runPageReporters(page: CrawledPageResult): DetectedIssue[] {
       imagesTotal: page.imagesTotal,
     });
   }
-  if (page.imagesMissingDimensions > 0) {
-    report("images-missing-dimensions", {
-      imagesMissingDimensions: page.imagesMissingDimensions,
-      imagesTotal: page.imagesTotal,
-    });
-  }
-  if (page.firstImageLazy) {
-    report("first-image-lazy-loaded", { src: page.images[0]?.src ?? null });
-  }
-  // Link previews matter for pages people share, which noindex pages are not.
-  if (page.isIndexable) {
-    const missing = [
-      page.ogTitle ? null : "og:title",
-      page.ogDescription ? null : "og:description",
-      page.ogImage ? null : "og:image",
-    ].filter((tag) => tag !== null);
-    if (missing.length > 0) report("missing-og-tags", { missing });
-  }
-
-  // Structured data
-  const structuredData = page.structuredData;
-  if (structuredData.invalidBlocks > 0) {
-    report("structured-data-invalid", {
-      invalidBlocks: structuredData.invalidBlocks,
-    });
-  }
-  if (structuredData.missingProperties.length > 0) {
-    report("structured-data-missing-properties", {
-      items: structuredData.missingProperties.slice(0, MAX_DETAIL_ITEMS),
-      itemCount: structuredData.missingProperties.length,
-    });
-  }
-  if (structuredData.retiredTypes.length > 0) {
-    report("structured-data-retired-type", {
-      types: structuredData.retiredTypes,
-    });
-  }
-  if (structuredData.expiredJobPostings.length > 0) {
-    report("job-posting-expired", {
-      postings: structuredData.expiredJobPostings.slice(0, MAX_DETAIL_ITEMS),
-    });
-  }
-
-  // Hreflang annotations of this page alone; return links are cross-page.
-  if (page.hreflangLinks.length > 0) {
-    const codes = new Set(page.hreflangLinks.map((link) => link.hreflang));
-    const invalidCodes = Array.from(codes).filter(
-      (code) => !isValidHreflang(code),
-    );
-    if (invalidCodes.length > 0) {
-      report("hreflang-invalid-code", { codes: invalidCodes });
-    }
-    const hrefs = page.hreflangLinks.map((link) => link.href);
-    if (
-      hrefs.some((href) => href.startsWith("http://")) &&
-      hrefs.some((href) => href.startsWith("https://"))
-    ) {
-      report("hreflang-mixed-protocol");
-    }
-    if (effectiveCanonical && effectiveCanonical !== page.url) {
-      report("hreflang-on-canonicalized-page", {
-        canonicalUrl: effectiveCanonical,
-      });
-    } else if (!hrefs.includes(page.url)) {
-      report("hreflang-missing-self-reference");
-    }
-  }
+  reportImagesAndPreviews(page, report);
+  reportStructuredData(page.structuredData, report);
+  reportHreflang(page, effectiveCanonical, report);
 
   // Security. Missing HSTS is a site-wide header, reported once in multipage.
   if (isHttps && page.insecureSubresourceCount > 0) {

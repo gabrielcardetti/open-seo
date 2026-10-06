@@ -8,6 +8,7 @@
  * markup that this shallow pass cannot judge, so it stays quiet about them
  * rather than guess.
  */
+import { sort } from "remeda";
 
 /** Distinct types kept per page; a page declaring more is pathological. */
 const MAX_TYPES = 30;
@@ -147,6 +148,8 @@ function missingFor(node: Node, type: string): string[] {
     .map((options) => options.join(" or "));
 }
 
+const byName = (a: string, b: string) => a.localeCompare(b);
+
 /** Summarize a page's JSON-LD blocks (raw script text) as of `now`. */
 export function summarizeStructuredData(
   blocks: readonly string[],
@@ -196,11 +199,11 @@ export function summarizeStructuredData(
     }
   }
 
-  const sortedTypes = Array.from(types).sort();
+  const sortedTypes = sort(Array.from(types), byName);
   return {
     types: sortedTypes,
     invalidBlocks,
-    retiredTypes: Array.from(retired).sort(),
+    retiredTypes: sort(Array.from(retired), byName),
     missingProperties,
     expiredJobPostings,
   };

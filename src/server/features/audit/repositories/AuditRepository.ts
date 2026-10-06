@@ -4,20 +4,18 @@
  * audit_pages, audit_issues, and stored Lighthouse results. Link edges live
  * in the per-audit scratchpad Durable Object, not here.
  */
-import { and, count, desc, eq, inArray } from "drizzle-orm";
-import { chunk } from "remeda";
+import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   audits,
   auditIssues,
   auditLighthouseResults,
-  auditPageHreflang,
-  auditPageSchemaTypes,
   auditPages,
   projects,
 } from "@/db/schema";
-import { executeInBatches, runBatch } from "@/db/runBatch";
+import { executeInBatches } from "@/db/runBatch";
 import { insertIssues } from "./auditIssueWrites";
+import { replacePageChildRows } from "./auditPageChildWrites";
 import { deterministicAuditRowId } from "@/server/lib/audit/ids";
 import type { DetectedIssue } from "@/server/lib/audit/issues/page-reporters";
 import type {
@@ -204,48 +202,6 @@ async function insertCrawledBatch(
 
   await replacePageChildRows(auditId, pages);
   await insertIssues(auditId, issues);
-}
-
-/** Pages per batch: their deletes plus inserts stay well inside a D1 batch. */
-const CHILD_ROW_PAGE_CHUNK = 50;
-
-/**
- * Schema types and hreflang alternates of a batch of pages. A retried step may
- * have fetched different markup, so each page's rows are replaced, not merged.
- * Row counts follow D1's 100-parameter statements: 3 columns x 30 rows and
- * 4 columns x 25 rows.
- */
-async function replacePageChildRows(
-  auditId: string,
-  pages: CrawledPageResult[],
-) {
-  for (const pageChunk of chunk(pages, CHILD_ROW_PAGE_CHUNK)) {
-    const pageIds = pageChunk.map((page) => page.id);
-    const typeRows = pageChunk.flatMap((page) =>
-      page.structuredData.types.map((schemaType) => ({
-        auditId,
-        pageId: page.id,
-        schemaType,
-      })),
-    );
-    const hreflangRows = pageChunk.flatMap((page) =>
-      page.hreflangLinks.map((link) => ({ auditId, pageId: page.id, ...link })),
-    );
-    await runBatch((tx) => [
-      tx
-        .delete(auditPageSchemaTypes)
-        .where(inArray(auditPageSchemaTypes.pageId, pageIds)),
-      tx
-        .delete(auditPageHreflang)
-        .where(inArray(auditPageHreflang.pageId, pageIds)),
-      ...chunk(typeRows, 30).map((rows) =>
-        tx.insert(auditPageSchemaTypes).values(rows).onConflictDoNothing(),
-      ),
-      ...chunk(hreflangRows, 25).map((rows) =>
-        tx.insert(auditPageHreflang).values(rows).onConflictDoNothing(),
-      ),
-    ]);
-  }
 }
 
 async function insertLighthouseResults(

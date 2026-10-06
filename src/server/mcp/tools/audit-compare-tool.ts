@@ -115,7 +115,7 @@ async function snapshot(audit: { id: string; config: string }) {
         {
           ...page,
           canonicalUrl: page.canonicalUrl ?? page.headerCanonicalUrl,
-          schemaTypes: (typesByUrl.get(page.url) ?? []).sort(),
+          schemaTypes: typesByUrl.get(page.url) ?? [],
         },
       ]),
     ),

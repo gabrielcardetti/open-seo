@@ -42,7 +42,7 @@ async function getPageSignalsForAudit(auditId: string) {
     .where(eq(auditPages.auditId, auditId));
 }
 
-/** Schema.org types each page declared, by page URL. */
+/** Schema.org types each page declared, by page URL, sorted by type. */
 async function getSchemaTypesForAudit(auditId: string) {
   return db
     .select({
@@ -51,7 +51,8 @@ async function getSchemaTypesForAudit(auditId: string) {
     })
     .from(auditPageSchemaTypes)
     .innerJoin(auditPages, eq(auditPages.id, auditPageSchemaTypes.pageId))
-    .where(eq(auditPageSchemaTypes.auditId, auditId));
+    .where(eq(auditPageSchemaTypes.auditId, auditId))
+    .orderBy(auditPageSchemaTypes.schemaType);
 }
 
 /** Completed audits of the project that started before this one, newest first. */

@@ -162,23 +162,23 @@ function compareVerdicts(base: EngineVerdicts, current: EngineVerdicts) {
 }
 
 /** Drift rules and how much each matters. Order is the report's order. */
-const DRIFT_RULES = {
-  "canonical-changed": "critical",
-  "canonical-removed": "critical",
-  "noindex-added": "critical",
-  "title-removed": "critical",
-  "h1-removed": "critical",
-  "status-error": "critical",
-  "structured-data-removed": "critical",
-  "title-changed": "warning",
-  "meta-description-changed": "warning",
-  "h1-changed": "warning",
-  "og-tags-removed": "warning",
-  "schema-types-changed": "warning",
-  "structured-data-added": "info",
-} as const;
+const DRIFT_RULES = [
+  ["canonical-changed", "critical"],
+  ["canonical-removed", "critical"],
+  ["noindex-added", "critical"],
+  ["title-removed", "critical"],
+  ["h1-removed", "critical"],
+  ["status-error", "critical"],
+  ["structured-data-removed", "critical"],
+  ["title-changed", "warning"],
+  ["meta-description-changed", "warning"],
+  ["h1-changed", "warning"],
+  ["og-tags-removed", "warning"],
+  ["schema-types-changed", "warning"],
+  ["structured-data-added", "info"],
+] as const;
 
-type DriftRule = keyof typeof DRIFT_RULES;
+type DriftRule = (typeof DRIFT_RULES)[number][0];
 
 interface DriftChange {
   url: string;
@@ -192,6 +192,14 @@ const isError = (status: number | null) => status !== null && status >= 400;
 /** Whitespace and padding differences are not edits. */
 const normalized = (value: string | null) =>
   value?.replace(/\s+/g, " ").trim() || null;
+
+/** The Open Graph tags a page sets. */
+const ogTagsOf = (signals: PageSignals) =>
+  [
+    signals.ogTitle ? "og:title" : null,
+    signals.ogDescription ? "og:description" : null,
+    signals.ogImage ? "og:image" : null,
+  ].filter((tag) => tag !== null);
 
 /** The rules one URL's before/after signals break. */
 function driftOf(before: PageSignals, after: PageSignals) {
@@ -252,14 +260,8 @@ function driftOf(before: PageSignals, after: PageSignals) {
     changes.push([now ? changedRule : removedRule, was, now]);
   }
 
-  const ogTags = (signals: PageSignals) =>
-    [
-      signals.ogTitle ? "og:title" : null,
-      signals.ogDescription ? "og:description" : null,
-      signals.ogImage ? "og:image" : null,
-    ].filter((tag) => tag !== null);
-  const afterOg = ogTags(after);
-  const removedOg = ogTags(before).filter((tag) => !afterOg.includes(tag));
+  const afterOg = ogTagsOf(after);
+  const removedOg = ogTagsOf(before).filter((tag) => !afterOg.includes(tag));
   if (removedOg.length > 0) {
     changes.push(["og-tags-removed", removedOg.join(", "), null]);
   }
@@ -293,12 +295,9 @@ function compareSignals(base: AuditSnapshot, current: AuditSnapshot) {
       changesByRule.set(rule, changes);
     }
   }
-  const rules = (Object.keys(DRIFT_RULES) as DriftRule[]).flatMap((rule) => {
+  const rules = DRIFT_RULES.flatMap(([rule, severity]) => {
     const changes = changesByRule.get(rule);
-    if (!changes) return [];
-    return [
-      { rule, severity: DRIFT_RULES[rule], count: changes.length, changes },
-    ];
+    return changes ? [{ rule, severity, count: changes.length, changes }] : [];
   });
   return { urls, rules };
 }
