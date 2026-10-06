@@ -1,0 +1,51 @@
+---
+title: "Programmatic SEO Agent Skill"
+description: "Review or plan pages generated at scale from data with your AI agent: templates, indexing, internal linking, and safeguards against thin or scaled content."
+---
+
+<RunSkillCallout command="/programmatic-seo" />
+
+The Programmatic SEO Agent Skill checks whether a set of generated pages helps your site or hurts it.
+
+Pages built from data, one per city, product, integration, or record, can bring a lot of long-tail traffic. They can also become thousands of near-identical pages that Google indexes partially or treats as scaled content. Your agent crawls the section, groups issues by URL template, reads pages from the same template side by side, and checks how many are indexed and earning impressions.
+
+It works for a section you already publish or for a set you are planning.
+
+## What this skill helps your agent do
+
+- Map the URL templates in a section and count the pages in each.
+- Group crawl issues by template so each fix is made once.
+- Compare sibling pages to see what really varies between them.
+- Read the content-guideline judge's whole-site verdict on doorway pages and scaled content.
+- Check indexing with Search Console and URL inspection.
+- Recommend per template: strengthen, merge, noindex, or stop generating.
+
+## When to use it
+
+Use this skill for location pages, integration pages, glossaries, directories, or any section generated from a database, and before launching a new one.
+
+## What you get back
+
+A report with the verdict, a table per URL template, what makes pages distinct, the risks with their evidence, and the fixes in order of impact.
+
+## How to get the best result
+
+- Give the URL prefix of the section, such as /locations.
+- Describe what each record in your data holds.
+- Connect Search Console so the agent can see how much of the set Google indexes.
+- Re-run the audit after a fix and compare the two.
+
+## Use it with OpenSEO MCP
+
+Set up [OpenSEO MCP](/docs/mcp) so your agent can crawl the section, read issues by template, run the content-guideline judge, and inspect URLs.
+
+## Read the actual skill
+
+The source `SKILL.md` lives on GitHub:
+
+- [Programmatic SEO skill](https://github.com/every-app/open-seo/tree/main/.agents/skills/programmatic-seo)
+
+## Related skills
+
+- [SEO Audit](/docs/skills/seo-audit) for the whole site.
+- [Keyword Clustering](/docs/skills/keyword-clustering) to decide which queries deserve their own page.

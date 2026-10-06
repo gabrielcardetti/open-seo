@@ -14,7 +14,7 @@ OpenSEO gives your agent real SEO data and guided workflows, so its advice is gr
 - Work with Google Search Console, Google Analytics, and Bing Webmaster Tools data
 - Announce new and changed pages to Bing and other IndexNow engines
 
-The plugin includes ten skills that guide Cursor through complete SEO workflows, plus the hosted OpenSEO MCP server for live data and project management.
+The plugin includes fifteen skills that guide Cursor through complete SEO workflows, plus the hosted OpenSEO MCP server for live data and project management.
 
 ## Connect
 
@@ -32,12 +32,17 @@ You need an OpenSEO account. The plugin package is free and open source. Hosted 
 
 ## Included skills
 
+- AI search optimization
+- Comparison pages
 - Competitive landscape
 - Competitor analysis
+- Content brief
 - Keyword clustering
 - Keyword research
 - Link prospecting
 - Local SEO
+- Programmatic SEO
+- Search experience
 - SEO audit
 - SEO coach
 - SEO project setup
