@@ -47,7 +47,13 @@ function GoogleBadges({ google }: { google: TrackedRow["google"] }) {
 }
 
 /** Bing's view of one tracked sitemap, from the last sync. */
-function BingBadges({ bing }: { bing: TrackedRow["bing"] }) {
+function BingBadges({
+  bing,
+  stale,
+}: {
+  bing: TrackedRow["bing"];
+  stale: boolean;
+}) {
   if (bing.state === "not_connected") {
     return <Badge variant="outline">Bing: not connected</Badge>;
   }
@@ -55,7 +61,11 @@ function BingBadges({ bing }: { bing: TrackedRow["bing"] }) {
     return <Badge variant="outline">Bing: not synced yet</Badge>;
   }
   if (bing.state === "missing") {
-    return <Badge variant="warning">Missing in Bing</Badge>;
+    return stale ? (
+      <Badge variant="outline">Not in Bing's last sync</Badge>
+    ) : (
+      <Badge variant="warning">Missing in Bing</Badge>
+    );
   }
   return (
     <>
@@ -97,11 +107,17 @@ export function SitemapRow({
   );
 }
 
-export function TrackedBadges({ row }: { row: TrackedRow }) {
+export function TrackedBadges({
+  row,
+  bingStale,
+}: {
+  row: TrackedRow;
+  bingStale: boolean;
+}) {
   return (
     <>
       <GoogleBadges google={row.google} />
-      <BingBadges bing={row.bing} />
+      <BingBadges bing={row.bing} stale={bingStale} />
     </>
   );
 }

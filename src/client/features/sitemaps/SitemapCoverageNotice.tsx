@@ -27,11 +27,13 @@ export function SitemapCoverageNotice({
   if (!data) return null;
   const missing = data.missing[engine];
   const message =
-    missing > 0
-      ? `${missing} tracked sitemap${missing === 1 ? " isn't" : "s aren't"} registered in ${ENGINE_NAMES[engine]}.`
-      : data.tracked.length === 0 && data.suggestedCount > 0
-        ? `Review ${data.suggestedCount} suggested sitemap${data.suggestedCount === 1 ? "" : "s"} so OpenSEO can check ${ENGINE_NAMES[engine]} has them.`
-        : null;
+    missing > 0 && engine === "bing" && data.bing.stale
+      ? `Bing data is out of date: ${missing} tracked sitemap${missing === 1 ? " wasn't" : "s weren't"} in its last sync. Sync Bing before submitting.`
+      : missing > 0
+        ? `${missing} tracked sitemap${missing === 1 ? " isn't" : "s aren't"} registered in ${ENGINE_NAMES[engine]}.`
+        : data.tracked.length === 0 && data.suggestedCount > 0
+          ? `Review ${data.suggestedCount} suggested sitemap${data.suggestedCount === 1 ? "" : "s"} so OpenSEO can check ${ENGINE_NAMES[engine]} has them.`
+          : null;
   if (!message) return null;
   return (
     <Alert variant="warning" className="mt-4">

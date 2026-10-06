@@ -135,6 +135,29 @@ async function readBing(projectId: string) {
   };
 }
 
+/** Bing data older than this is likely missing a day's changes. */
+const BING_STALE_MS = 2 * 24 * 60 * 60 * 1000;
+
+/** Why Bing's sitemap list may be out of date, or null when it is current. */
+function bingStaleness(
+  connection: { lastSyncedAt: string | null; lastSyncError: string | null },
+  nowMs: number,
+): string | null {
+  const age = connection.lastSyncedAt
+    ? nowMs - Date.parse(connection.lastSyncedAt)
+    : null;
+  if (!connection.lastSyncError && (age === null || age < BING_STALE_MS)) {
+    return null;
+  }
+  const since = connection.lastSyncedAt
+    ? `Bing data is from ${connection.lastSyncedAt}`
+    : "Bing data has never synced";
+  const error = connection.lastSyncError
+    ? ` and the last sync failed (${connection.lastSyncError})`
+    : "";
+  return `${since}${error}, so Bing gaps may be out of date: sync Bing now before acting on them.`;
+}
+
 function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
@@ -227,6 +250,10 @@ async function coverage(projectId: string) {
     actionNeeded.push(RECONNECT_GSC_FOR_WRITE);
   }
   if (google.problem) actionNeeded.push(google.problem);
+  const bingStale = bing.connection
+    ? bingStaleness(bing.connection, Date.now())
+    : null;
+  if (bingStale) actionNeeded.push(bingStale);
   if (engineOnly.length > 0) {
     actionNeeded.push(
       `${plural(engineOnly.length, "sitemap")} registered in Google or Bing ${engineOnly.length === 1 ? "is" : "are"} unknown to OpenSEO: track or ignore ${engineOnly.length === 1 ? "it" : "them"}.`,
@@ -260,6 +287,8 @@ async function coverage(projectId: string) {
       connected: Boolean(bing.connection),
       siteUrl: bing.connection?.siteUrl ?? null,
       lastSyncedAt: bing.connection?.lastSyncedAt ?? null,
+      lastSyncError: bing.connection?.lastSyncError ?? null,
+      stale: Boolean(bingStale),
     },
     suggestedCount: registry.suggested.length,
     missing,

@@ -229,6 +229,19 @@ function SitemapsBody({
             : "Add your sitemap below."}
         </p>
       ) : null}
+      {data.bing.stale ? (
+        <p className="text-sm text-muted-foreground">
+          Bing data may be out of date
+          {data.bing.lastSyncError
+            ? ` (last sync failed: ${data.bing.lastSyncError})`
+            : ""}
+          .{" "}
+          <Link to="/p/$projectId/bing" params={{ projectId }}>
+            Sync Bing now
+          </Link>{" "}
+          before submitting what looks missing.
+        </p>
+      ) : null}
       <SitemapSection
         title={`Tracked (${data.tracked.length})`}
         empty={data.tracked.length === 0}
@@ -265,7 +278,7 @@ function SitemapsBody({
           <SitemapRow
             key={row.url}
             url={row.url}
-            badges={<TrackedBadges row={row} />}
+            badges={<TrackedBadges row={row} bingStale={data.bing.stale} />}
             actions={
               canManage ? (
                 <InlineConfirm
