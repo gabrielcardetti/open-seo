@@ -15,18 +15,19 @@ import type { AnalyticsTabProps } from "@/client/features/analytics/AnalyticsPag
 import { LiveRead, Section } from "@/client/features/analytics/AnalyticsParts";
 import { webVitalsOptions } from "@/client/features/analytics/analyticsQueries";
 import { formatCount } from "@/client/features/search-performance/SearchPerformanceColumns";
+import type { WebVital, WebVitalRating } from "@/shared/web-vitals";
 
-type Rating = "good" | "needs_improvement" | "poor" | null;
+type Rating = WebVitalRating | null;
 
-const LABELS = {
+export const WEB_VITAL_LABELS = {
   lcp: "Largest Contentful Paint",
   inp: "Interaction to Next Paint",
   cls: "Cumulative Layout Shift",
   fcp: "First Contentful Paint",
   ttfb: "Time to First Byte",
-} as const;
+} as const satisfies Record<WebVital, string>;
 
-function formatVital(metric: keyof typeof LABELS, value: number | null) {
+export function formatVital(metric: WebVital, value: number | null) {
   if (value === null) return "—";
   if (metric === "cls") return value.toFixed(2);
   return value >= 1000
@@ -34,7 +35,7 @@ function formatVital(metric: keyof typeof LABELS, value: number | null) {
     : `${Math.round(value)} ms`;
 }
 
-function RatingBadge({ rating }: { rating: Rating }) {
+export function RatingBadge({ rating }: { rating: Rating }) {
   if (!rating) return null;
   return (
     <Badge
@@ -104,7 +105,7 @@ export function WebVitalsTab({ projectId, dates, channel }: AnalyticsTabProps) {
                     {formatVital(metric.metric, metric.p75)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {LABELS[metric.metric]} · p50{" "}
+                    {WEB_VITAL_LABELS[metric.metric]} · p50{" "}
                     {formatVital(metric.metric, metric.p50)} · p95{" "}
                     {formatVital(metric.metric, metric.p95)}
                   </p>

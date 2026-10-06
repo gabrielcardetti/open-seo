@@ -273,6 +273,9 @@ const dataEnv = {
   BETTER_AUTH_SECRET: optionalSecret("BETTER_AUTH_SECRET"),
   GOOGLE_CLIENT_ID: optionalVar("GOOGLE_CLIENT_ID"),
   GOOGLE_CLIENT_SECRET: optionalSecret("GOOGLE_CLIENT_SECRET"),
+  // Chrome UX Report + PageSpeed Insights. See
+  // docs/SELF_HOSTING_GOOGLE_CORE_WEB_VITALS.md.
+  GOOGLE_API_KEY: optionalSecret("GOOGLE_API_KEY"),
   OPENROUTER_API_KEY: optionalSecret("OPENROUTER_API_KEY"),
   OPENROUTER_MODEL: optionalVar("OPENROUTER_MODEL"),
   AUTUMN_SECRET_KEY: optionalSecret("AUTUMN_SECRET_KEY"),

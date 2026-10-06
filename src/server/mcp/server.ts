@@ -112,6 +112,10 @@ import {
   getAgentReadinessTool,
   runAgentReadinessScanTool,
 } from "@/server/mcp/tools/agent-readiness-tools";
+import {
+  getCoreWebVitalsTool,
+  runPagespeedTool,
+} from "@/server/mcp/tools/core-web-vitals-tools";
 import { getGuidelinesEvaluationBatchTool } from "@/server/mcp/tools/guideline-judge-tools";
 import { submitGuidelinesEvaluationTool } from "@/server/mcp/tools/guideline-submit-tool";
 import {
@@ -314,6 +318,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(submitGuidelinesEvaluationTool);
   register(runAgentReadinessScanTool);
   register(getAgentReadinessTool);
+  register(getCoreWebVitalsTool);
+  register(runPagespeedTool);
   register(getIndexingSetupTool);
   register(verifyIndexNowKeyTool);
   register(submitUrlsForIndexingTool);

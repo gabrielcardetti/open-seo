@@ -10,6 +10,11 @@ import {
 } from "@/server/features/umami/umamiScope";
 import { AppError } from "@/server/lib/errors";
 import {
+  rateWebVital,
+  WEB_VITAL_THRESHOLDS,
+  WEB_VITALS,
+} from "@/shared/web-vitals";
+import {
   getAttribution,
   getEventData,
   getEventSeries,
@@ -326,27 +331,6 @@ async function runAttribution(
   });
 }
 
-// Web Vitals thresholds (good up to the first number, poor above the second),
-// as Google's Core Web Vitals and Lighthouse define them. Times in ms.
-const VITAL_THRESHOLDS = {
-  lcp: [2500, 4000],
-  inp: [200, 500],
-  cls: [0.1, 0.25],
-  fcp: [1800, 3000],
-  ttfb: [800, 1800],
-} as const;
-const VITALS = ["lcp", "inp", "cls", "fcp", "ttfb"] as const;
-type Vital = (typeof VITALS)[number];
-
-function rate(
-  metric: Vital,
-  value: number | null,
-): "good" | "needs_improvement" | "poor" | null {
-  if (value === null) return null;
-  const [good, poor] = VITAL_THRESHOLDS[metric];
-  return value <= good ? "good" : value <= poor ? "needs_improvement" : "poor";
-}
-
 /** Web Vitals at p50/p75/p95 with a rating of the p75, overall and by page,
  *  device and browser. Empty unless the site's Umami script sends them. */
 async function getWebVitals(input: Read) {
@@ -357,7 +341,7 @@ async function getWebVitals(input: Read) {
     );
     const summary = run.result?.summary ?? null;
     const sampleCount = summary?.count ?? 0;
-    const metrics = VITALS.map((metric) => {
+    const metrics = WEB_VITALS.map((metric) => {
       const values = summary?.[metric] ?? null;
       const p75 = values?.p75 ?? null;
       return {
@@ -365,8 +349,8 @@ async function getWebVitals(input: Read) {
         p50: values?.p50 ?? null,
         p75,
         p95: values?.p95 ?? null,
-        rating: sampleCount > 0 ? rate(metric, p75) : null,
-        thresholds: VITAL_THRESHOLDS[metric],
+        rating: sampleCount > 0 ? rateWebVital(metric, p75) : null,
+        thresholds: WEB_VITAL_THRESHOLDS[metric],
       };
     });
     const lcpRows = (
@@ -380,7 +364,7 @@ async function getWebVitals(input: Read) {
     ) =>
       rows.flatMap((row) =>
         row.name
-          ? [{ ...row, name: row.name, rating: rate("lcp", row.p75) }]
+          ? [{ ...row, name: row.name, rating: rateWebVital("lcp", row.p75) }]
           : [],
       );
     return {
