@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
 import { CardShell } from "@/client/components/CardShell";
+import { GoogleUpdateMarkers } from "@/client/components/GoogleUpdateMarkers";
 import { StatTile } from "@/client/components/StatTile";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import {
@@ -136,6 +137,9 @@ export function UmamiCard({ projectId }: { projectId: string }) {
                 strokeWidth={2}
                 fill="var(--color-visitors)"
                 fillOpacity={0.08}
+              />
+              <GoogleUpdateMarkers
+                dates={report.trend.map((point) => point.date)}
               />
             </AreaChart>
           </ChartContainer>

@@ -12,6 +12,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/client/components/ui/chart";
+import { GoogleUpdateMarkers } from "@/client/components/GoogleUpdateMarkers";
 import { formatBingTick } from "@/client/features/bing/bingQueries";
 import { formatCount } from "@/client/features/search-performance/SearchPerformanceColumns";
 
@@ -69,6 +70,11 @@ export function DailyChart({
               valueFormatter={(value) => formatCount(Number(value))}
             />
           }
+        />
+        <GoogleUpdateMarkers
+          dates={data.flatMap((point) =>
+            typeof point.date === "string" ? [point.date] : [],
+          )}
         />
         {series.length > 1 ? (
           <ChartLegend content={<ChartLegendContent />} />
