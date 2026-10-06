@@ -2,17 +2,7 @@
  * Indexing settings, the sitemap URL inventory, and the cached Bing URL
  * submission quota. Written once for D1 and Postgres.
  */
-import {
-  and,
-  asc,
-  eq,
-  gt,
-  inArray,
-  isNull,
-  lte,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { chunk } from "remeda";
 import { db } from "@/db";
 import { executeInBatches } from "@/db/runBatch";

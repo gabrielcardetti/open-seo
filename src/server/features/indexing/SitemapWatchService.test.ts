@@ -176,14 +176,10 @@ describe("SitemapWatchService.runSitemapCheck", () => {
     const afterProbe = await check();
 
     // One failed POST (three attempts); no row says IndexNow refused anything.
-    expect(down).toMatchObject({
-      submission: {
-        results: [],
-        problem: expect.stringContaining(
-          "IndexNow is unreachable since 2026-10-06T08:00:00.000Z (HTTP 530); retrying at 2026-10-06T08:15:00.000Z.",
-        ),
-      },
-    });
+    expect(down).toMatchObject({ submission: { results: [] } });
+    expect(down.ok && down.submission?.problem).toContain(
+      "IndexNow is unreachable since 2026-10-06T08:00:00.000Z (HTTP 530); retrying at 2026-10-06T08:15:00.000Z.",
+    );
     expect(callsWhileDown).toBe(3);
     expect(stillOpen).toMatchObject({ submission: { results: [] } });
     expect(probe).toMatchObject({

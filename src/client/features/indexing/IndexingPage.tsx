@@ -8,6 +8,7 @@ import { indexingQueryKeys } from "./indexingShared";
 import { IndexNowKeyCard } from "./IndexNowKeyCard";
 import { SitemapCandidatesCard } from "./SitemapCandidatesCard";
 import { SubmitUrlsCard } from "./SubmitUrlsCard";
+import { UpstreamOutageAlert } from "./UpstreamOutageAlert";
 import { SitemapsCard } from "@/client/features/sitemaps/SitemapsCard";
 
 export function IndexingPage({ projectId }: { projectId: string }) {
@@ -26,6 +27,7 @@ export function IndexingPage({ projectId }: { projectId: string }) {
       <QueryState query={setup} errorFallback="Could not load indexing setup.">
         {(data) => (
           <div className="space-y-6">
+            <UpstreamOutageAlert outages={data.outages} />
             <div className="grid gap-6 lg:grid-cols-2">
               <IndexNowKeyCard projectId={projectId} setup={data} />
               <IndexingAutomationCard projectId={projectId} setup={data} />

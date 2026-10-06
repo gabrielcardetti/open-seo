@@ -101,8 +101,10 @@ async function getSetup(projectId: string, publicOrigin: string) {
       settings,
     ),
     // IndexNow or Bing's API (or the relay in front of them) unreachable:
-    // sending is paused for every project until the breaker closes.
-    outages,
+    // sending on that channel is paused until the breaker closes.
+    outages: outages.filter((outage) =>
+      outage.upstream === "bing_api" ? Boolean(bing) : Boolean(key),
+    ),
   };
 }
 

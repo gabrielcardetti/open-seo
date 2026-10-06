@@ -85,6 +85,37 @@ INDEXNOW_RELAY_SECRET=a-long-random-secret
 The API key travels in the request's query string, so serve the relay over
 HTTPS and keep its access logs free of query strings.
 
+#### When the relay is down
+
+If the relay (or the tunnel in front of it) stops answering, OpenSEO stops
+calling it for a while instead of failing every request. A gateway error
+(`502`, `503`, `504`), a Cloudflare origin error (`520`–`530`; `530` is what a
+Cloudflare Tunnel answers when its connector is gone), a timeout, or a network
+error opens a circuit breaker for that upstream, shared by every project:
+
+- Calls fail fast without reaching the network. The Bing and Indexing pages,
+  and the `get_bing_overview` and `get_sitemaps` MCP tools, say "The Bing relay
+  is unreachable since …; retrying at …" (or the IndexNow relay).
+- The Bing sync stops at the first such failure and runs again at the retry
+  time, not a day later.
+- URL submissions record nothing for the URLs they couldn't send: the log
+  doesn't fill with failures that aren't the engine's. The sitemap watch keeps
+  those URLs as new or changed and sends them once the relay is back, at the
+  retry time rather than the next day. A manual submission says the relay is
+  unreachable and when it retries.
+- The first call after the cooldown is a probe. Any answer from Bing or
+  IndexNow (including an error or `429`) closes the breaker and calls resume. If
+  the relay is still down, the next cooldown is longer: 15 minutes, then an
+  hour, then every 6 hours.
+
+Answers from Bing or IndexNow themselves, such as `400`, `403` or `429`, never
+open the breaker; they are recorded as before.
+
+A tunnel can stay down for hours without anyone noticing. Run a small watchdog
+next to the relay that requests the public relay URL every few minutes and
+restarts the tunnel (for example `systemctl restart cloudflared`) when it
+answers `530` or doesn't answer at all.
+
 ## 2) Connect a project
 
 Open the project's **Settings → Integrations** page and find the **Bing
@@ -307,6 +338,11 @@ Verify it in Bing Webmaster Tools, or save a key from the account that did.
 **"Bing is rate-limiting this server's IP address"**: Bing answered
 `ThrottleIP`. On Cloudflare Workers this is the shared outbound IP, not your
 key; set up the relay described in step 1.
+
+**"The Bing relay is unreachable since …" or "The IndexNow relay is unreachable
+since …"**: the relay or its tunnel is down (see [When the relay is
+down](#when-the-relay-is-down)). Bring it back; OpenSEO retries at the time
+shown and catches up on its own.
 
 **Rate limit reached**: Bing throttles each key and each host. Wait and sync
 again later. On Cloudflare, the next daily sync retries on its own.

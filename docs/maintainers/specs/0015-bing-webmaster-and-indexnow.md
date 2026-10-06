@@ -40,7 +40,7 @@ Each project can have an IndexNow key. OpenSEO generates one (32 hex characters)
 
 URLs go out on one of two channels. `auto` uses IndexNow once the key is verified, and otherwise Bing's URL submission API when the project has a Bing connection. Callers can force either channel. Before sending, OpenSEO keeps only http(s) URLs on the project's site (www and the apex count as one site) and skips URLs announced successfully within the project's dedupe window (24 hours by default) unless the caller forces a resend. Bing's API sends at most the remaining daily and monthly quota and marks the rest as skipped. If IndexNow answers that it cannot validate the key, OpenSEO clears the verification so `auto` falls back to Bing until the key file is fixed and verified again. An archived project sends nothing on any path.
 
-Every URL gets a ledger row per announcement: channel, source (manual, MCP, sitemap, deploy hook or audit), status and HTTP status. `received` and `pending` mean the engine got the notice; they never mean the page is indexed.
+Every URL gets a ledger row per announcement: channel, source (manual, MCP, sitemap, deploy hook or audit), status and HTTP status. `received` and `pending` mean the engine got the notice; they never mean the page is indexed. URLs not sent because Bing or IndexNow (or the relay in front of them) was unreachable get no row; spec 0021 covers that circuit breaker.
 
 URLs reach the ledger from four automatic or manual paths:
 

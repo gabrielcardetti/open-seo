@@ -20,6 +20,7 @@ export function BingSyncProblemAlert({
     canManage: boolean;
     connectorKeyMissing: boolean;
     lastSyncError: string | null;
+    outage: { message: string } | null;
   };
 }) {
   if (connection.connectorKeyMissing) {
@@ -31,6 +32,19 @@ export function BingSyncProblemAlert({
           {connection.canManage
             ? "Save your own key and choose the site again to resume syncing."
             : "Ask an owner or admin to reconnect Bing Webmaster Tools."}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (connection.outage) {
+    // Deployment-wide, and it supersedes the last sync's error, which says
+    // the same thing.
+    return (
+      <Alert variant="warning">
+        <AlertTitle>Bing can't be reached right now</AlertTitle>
+        <AlertDescription className="break-words">
+          {connection.outage.message} Syncs and URL submissions resume on their
+          own.
         </AlertDescription>
       </Alert>
     );

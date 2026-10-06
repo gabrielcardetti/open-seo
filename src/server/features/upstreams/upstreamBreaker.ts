@@ -53,9 +53,7 @@ export function isTransportStatus(status: number): boolean {
 const iso = (ms: number) => new Date(ms).toISOString();
 
 function cooldownMs(consecutiveFailures: number): number {
-  return COOLDOWNS_MS[
-    Math.min(consecutiveFailures, COOLDOWNS_MS.length) - 1
-  ] as number;
+  return COOLDOWNS_MS[Math.min(consecutiveFailures, COOLDOWNS_MS.length) - 1];
 }
 
 async function describe(

@@ -1068,10 +1068,9 @@ export const syncBingNowTool = {
         .map(([name, status]) => `${name}: ${status}`)
         .join(", ");
       return mcpResponse({
-        text:
-          result.outage
-            ? `${result.siteUrl} sync stopped · ${datasets}\n${result.outage} The sync runs again by itself then.`
-            :`${result.siteUrl} synced · ${datasets}${result.errors.length > 0 ? `\nErrors: ${result.errors.join("; ")}` : ""}`,
+        text: result.outage
+          ? `${result.siteUrl} sync stopped · ${datasets}\n${result.outage} The sync runs again by itself then.`
+          : `${result.siteUrl} synced · ${datasets}${result.errors.length > 0 ? `\nErrors: ${result.errors.join("; ")}` : ""}`,
         meta,
         structuredContent: {
           ok: result.errors.length === 0,

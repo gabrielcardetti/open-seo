@@ -247,7 +247,8 @@ describe("BingSyncService", () => {
       (upstream, state, consecutive_failures, opened_at, next_probe_at, last_error)
       VALUES ('bing_api', 'open', 1, '2026-09-10T08:00:00.000Z',
         '2026-09-10T08:15:00.000Z', 'HTTP 530')`);
-    const outage = "The Bing relay is unreachable since 2026-09-10T08:00:00.000Z";
+    const outage =
+      "The Bing relay is unreachable since 2026-09-10T08:00:00.000Z";
     client.getRankAndTrafficStats.mockRejectedValue(
       new BingApiError("unreachable", outage, 530),
     );
