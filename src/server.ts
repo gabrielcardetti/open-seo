@@ -283,6 +283,15 @@ export default {
     } catch (err) {
       console.error("[cron] Indexing monitor failed:", err);
     }
+    // Daily Google Indexing API health checks (token + metadata read), one
+    // claim per project a day. Same isolation and lazy loading.
+    try {
+      const { GoogleIndexingService } =
+        await import("@/server/features/indexing/GoogleIndexingService");
+      await withPgClient(() => GoogleIndexingService.runScheduledChecks());
+    } catch (err) {
+      console.error("[cron] Google Indexing API checks failed:", err);
+    }
     for (const result of checks)
       if (result.status === "rejected") throw result.reason;
     if (watchdogError) throw watchdogError;

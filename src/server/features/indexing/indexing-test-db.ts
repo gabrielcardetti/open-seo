@@ -1,7 +1,7 @@
 /**
  * An in-memory SQLite database with the real indexing, Bing, sitemap
- * registry and URL inspection migrations, for testing the indexing services
- * against actual SQL.
+ * registry, URL inspection and Google Indexing API migrations, for testing
+ * the indexing services against actual SQL.
  * Tests swap it in with
  *
  *   vi.mock("@/db", async () => ({ db: (await import("./indexing-test-db")).testDb }));
@@ -61,6 +61,7 @@ export function resetTestDatabase() {
     "0054_fixed_midnight",
     "0057_upstream_breakers",
     "0058_url_inspections",
+    "0061_google_indexing_connections",
   ]) {
     database.exec(readFileSync(`drizzle/sqlite/${migration}.sql`, "utf8"));
   }

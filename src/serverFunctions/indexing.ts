@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { hasOrgPermission } from "@/lib/org-permissions";
 import { requireOrgPermission } from "@/server/auth/org-gate";
+import { GoogleIndexingService } from "@/server/features/indexing/GoogleIndexingService";
 import { IndexingService } from "@/server/features/indexing/IndexingService";
 import { SitemapWatchService } from "@/server/features/indexing/SitemapWatchService";
 import { UrlSubmissionService } from "@/server/features/indexing/UrlSubmissionService";
@@ -20,6 +21,7 @@ import {
   indexingProjectSchema,
   indexingStatusSchema,
   reinspectUrlsSchema,
+  saveGoogleIndexingSchema,
   submitUrlsSchema,
   updateIndexingSettingsSchema,
 } from "@/types/schemas/indexing";
@@ -187,4 +189,34 @@ export const reinspectIndexingUrls = createServerFn({ method: "POST" })
       }
       throw error;
     }
+  });
+
+/** Save or replace the Google Indexing API service account, then check it. */
+export const saveGoogleIndexing = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(saveGoogleIndexingSchema)
+  .handler(async ({ data, context }) => {
+    requireOrgPermission(context, { integration: ["manage"] });
+    return GoogleIndexingService.save(context.projectId, {
+      serviceAccountJson: data.serviceAccountJson,
+      sampleUrl: data.sampleUrl,
+    });
+  });
+
+/** Check the saved Google Indexing API key now. Sends no notification. */
+export const checkGoogleIndexing = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(indexingProjectSchema)
+  .handler(async ({ context }) => {
+    requireOrgPermission(context, { integration: ["manage"] });
+    return GoogleIndexingService.check(context.projectId);
+  });
+
+export const removeGoogleIndexing = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(indexingProjectSchema)
+  .handler(async ({ context }) => {
+    requireOrgPermission(context, { integration: ["manage"] });
+    await GoogleIndexingService.remove(context.projectId);
+    return { ok: true };
   });

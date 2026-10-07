@@ -167,6 +167,7 @@ export const {
   urlSubmissions,
   sitemapUrls,
   projectSitemaps,
+  googleIndexingConnections,
   umamiConnections,
   aiTrackers,
   aiPrompts,

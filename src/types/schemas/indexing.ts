@@ -61,3 +61,9 @@ export const indexingStatusSchema = projectScoped.extend(
 export const reinspectUrlsSchema = projectScoped.extend({
   urls: z.array(z.string().url().max(2048)).min(1).max(10),
 });
+
+export const saveGoogleIndexingSchema = projectScoped.extend({
+  // Empty keeps the saved key, so the sample URL can change on its own.
+  serviceAccountJson: z.string().max(20_000).optional(),
+  sampleUrl: z.string().trim().max(2048).nullable().optional(),
+});

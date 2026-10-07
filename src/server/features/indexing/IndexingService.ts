@@ -18,6 +18,7 @@ import type {
   UrlSubmissionSource,
   UrlSubmissionStatus,
 } from "@/shared/indexing";
+import { GoogleIndexingService } from "./GoogleIndexingService";
 import { IndexingRepository } from "./IndexingRepository";
 import { isSameSite, projectHost } from "./site";
 import { UrlSubmissionRepository } from "./UrlSubmissionRepository";
@@ -57,10 +58,11 @@ function deployHookUrl(publicOrigin: string, projectId: string) {
 
 async function getSetup(projectId: string, publicOrigin: string) {
   const project = await requireProject(projectId);
-  const [settings, bing, outages] = await Promise.all([
+  const [settings, bing, outages, googleIndexing] = await Promise.all([
     IndexingRepository.getSettings(projectId),
     BingConnectionRepository.getByProjectId(projectId),
     UpstreamBreaker.listOutages(),
+    GoogleIndexingService.getView(projectId, project.domain),
   ]);
   const host = projectHost(project.domain);
   const key = settings?.indexnowKey ?? null;
@@ -96,6 +98,9 @@ async function getSetup(projectId: string, publicOrigin: string) {
           quotaCheckedAt: bing.quotaCheckedAt,
         }
       : null,
+    // Google's Indexing API (job-posting pages only): health of the saved
+    // service account. Checked, never used to send, for now.
+    googleIndexing,
     autoChannel: await UrlSubmissionService.resolveAutoChannel(
       projectId,
       settings,
