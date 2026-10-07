@@ -284,7 +284,7 @@ async function save(
   input: { serviceAccountJson?: string; sampleUrl?: string | null },
 ): Promise<
   | { ok: true; googleIndexing: GoogleIndexingView }
-  | { ok: false; error: string }
+  | { ok: false; field: "serviceAccountJson" | "sampleUrl"; error: string }
 > {
   const project = await requireProject(projectId);
   const existing = await GoogleIndexingRepository.getByProjectId(projectId);
@@ -293,7 +293,8 @@ async function save(
   const rawSample = input.sampleUrl?.trim();
   if (rawSample) {
     const validated = validateSampleUrl(rawSample, project.domain);
-    if ("error" in validated) return { ok: false, error: validated.error };
+    if ("error" in validated)
+      return { ok: false, field: "sampleUrl", error: validated.error };
     sampleUrl = validated.url;
   }
 
@@ -302,7 +303,9 @@ async function save(
   let serviceAccountEncrypted: string;
   if (json) {
     const parsed = parseServiceAccount(json);
-    if ("error" in parsed) return { ok: false, error: parsed.error };
+    if ("error" in parsed) {
+      return { ok: false, field: "serviceAccountJson", error: parsed.error };
+    }
     account = parsed.account;
     serviceAccountEncrypted = await sealSecret(json, KEY_PURPOSE);
   } else if (existing) {
@@ -310,13 +313,18 @@ async function save(
     if (!opened) {
       return {
         ok: false,
+        field: "serviceAccountJson",
         error: "The saved key can no longer be read. Paste the JSON key again.",
       };
     }
     account = opened;
     serviceAccountEncrypted = existing.serviceAccountEncrypted;
   } else {
-    return { ok: false, error: "Paste the service account's JSON key." };
+    return {
+      ok: false,
+      field: "serviceAccountJson",
+      error: "Paste the service account's JSON key.",
+    };
   }
 
   const result = await runCheck(

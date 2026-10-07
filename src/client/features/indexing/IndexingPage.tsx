@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/client/components/PageHeader";
 import { QueryState } from "@/client/components/QueryState";
 import { getIndexingSetup } from "@/serverFunctions/indexing";
+import { GoogleIndexingApiCard } from "./GoogleIndexingApiCard";
 import { GoogleIndexingSection } from "./GoogleIndexingSection";
 import { IndexingAutomationCard } from "./IndexingAutomationCard";
 import { IndexingLogSection } from "./IndexingLogSection";
@@ -41,6 +42,7 @@ export function IndexingPage({ projectId }: { projectId: string }) {
                 canManage={data.canManage}
               />
             </div>
+            <GoogleIndexingApiCard projectId={projectId} setup={data} />
           </div>
         )}
       </QueryState>
