@@ -142,6 +142,7 @@ import {
   listSiteAuditsTool,
 } from "@/server/mcp/tools/site-audit-cleanup-tools";
 import {
+  checkGoogleIndexingTool,
   getIndexingCandidatesTool,
   getIndexingLogTool,
   getIndexingSetupTool,
@@ -360,6 +361,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(runPagespeedTool);
   register(getIndexingSetupTool);
   register(verifyIndexNowKeyTool);
+  register(checkGoogleIndexingTool);
   register(submitUrlsForIndexingTool);
   register(getIndexingLogTool);
   register(getIndexingCandidatesTool);

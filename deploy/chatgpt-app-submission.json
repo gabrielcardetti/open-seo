@@ -723,7 +723,7 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Only retrieves the project's IndexNow key, verification state, auto-submit settings, deploy hook URL, and Bing submission quota.",
+        "read_only_justification": "Only retrieves the project's IndexNow key, verification state, auto-submit settings, deploy hook URL, Bing submission quota, and the stored status of its Google Indexing API connection.",
         "open_world_justification": "Operates only on private OpenSEO state or private provider data and cannot change publicly visible internet state.",
         "destructive_justification": "Does not delete, overwrite, revoke access, send messages, or perform irreversible actions."
       }
@@ -738,6 +738,18 @@
         "read_only_justification": "Fetches the site's public IndexNow key file and records whether it matches in the project's indexing settings.",
         "open_world_justification": "Fetches a public URL on the user's own website, outside OpenSEO, but does not change the site.",
         "destructive_justification": "Only updates the key's verification status; it does not delete data or change the website."
+      }
+    },
+    "check_google_indexing": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Requests a Google access token with the project's saved service account and reads Google's notification metadata for one URL, then records the connection's status in the project's indexing settings.",
+        "open_world_justification": "Calls Google's OAuth token endpoint and Indexing API outside OpenSEO, but sends no notification and changes nothing at Google.",
+        "destructive_justification": "Only updates the connection's check status; it does not delete data, send notifications, or change the website."
       }
     },
     "submit_urls_for_indexing": {

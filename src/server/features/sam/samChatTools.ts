@@ -84,6 +84,7 @@ import {
 } from "@/server/mcp/tools/search-console-tools";
 import { getIndexingStatusTool } from "@/server/mcp/tools/indexing-monitor-tools";
 import {
+  checkGoogleIndexingTool,
   getIndexingCandidatesTool,
   getIndexingLogTool,
   getIndexingSetupTool,
@@ -494,6 +495,7 @@ export function buildSamMcpTools(
     run_pagespeed: adaptTool(runPagespeedTool),
     get_indexing_setup: adaptTool(getIndexingSetupTool),
     verify_indexnow_key: adaptTool(verifyIndexNowKeyTool),
+    check_google_indexing: adaptTool(checkGoogleIndexingTool),
     submit_urls_for_indexing: adaptTool(submitUrlsForIndexingTool),
     get_indexing_log: adaptTool(getIndexingLogTool),
     get_indexing_candidates: adaptTool(getIndexingCandidatesTool),

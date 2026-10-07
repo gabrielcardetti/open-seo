@@ -5,6 +5,10 @@
  */
 import { z } from "zod";
 import { requireOrgPermission } from "@/server/auth/org-gate";
+import {
+  GoogleIndexingService,
+  type GoogleIndexingView,
+} from "@/server/features/indexing/GoogleIndexingService";
 import { IndexingService } from "@/server/features/indexing/IndexingService";
 import { SitemapWatchService } from "@/server/features/indexing/SitemapWatchService";
 import { UrlSubmissionService } from "@/server/features/indexing/UrlSubmissionService";
@@ -45,16 +49,48 @@ const statusSummary = (counts: Partial<Record<string, number>>) =>
     .map(([status, total]) => `${status} ${total}`)
     .join(", ") || "none";
 
+/** One line on the Google Indexing API connection, for text output. */
+function googleIndexingLine(google: GoogleIndexingView): string {
+  if (google.status === "not_configured") {
+    return "- Google Indexing API (job-posting pages only): not set up.";
+  }
+  const since = google.statusChangedAt
+    ? ` ${google.status === "ok" ? "Working" : "Failing"} since ${google.statusChangedAt}.`
+    : "";
+  return `- Google Indexing API (job-posting pages only): ${google.status}, service account ${google.clientEmail}, checked with ${google.sampleUrl ?? "(no sample URL)"} at ${google.lastCheckedAt ?? "never"}.${since} ${google.reason}`;
+}
+
+/** The Google Indexing API's fix as one actionNeeded line, when it fails. */
+function googleIndexingAction(google: GoogleIndexingView): string[] {
+  if (google.status === "ok" || google.status === "not_configured") return [];
+  return [
+    `Google Indexing API (${google.status}): ${google.reason} Fix: ${google.steps.join(" ")}`,
+  ];
+}
+
+const googleIndexingOutputSchema = z.looseObject({
+  status: z.string(),
+  reason: z.string(),
+  steps: z.array(z.string()),
+  fixUrl: z.string().nullable(),
+  clientEmail: z.string().nullable(),
+  sampleUrl: z.string().nullable(),
+  lastCheckedAt: z.string().nullable(),
+  statusChangedAt: z.string().nullable(),
+});
+
 export const getIndexingSetupTool = {
   name: "get_indexing_setup",
   config: {
     title: "Get indexing setup",
     description:
-      "How this project announces new and changed URLs to search engines: the IndexNow key, the exact key file to publish and where, whether it is verified, auto-submit and the dedupe window, the deploy hook URL, the last daily sitemap check, the Bing connection's URL submission quota, and which channel `auto` would use. Free — reads OpenSEO state.",
+      "How this project announces new and changed URLs to search engines: the IndexNow key, the exact key file to publish and where, whether it is verified, auto-submit and the dedupe window, the deploy hook URL, the last daily sitemap check, the Bing connection's URL submission quota, which channel `auto` would use, and the Google Indexing API connection (googleIndexing: status ok / not_configured / invalid_key / api_disabled / not_owner / quota_exceeded / error, with the reason, the exact fix steps, and the service account email to add as a Search Console owner). actionNeeded lists what to fix, in plain language. Free — reads OpenSEO state.",
     inputSchema: projectOnlyInput,
     outputSchema: z.looseObject({
       indexNow: looseObjectOutputSchema.optional(),
       autoChannel: z.string().nullable().optional(),
+      googleIndexing: googleIndexingOutputSchema,
+      actionNeeded: z.array(z.string()),
       ...optionalMetaOutputSchema,
     }),
     annotations: readAnnotations,
@@ -65,6 +101,15 @@ export const getIndexingSetupTool = {
       context.baseUrl,
     );
     const { indexNow } = setup;
+    const actionNeeded = [
+      ...(indexNow.key && !indexNow.verifiedAt
+        ? [
+            `Publish the IndexNow key file at ${indexNow.keyFileUrl ?? "(set the project's domain)"}, then run verify_indexnow_key.`,
+          ]
+        : []),
+      ...googleIndexingAction(setup.googleIndexing),
+      ...setup.outages.map((outage) => `Paused: ${outage.message}`),
+    ];
     const lines = [
       `Indexing for ${setup.host ?? "(no domain set)"}:`,
       indexNow.key
@@ -75,7 +120,13 @@ export const getIndexingSetupTool = {
       `- Auto-submit ${setup.autoSubmitEnabled ? "on" : "off"}; dedupe window ${setup.dedupeHours} h.`,
       `- Deploy hook ${setup.deployHook.configured ? "configured" : "not configured"}: POST ${setup.deployHook.url}`,
       `- Last sitemap check: ${setup.sitemap.lastCheckAt ?? "never"}${setup.sitemap.lastError ? ` (${setup.sitemap.lastError})` : ""}.`,
-      ...setup.outages.map((outage) => `- Paused: ${outage.message}`),
+      googleIndexingLine(setup.googleIndexing),
+      "",
+      actionNeeded.length > 0
+        ? ["Action needed:", ...actionNeeded.map((line) => `- ${line}`)].join(
+            "\n",
+          )
+        : "Nothing to fix.",
     ];
     return mcpResponse({
       text: lines.join("\n"),
@@ -84,7 +135,40 @@ export const getIndexingSetupTool = {
         args.projectId,
         indexingPath(args.projectId),
       ),
-      structuredContent: setup,
+      structuredContent: { ...setup, actionNeeded },
+    });
+  }),
+};
+
+export const checkGoogleIndexingTool = {
+  name: "check_google_indexing",
+  config: {
+    title: "Check the Google Indexing API connection",
+    description:
+      "Check the project's Google Indexing API service account now, read-only: mint a token with the saved key, then read urlNotifications/metadata for the sample URL (the domain's home page unless one was chosen). Sends no notification. Returns the status (ok, not_configured, invalid_key, api_disabled, not_owner, quota_exceeded, error), the reason, the exact fix steps, and the service account email to add as an Owner in Search Console. The Indexing API is only for pages with JobPosting or BroadcastEvent structured data. The key itself is pasted in the app, never through MCP. OpenSEO also runs this check daily. Requires an organization owner or admin. Uses no credits.",
+    inputSchema: projectOnlyInput,
+    outputSchema: googleIndexingOutputSchema.extend(optionalMetaOutputSchema),
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+  },
+  handler: withMcpProjectAuth(async (args: ProjectArgs, context) => {
+    requireOrgPermission(context.auth, { integration: ["manage"] });
+    const google = await GoogleIndexingService.check(args.projectId);
+    return mcpResponse({
+      text: [
+        googleIndexingLine(google),
+        ...google.steps.map((step, index) => `${index + 1}. ${step}`),
+      ].join("\n"),
+      meta: buildProjectMeta(
+        context,
+        args.projectId,
+        indexingPath(args.projectId),
+      ),
+      structuredContent: google,
     });
   }),
 };
