@@ -1,8 +1,7 @@
-import { autumn } from "@/server/billing/autumn";
 import {
-  AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-  AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-} from "@/shared/billing";
+  getOrCreateOrganizationCustomer,
+  getUsageCreditsRemaining,
+} from "@/server/billing/subscription";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { type ToolContext } from "@/server/mcp/context";
 import {
@@ -14,15 +13,6 @@ import { AppError } from "@/server/lib/errors";
 import { looksLikeDataForSeoKey } from "@/shared/selfhost-checks";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { z } from "zod";
-
-async function checkBalance(featureId: string, customerId: string) {
-  try {
-    const result = await autumn.check({ customerId, featureId });
-    return result.balance?.remaining ?? null;
-  } catch {
-    return null;
-  }
-}
 
 type DataforseoStatus =
   | { state: "ok"; balanceUsd: number | null }
@@ -61,7 +51,7 @@ export const whoamiTool = {
   config: {
     title: "Who am I",
     description:
-      "Confirms the connected OpenSEO account, server mode, token scopes, and current credit balance when the user asks to check their account or connection. On a self-hosted server it reports instead whether DataForSEO is configured and that account's balance in USD (from DataForSEO's free account endpoint). Uses no credits.",
+      "Confirms the connected OpenSEO account, server mode, token scopes, and current credit balance when the user asks to check their account or connection. Initializes billing for new hosted accounts and returns creditsRemaining: null when the balance is unavailable. On a self-hosted server it reports instead whether DataForSEO is configured and that account's balance in USD (from DataForSEO's free account endpoint). Uses no credits.",
     inputSchema: {} as Record<string, never>,
     outputSchema: z.looseObject({
       userEmail: z.string(),
@@ -77,7 +67,8 @@ export const whoamiTool = {
       ...optionalMetaOutputSchema,
     }),
     annotations: {
-      readOnlyHint: true,
+      readOnlyHint: false,
+      idempotentHint: true,
       openWorldHint: false,
       destructiveHint: false,
     },
@@ -87,14 +78,14 @@ export const whoamiTool = {
     const isHosted = await isHostedServerAuthMode();
     let creditsRemaining: number | null = null;
     if (isHosted) {
-      const [base, topup] = await Promise.all([
-        checkBalance(AUTUMN_SEO_DATA_BALANCE_FEATURE_ID, auth.organizationId),
-        checkBalance(
-          AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-          auth.organizationId,
-        ),
-      ]);
-      creditsRemaining = (base ?? 0) + (topup ?? 0);
+      try {
+        const customer = await getOrCreateOrganizationCustomer(auth);
+        const { monthlyRemaining, topupRemaining } =
+          await getUsageCreditsRemaining(customer.id);
+        creditsRemaining = monthlyRemaining + topupRemaining;
+      } catch {
+        // Account identity is still available when billing is unavailable.
+      }
     }
     const dataforseo = isHosted ? undefined : await getDataforseoStatus();
     const lines = [

@@ -1,3 +1,20 @@
+/* eslint-disable max-lines -- SAM's tool registry mirrors the MCP server: upstream's tools plus the fork's Bing, Umami, indexing and sitemap tools */
+import {
+  getAiVisibilityTrackerTool,
+  generateAiVisibilityPromptsTool,
+  researchAiVisibilityPromptsTool,
+  completeAiResearchSetupTool,
+  saveAiVisibilityTrackerTool,
+  estimateAiVisibilityCostTool,
+  setAiVisibilityScheduleTool,
+  runAiVisibilityCheckTool,
+  getAiVisibilityRunTool,
+  getAiVisibilityResultsTool,
+  getAiVisibilityAnswerTool,
+  getAiVisibilitySourcesTool,
+  getAiVisibilityTrendTool,
+  exportAiVisibilityDataTool,
+} from "@/server/mcp/tools/ai-visibility-tools";
 import { tool, type Tool, type ToolSet } from "ai";
 import { z, type ZodRawShape } from "zod";
 import { withPgClient } from "@/db";
@@ -13,13 +30,11 @@ import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
 import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
 import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
+import { pinRankTrackingKeywordsTool } from "@/server/mcp/tools/pin-rank-tracking-keywords";
 import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
 import { searchSerpLocationsTool } from "@/server/mcp/tools/search-serp-locations";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
-import {
-  exploreAiPromptTool,
-  getAiBrandVisibilityTool,
-} from "@/server/mcp/tools/ai-search-tools";
+import { getAiBrandVisibilityTool } from "@/server/mcp/tools/ai-search-tools";
 import {
   getAuditIssuesTool,
   getAuditPagesTool,
@@ -91,6 +106,7 @@ import {
   getBingSearchPerformanceTool,
   syncBingNowTool,
 } from "@/server/mcp/tools/bing-webmaster-tools";
+import { explorePromptTool } from "@/server/mcp/tools/explore-prompt";
 import { discoverSiteUrls, readPages, readSite } from "@/server/lib/scrape";
 import { capToolOutput } from "@/server/features/sam/samToolOutput";
 import type { McpToolDefinition } from "@/server/features/sam/samMcpToolDefinition";
@@ -394,10 +410,26 @@ export function buildSamMcpTools(
     get_backlinks_profile: adaptTool(getBacklinksProfileTool),
     get_serp_results: adaptTool(getSerpResultsTool),
     search_serp_locations: adaptTool(searchSerpLocationsTool),
+    get_ai_visibility_tracker: adaptTool(getAiVisibilityTrackerTool),
+    generate_ai_visibility_prompts: adaptTool(generateAiVisibilityPromptsTool),
+    research_ai_visibility_prompts: adaptTool(researchAiVisibilityPromptsTool),
+    complete_ai_research_setup: adaptTool(completeAiResearchSetupTool),
+    explore_prompt: adaptTool(explorePromptTool),
+    save_ai_visibility_tracker: adaptTool(saveAiVisibilityTrackerTool),
+    estimate_ai_visibility_cost: adaptTool(estimateAiVisibilityCostTool),
+    set_ai_visibility_schedule: adaptTool(setAiVisibilityScheduleTool),
+    run_ai_visibility_check: adaptTool(runAiVisibilityCheckTool),
+    get_ai_visibility_run: adaptTool(getAiVisibilityRunTool),
+    get_ai_visibility_results: adaptTool(getAiVisibilityResultsTool),
+    get_ai_visibility_answer: adaptTool(getAiVisibilityAnswerTool),
+    get_ai_visibility_sources: adaptTool(getAiVisibilitySourcesTool),
+    get_ai_visibility_trend: adaptTool(getAiVisibilityTrendTool),
+    export_ai_visibility_data: adaptTool(exportAiVisibilityDataTool),
     create_rank_tracker: adaptTool(createRankTrackerTool),
     get_rank_tracker: adaptTool(getRankTrackerTool),
     add_rank_tracking_keywords: adaptTool(addRankTrackingKeywordsTool),
     remove_rank_tracking_keywords: adaptTool(removeRankTrackingKeywordsTool),
+    pin_rank_tracking_keywords: adaptTool(pinRankTrackingKeywordsTool),
     estimate_rank_tracker_cost: adaptTool(estimateRankTrackerCostTool),
     run_rank_tracker: adaptTool(runRankTrackerTool),
     get_ranked_keywords: adaptTool(getRankedKeywordsTool),
@@ -412,7 +444,6 @@ export function buildSamMcpTools(
     get_local_rank_grid: adaptTool(getLocalRankGridTool),
     get_keyword_metrics: adaptTool(getKeywordMetricsTool),
     get_ai_brand_visibility: adaptTool(getAiBrandVisibilityTool),
-    explore_ai_prompt: adaptTool(exploreAiPromptTool),
     get_search_console_performance: adaptTool(getSearchConsolePerformanceTool),
     inspect_urls: adaptTool(inspectUrlsTool),
     get_indexing_status: adaptTool(getIndexingStatusTool),

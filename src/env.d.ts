@@ -61,6 +61,16 @@ declare namespace Cloudflare {
 
     // DataForSEO API Basic auth value (base64 of login:password)
     DATAFORSEO_API_KEY: string;
+    AI_VISIBILITY_WORKFLOW: Workflow<
+      ({ runId: string } | { setupProjectId: string }) & {
+        customer: {
+          organizationId: string;
+          userId: string;
+          userEmail: string;
+          projectId?: string;
+        };
+      }
+    >;
 
     // Google Cloud API key for Chrome UX Report and PageSpeed Insights (Core
     // Web Vitals field data). Optional; the tools explain how to set it.

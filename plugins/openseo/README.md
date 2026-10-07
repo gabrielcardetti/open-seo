@@ -13,8 +13,9 @@ OpenSEO gives your agent real SEO data and guided workflows, so its advice is gr
 - Track organic and Google Maps rankings
 - Work with Google Search Console, Google Analytics, and Bing Webmaster Tools data
 - Announce new and changed pages to Bing and other IndexNow engines
+- Research AI prompts and track brand mentions, citations, and competitors
 
-The plugin includes fifteen skills that guide Cursor through complete SEO workflows, plus the hosted OpenSEO MCP server for live data and project management.
+The plugin includes seventeen skills that guide Cursor through complete SEO workflows, plus the hosted OpenSEO MCP server for live data and project management.
 
 ## Connect
 
@@ -29,10 +30,13 @@ You need an OpenSEO account. The plugin package is free and open source. Hosted 
 - "What does competitor.com rank for that I don't?"
 - "Which pages are close to ranking in Google Search Console?"
 - "Track my rankings for these keywords and summarize what changed."
+- "Help me choose prompts to track in AI answers, and show the cost first."
 
 ## Included skills
 
+- AI prompt research
 - AI search optimization
+- AI visibility audit
 - Comparison pages
 - Competitive landscape
 - Competitor analysis

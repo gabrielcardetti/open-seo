@@ -14,7 +14,7 @@ export async function createUmamiTestDb() {
     [
       "PRAGMA foreign_keys = OFF;",
       "CREATE TABLE user (id text PRIMARY KEY, email text NOT NULL);",
-      "CREATE TABLE projects (id text PRIMARY KEY, organization_id text, name text, domain text, location_code integer, language_code text, created_at text, archived_at text);",
+      "CREATE TABLE projects (id text PRIMARY KEY, organization_id text, name text, domain text, location_code integer, language_code text, ai_research_keywords text, created_at text, archived_at text);",
       readFileSync("drizzle/sqlite/0055_umami_connections.sql", "utf8"),
     ].join("\n"),
   );

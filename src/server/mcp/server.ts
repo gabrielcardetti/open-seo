@@ -1,4 +1,20 @@
 import {
+  getAiVisibilityTrackerTool,
+  generateAiVisibilityPromptsTool,
+  researchAiVisibilityPromptsTool,
+  completeAiResearchSetupTool,
+  saveAiVisibilityTrackerTool,
+  estimateAiVisibilityCostTool,
+  setAiVisibilityScheduleTool,
+  runAiVisibilityCheckTool,
+  getAiVisibilityRunTool,
+  getAiVisibilityResultsTool,
+  getAiVisibilityAnswerTool,
+  getAiVisibilitySourcesTool,
+  getAiVisibilityTrendTool,
+  exportAiVisibilityDataTool,
+} from "@/server/mcp/tools/ai-visibility-tools";
+import {
   type CallToolResult,
   McpServer,
   type ToolAnnotations,
@@ -20,13 +36,11 @@ import { createRankTrackerTool } from "@/server/mcp/tools/create-rank-tracker";
 import { estimateRankTrackerCostTool } from "@/server/mcp/tools/estimate-rank-tracker-cost";
 import { getRankTrackerTool } from "@/server/mcp/tools/get-rank-tracker";
 import { removeRankTrackingKeywordsTool } from "@/server/mcp/tools/remove-rank-tracking-keywords";
+import { pinRankTrackingKeywordsTool } from "@/server/mcp/tools/pin-rank-tracking-keywords";
 import { runRankTrackerTool } from "@/server/mcp/tools/run-rank-tracker";
 import { searchSerpLocationsTool } from "@/server/mcp/tools/search-serp-locations";
 import { getSerpResultsTool } from "@/server/mcp/tools/get-serp-results";
-import {
-  exploreAiPromptTool,
-  getAiBrandVisibilityTool,
-} from "@/server/mcp/tools/ai-search-tools";
+import { getAiBrandVisibilityTool } from "@/server/mcp/tools/ai-search-tools";
 import {
   getGoogleAnalyticsAudienceBreakdownTool,
   getGoogleAnalyticsEcommercePerformanceTool,
@@ -61,6 +75,10 @@ import {
 } from "@/server/mcp/tools/umami-source-tools";
 import { createProjectTool } from "@/server/mcp/tools/create-project";
 import { listProjectsTool } from "@/server/mcp/tools/list-projects";
+import {
+  researchProjectWebsiteTool,
+  saveProjectWebsiteSetupTool,
+} from "@/server/mcp/tools/project-website";
 import {
   getProjectContextTool,
   updateProjectContextTool,
@@ -147,6 +165,7 @@ import {
   getBingSearchPerformanceTool,
   syncBingNowTool,
 } from "@/server/mcp/tools/bing-webmaster-tools";
+import { explorePromptTool } from "@/server/mcp/tools/explore-prompt";
 
 type ToolSchema = z.ZodType | z.ZodRawShape;
 
@@ -241,6 +260,8 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(whoamiTool);
   register(listProjectsTool);
   register(createProjectTool);
+  register(researchProjectWebsiteTool);
+  register(saveProjectWebsiteSetupTool);
   register(getProjectContextTool);
   register(updateProjectContextTool);
   register(listSavedKeywordsTool);
@@ -253,10 +274,26 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getBacklinksProfileTool);
   register(getSerpResultsTool);
   register(searchSerpLocationsTool);
+  register(getAiVisibilityTrackerTool);
+  register(explorePromptTool);
+  register(generateAiVisibilityPromptsTool);
+  register(researchAiVisibilityPromptsTool);
+  register(completeAiResearchSetupTool);
+  register(saveAiVisibilityTrackerTool);
+  register(estimateAiVisibilityCostTool);
+  register(setAiVisibilityScheduleTool);
+  register(runAiVisibilityCheckTool);
+  register(getAiVisibilityRunTool);
+  register(getAiVisibilityResultsTool);
+  register(getAiVisibilityAnswerTool);
+  register(getAiVisibilitySourcesTool);
+  register(getAiVisibilityTrendTool);
+  register(exportAiVisibilityDataTool);
   register(createRankTrackerTool);
   register(getRankTrackerTool);
   register(addRankTrackingKeywordsTool);
   register(removeRankTrackingKeywordsTool);
+  register(pinRankTrackingKeywordsTool);
   register(estimateRankTrackerCostTool);
   register(runRankTrackerTool);
   register(getRankedKeywordsTool);
@@ -271,7 +308,6 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getLocalRankGridTool);
   register(getKeywordMetricsTool);
   register(getAiBrandVisibilityTool);
-  register(exploreAiPromptTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
   register(getIndexingStatusTool);

@@ -14,6 +14,7 @@ import * as sqliteAgentReadiness from "./agent-readiness.schema";
 import * as sqliteBing from "./bing.schema";
 import * as sqliteIndexing from "./indexing.schema";
 import * as sqliteUmami from "./umami.schema";
+import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgProjectContext from "./pg/project-context.schema";
 import * as pgReports from "./pg/reports.schema";
@@ -29,6 +30,7 @@ import * as pgAgentReadiness from "./pg/agent-readiness.schema";
 import * as pgBing from "./pg/bing.schema";
 import * as pgIndexing from "./pg/indexing.schema";
 import * as pgUmami from "./pg/umami.schema";
+import * as pgAiVisibility from "./pg/ai-visibility.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -54,7 +56,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteAgentReadiness &
   typeof sqliteBing &
   typeof sqliteIndexing &
-  typeof sqliteUmami;
+  typeof sqliteUmami &
+  typeof sqliteAiVisibility;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -74,6 +77,7 @@ const runtimeSchema =
         ...pgBing,
         ...pgIndexing,
         ...pgUmami,
+        ...pgAiVisibility,
       }
     : {
         ...sqliteApp,
@@ -91,6 +95,7 @@ const runtimeSchema =
         ...sqliteBing,
         ...sqliteIndexing,
         ...sqliteUmami,
+        ...sqliteAiVisibility,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -163,4 +168,10 @@ export const {
   sitemapUrls,
   projectSitemaps,
   umamiConnections,
+  aiTrackers,
+  aiPrompts,
+  aiRuns,
+  aiObservations,
+  aiSources,
+  aiMatches,
 } = schema;

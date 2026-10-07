@@ -45,6 +45,7 @@ import { Route as STokenOgDotpngRouteImport } from './routes/s/$token/og[.]png'
 import { Route as STokenRawRouteImport } from './routes/s/$token/raw'
 import { Route as AppPProjectIdIndexRouteImport } from './routes/_app/p/$projectId/index'
 import { Route as AppPProjectIdAgentReadinessRouteImport } from './routes/_app/p/$projectId/agent-readiness'
+import { Route as AppPProjectIdAiVisibilityRouteImport } from './routes/_app/p/$projectId/ai-visibility'
 import { Route as AppPProjectIdAnalyticsRouteImport } from './routes/_app/p/$projectId/analytics'
 import { Route as AppPProjectIdBacklinksRouteImport } from './routes/_app/p/$projectId/backlinks'
 import { Route as AppPProjectIdBingRouteImport } from './routes/_app/p/$projectId/bing'
@@ -62,6 +63,8 @@ import { Route as AppPProjectIdSettingsRouteImport } from './routes/_app/p/$proj
 import { Route as ApiGa4OauthCallbackRouteImport } from './routes/api/ga4/oauth/callback'
 import { Route as ApiGscOauthCallbackRouteImport } from './routes/api/gsc/oauth/callback'
 import { Route as ApiIndexingHookProjectIdRouteImport } from './routes/api/indexing/hook/$projectId'
+import { Route as AppPProjectIdAiVisibilityIndexRouteImport } from './routes/_app/p/$projectId/ai-visibility/index'
+import { Route as AppPProjectIdAiVisibilityResearchRouteImport } from './routes/_app/p/$projectId/ai-visibility/research'
 import { Route as AppPProjectIdAuditIndexRouteImport } from './routes/_app/p/$projectId/audit/index'
 import { Route as AppPProjectIdRankTrackingIndexRouteImport } from './routes/_app/p/$projectId/rank-tracking/index'
 import { Route as AppPProjectIdRankTrackingConfigIdRouteImport } from './routes/_app/p/$projectId/rank-tracking/$configId'
@@ -71,6 +74,7 @@ import { Route as AppPProjectIdReportsTemplatesRouteImport } from './routes/_app
 import { Route as AppPProjectIdSettingsIndexRouteImport } from './routes/_app/p/$projectId/settings/index'
 import { Route as AppPProjectIdSettingsContextRouteImport } from './routes/_app/p/$projectId/settings/context'
 import { Route as AppPProjectIdSettingsIntegrationsRouteImport } from './routes/_app/p/$projectId/settings/integrations'
+import { Route as AppPProjectIdAiVisibilityPromptsPromptIdRouteImport } from './routes/_app/p/$projectId/ai-visibility/prompts/$promptId'
 import { Route as AppPProjectIdAuditIssuesResultIdRouteImport } from './routes/_app/p/$projectId/audit/issues/$resultId'
 
 const AppRouteRoute = AppRouteRouteImport.update({
@@ -254,6 +258,12 @@ const AppPProjectIdAgentReadinessRoute =
     path: '/agent-readiness',
     getParentRoute: () => AppPProjectIdRouteRoute,
   } as any)
+const AppPProjectIdAiVisibilityRoute =
+  AppPProjectIdAiVisibilityRouteImport.update({
+    id: '/ai-visibility',
+    path: '/ai-visibility',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
 const AppPProjectIdAnalyticsRoute = AppPProjectIdAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -344,6 +354,18 @@ const ApiIndexingHookProjectIdRoute =
     path: '/api/indexing/hook/$projectId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AppPProjectIdAiVisibilityIndexRoute =
+  AppPProjectIdAiVisibilityIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppPProjectIdAiVisibilityRoute,
+  } as any)
+const AppPProjectIdAiVisibilityResearchRoute =
+  AppPProjectIdAiVisibilityResearchRouteImport.update({
+    id: '/research',
+    path: '/research',
+    getParentRoute: () => AppPProjectIdAiVisibilityRoute,
+  } as any)
 const AppPProjectIdAuditIndexRoute = AppPProjectIdAuditIndexRouteImport.update({
   id: '/audit/',
   path: '/audit/',
@@ -397,6 +419,12 @@ const AppPProjectIdSettingsIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => AppPProjectIdSettingsRoute,
   } as any)
+const AppPProjectIdAiVisibilityPromptsPromptIdRoute =
+  AppPProjectIdAiVisibilityPromptsPromptIdRouteImport.update({
+    id: '/prompts/$promptId',
+    path: '/prompts/$promptId',
+    getParentRoute: () => AppPProjectIdAiVisibilityRoute,
+  } as any)
 const AppPProjectIdAuditIssuesResultIdRoute =
   AppPProjectIdAuditIssuesResultIdRouteImport.update({
     id: '/audit/issues/$resultId',
@@ -437,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/s/$token/': typeof STokenIndexRoute
   '/p/$projectId/agent-readiness': typeof AppPProjectIdAgentReadinessRoute
+  '/p/$projectId/ai-visibility': typeof AppPProjectIdAiVisibilityRouteWithChildren
   '/p/$projectId/analytics': typeof AppPProjectIdAnalyticsRoute
   '/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
   '/p/$projectId/bing': typeof AppPProjectIdBingRoute
@@ -455,15 +484,18 @@ export interface FileRoutesByFullPath {
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
   '/api/indexing/hook/$projectId': typeof ApiIndexingHookProjectIdRoute
   '/p/$projectId/': typeof AppPProjectIdIndexRoute
+  '/p/$projectId/ai-visibility/research': typeof AppPProjectIdAiVisibilityResearchRoute
   '/p/$projectId/rank-tracking/$configId': typeof AppPProjectIdRankTrackingConfigIdRoute
   '/p/$projectId/reports/$reportId': typeof AppPProjectIdReportsReportIdRoute
   '/p/$projectId/reports/templates': typeof AppPProjectIdReportsTemplatesRoute
   '/p/$projectId/settings/context': typeof AppPProjectIdSettingsContextRoute
   '/p/$projectId/settings/integrations': typeof AppPProjectIdSettingsIntegrationsRoute
+  '/p/$projectId/ai-visibility/': typeof AppPProjectIdAiVisibilityIndexRoute
   '/p/$projectId/audit/': typeof AppPProjectIdAuditIndexRoute
   '/p/$projectId/rank-tracking/': typeof AppPProjectIdRankTrackingIndexRoute
   '/p/$projectId/reports/': typeof AppPProjectIdReportsIndexRoute
   '/p/$projectId/settings/': typeof AppPProjectIdSettingsIndexRoute
+  '/p/$projectId/ai-visibility/prompts/$promptId': typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
   '/p/$projectId/audit/issues/$resultId': typeof AppPProjectIdAuditIssuesResultIdRoute
 }
 export interface FileRoutesByTo {
@@ -513,15 +545,18 @@ export interface FileRoutesByTo {
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
   '/api/indexing/hook/$projectId': typeof ApiIndexingHookProjectIdRoute
   '/p/$projectId': typeof AppPProjectIdIndexRoute
+  '/p/$projectId/ai-visibility/research': typeof AppPProjectIdAiVisibilityResearchRoute
   '/p/$projectId/rank-tracking/$configId': typeof AppPProjectIdRankTrackingConfigIdRoute
   '/p/$projectId/reports/$reportId': typeof AppPProjectIdReportsReportIdRoute
   '/p/$projectId/reports/templates': typeof AppPProjectIdReportsTemplatesRoute
   '/p/$projectId/settings/context': typeof AppPProjectIdSettingsContextRoute
   '/p/$projectId/settings/integrations': typeof AppPProjectIdSettingsIntegrationsRoute
+  '/p/$projectId/ai-visibility': typeof AppPProjectIdAiVisibilityIndexRoute
   '/p/$projectId/audit': typeof AppPProjectIdAuditIndexRoute
   '/p/$projectId/rank-tracking': typeof AppPProjectIdRankTrackingIndexRoute
   '/p/$projectId/reports': typeof AppPProjectIdReportsIndexRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsIndexRoute
+  '/p/$projectId/ai-visibility/prompts/$promptId': typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
   '/p/$projectId/audit/issues/$resultId': typeof AppPProjectIdAuditIssuesResultIdRoute
 }
 export interface FileRoutesById {
@@ -561,6 +596,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
   '/s/$token/': typeof STokenIndexRoute
   '/_app/p/$projectId/agent-readiness': typeof AppPProjectIdAgentReadinessRoute
+  '/_app/p/$projectId/ai-visibility': typeof AppPProjectIdAiVisibilityRouteWithChildren
   '/_app/p/$projectId/analytics': typeof AppPProjectIdAnalyticsRoute
   '/_app/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
   '/_app/p/$projectId/bing': typeof AppPProjectIdBingRoute
@@ -579,15 +615,18 @@ export interface FileRoutesById {
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
   '/api/indexing/hook/$projectId': typeof ApiIndexingHookProjectIdRoute
   '/_app/p/$projectId/': typeof AppPProjectIdIndexRoute
+  '/_app/p/$projectId/ai-visibility/research': typeof AppPProjectIdAiVisibilityResearchRoute
   '/_app/p/$projectId/rank-tracking/$configId': typeof AppPProjectIdRankTrackingConfigIdRoute
   '/_app/p/$projectId/reports/$reportId': typeof AppPProjectIdReportsReportIdRoute
   '/_app/p/$projectId/reports/templates': typeof AppPProjectIdReportsTemplatesRoute
   '/_app/p/$projectId/settings/context': typeof AppPProjectIdSettingsContextRoute
   '/_app/p/$projectId/settings/integrations': typeof AppPProjectIdSettingsIntegrationsRoute
+  '/_app/p/$projectId/ai-visibility/': typeof AppPProjectIdAiVisibilityIndexRoute
   '/_app/p/$projectId/audit/': typeof AppPProjectIdAuditIndexRoute
   '/_app/p/$projectId/rank-tracking/': typeof AppPProjectIdRankTrackingIndexRoute
   '/_app/p/$projectId/reports/': typeof AppPProjectIdReportsIndexRoute
   '/_app/p/$projectId/settings/': typeof AppPProjectIdSettingsIndexRoute
+  '/_app/p/$projectId/ai-visibility/prompts/$promptId': typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
   '/_app/p/$projectId/audit/issues/$resultId': typeof AppPProjectIdAuditIssuesResultIdRoute
 }
 export interface FileRouteTypes {
@@ -625,6 +664,7 @@ export interface FileRouteTypes {
     | '/onboarding/'
     | '/s/$token/'
     | '/p/$projectId/agent-readiness'
+    | '/p/$projectId/ai-visibility'
     | '/p/$projectId/analytics'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/bing'
@@ -643,15 +683,18 @@ export interface FileRouteTypes {
     | '/api/gsc/oauth/callback'
     | '/api/indexing/hook/$projectId'
     | '/p/$projectId/'
+    | '/p/$projectId/ai-visibility/research'
     | '/p/$projectId/rank-tracking/$configId'
     | '/p/$projectId/reports/$reportId'
     | '/p/$projectId/reports/templates'
     | '/p/$projectId/settings/context'
     | '/p/$projectId/settings/integrations'
+    | '/p/$projectId/ai-visibility/'
     | '/p/$projectId/audit/'
     | '/p/$projectId/rank-tracking/'
     | '/p/$projectId/reports/'
     | '/p/$projectId/settings/'
+    | '/p/$projectId/ai-visibility/prompts/$promptId'
     | '/p/$projectId/audit/issues/$resultId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -701,15 +744,18 @@ export interface FileRouteTypes {
     | '/api/gsc/oauth/callback'
     | '/api/indexing/hook/$projectId'
     | '/p/$projectId'
+    | '/p/$projectId/ai-visibility/research'
     | '/p/$projectId/rank-tracking/$configId'
     | '/p/$projectId/reports/$reportId'
     | '/p/$projectId/reports/templates'
     | '/p/$projectId/settings/context'
     | '/p/$projectId/settings/integrations'
+    | '/p/$projectId/ai-visibility'
     | '/p/$projectId/audit'
     | '/p/$projectId/rank-tracking'
     | '/p/$projectId/reports'
     | '/p/$projectId/settings'
+    | '/p/$projectId/ai-visibility/prompts/$promptId'
     | '/p/$projectId/audit/issues/$resultId'
   id:
     | '__root__'
@@ -748,6 +794,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/'
     | '/s/$token/'
     | '/_app/p/$projectId/agent-readiness'
+    | '/_app/p/$projectId/ai-visibility'
     | '/_app/p/$projectId/analytics'
     | '/_app/p/$projectId/backlinks'
     | '/_app/p/$projectId/bing'
@@ -766,15 +813,18 @@ export interface FileRouteTypes {
     | '/api/gsc/oauth/callback'
     | '/api/indexing/hook/$projectId'
     | '/_app/p/$projectId/'
+    | '/_app/p/$projectId/ai-visibility/research'
     | '/_app/p/$projectId/rank-tracking/$configId'
     | '/_app/p/$projectId/reports/$reportId'
     | '/_app/p/$projectId/reports/templates'
     | '/_app/p/$projectId/settings/context'
     | '/_app/p/$projectId/settings/integrations'
+    | '/_app/p/$projectId/ai-visibility/'
     | '/_app/p/$projectId/audit/'
     | '/_app/p/$projectId/rank-tracking/'
     | '/_app/p/$projectId/reports/'
     | '/_app/p/$projectId/settings/'
+    | '/_app/p/$projectId/ai-visibility/prompts/$promptId'
     | '/_app/p/$projectId/audit/issues/$resultId'
   fileRoutesById: FileRoutesById
 }
@@ -1054,6 +1104,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPProjectIdAgentReadinessRouteImport
       parentRoute: typeof AppPProjectIdRouteRoute
     }
+    '/_app/p/$projectId/ai-visibility': {
+      id: '/_app/p/$projectId/ai-visibility'
+      path: '/ai-visibility'
+      fullPath: '/p/$projectId/ai-visibility'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
     '/_app/p/$projectId/analytics': {
       id: '/_app/p/$projectId/analytics'
       path: '/analytics'
@@ -1173,6 +1230,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIndexingHookProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/p/$projectId/ai-visibility/': {
+      id: '/_app/p/$projectId/ai-visibility/'
+      path: '/'
+      fullPath: '/p/$projectId/ai-visibility/'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityIndexRouteImport
+      parentRoute: typeof AppPProjectIdAiVisibilityRoute
+    }
+    '/_app/p/$projectId/ai-visibility/research': {
+      id: '/_app/p/$projectId/ai-visibility/research'
+      path: '/research'
+      fullPath: '/p/$projectId/ai-visibility/research'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityResearchRouteImport
+      parentRoute: typeof AppPProjectIdAiVisibilityRoute
+    }
     '/_app/p/$projectId/audit/': {
       id: '/_app/p/$projectId/audit/'
       path: '/audit'
@@ -1236,6 +1307,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPProjectIdSettingsIntegrationsRouteImport
       parentRoute: typeof AppPProjectIdSettingsRoute
     }
+    '/_app/p/$projectId/ai-visibility/prompts/$promptId': {
+      id: '/_app/p/$projectId/ai-visibility/prompts/$promptId'
+      path: '/prompts/$promptId'
+      fullPath: '/p/$projectId/ai-visibility/prompts/$promptId'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityPromptsPromptIdRouteImport
+      parentRoute: typeof AppPProjectIdAiVisibilityRoute
+    }
     '/_app/p/$projectId/audit/issues/$resultId': {
       id: '/_app/p/$projectId/audit/issues/$resultId'
       path: '/audit/issues/$resultId'
@@ -1259,6 +1337,26 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
 const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
   AppSettingsRouteChildren,
 )
+
+interface AppPProjectIdAiVisibilityRouteChildren {
+  AppPProjectIdAiVisibilityResearchRoute: typeof AppPProjectIdAiVisibilityResearchRoute
+  AppPProjectIdAiVisibilityIndexRoute: typeof AppPProjectIdAiVisibilityIndexRoute
+  AppPProjectIdAiVisibilityPromptsPromptIdRoute: typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
+}
+
+const AppPProjectIdAiVisibilityRouteChildren: AppPProjectIdAiVisibilityRouteChildren =
+  {
+    AppPProjectIdAiVisibilityResearchRoute:
+      AppPProjectIdAiVisibilityResearchRoute,
+    AppPProjectIdAiVisibilityIndexRoute: AppPProjectIdAiVisibilityIndexRoute,
+    AppPProjectIdAiVisibilityPromptsPromptIdRoute:
+      AppPProjectIdAiVisibilityPromptsPromptIdRoute,
+  }
+
+const AppPProjectIdAiVisibilityRouteWithChildren =
+  AppPProjectIdAiVisibilityRoute._addFileChildren(
+    AppPProjectIdAiVisibilityRouteChildren,
+  )
 
 interface AppPProjectIdRankTrackingRouteChildren {
   AppPProjectIdRankTrackingConfigIdRoute: typeof AppPProjectIdRankTrackingConfigIdRoute
@@ -1297,6 +1395,7 @@ const AppPProjectIdSettingsRouteWithChildren =
 
 interface AppPProjectIdRouteRouteChildren {
   AppPProjectIdAgentReadinessRoute: typeof AppPProjectIdAgentReadinessRoute
+  AppPProjectIdAiVisibilityRoute: typeof AppPProjectIdAiVisibilityRouteWithChildren
   AppPProjectIdAnalyticsRoute: typeof AppPProjectIdAnalyticsRoute
   AppPProjectIdBacklinksRoute: typeof AppPProjectIdBacklinksRoute
   AppPProjectIdBingRoute: typeof AppPProjectIdBingRoute
@@ -1321,6 +1420,7 @@ interface AppPProjectIdRouteRouteChildren {
 
 const AppPProjectIdRouteRouteChildren: AppPProjectIdRouteRouteChildren = {
   AppPProjectIdAgentReadinessRoute: AppPProjectIdAgentReadinessRoute,
+  AppPProjectIdAiVisibilityRoute: AppPProjectIdAiVisibilityRouteWithChildren,
   AppPProjectIdAnalyticsRoute: AppPProjectIdAnalyticsRoute,
   AppPProjectIdBacklinksRoute: AppPProjectIdBacklinksRoute,
   AppPProjectIdBingRoute: AppPProjectIdBingRoute,

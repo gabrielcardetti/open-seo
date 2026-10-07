@@ -10,7 +10,9 @@ describe("buildSamSkillSource", () => {
     const names = (await source.list()).map((skill) => skill.name);
 
     expect(names).toEqual([
+      "ai-prompt-research",
       "ai-search-optimization",
+      "ai-visibility-audit",
       "comparison-pages",
       "competitive-landscape",
       "competitor-analysis",

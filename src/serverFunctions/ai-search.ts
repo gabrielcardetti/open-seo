@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { assertAiSearchAccess } from "@/server/features/ai-search/services/aiSearchAccess";
 import { getBrandLookup } from "@/server/features/ai-search/services/brandLookup";
 import { explorePrompt as runExplorePrompt } from "@/server/features/ai-search/services/promptExplorer";
+import { assertPaidAiSearchPlan } from "@/server/features/ai-search/services/access";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   brandLookupInputSchema,
@@ -12,7 +12,7 @@ export const lookupBrand = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(brandLookupInputSchema)
   .handler(async ({ data, context }) => {
-    await assertAiSearchAccess(context.organizationId);
+    await assertPaidAiSearchPlan(context.organizationId, "Brand Lookup");
     return getBrandLookup({ ...data, projectId: context.projectId }, context);
   });
 
@@ -20,6 +20,5 @@ export const explorePrompt = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
   .validator(promptExplorerInputSchema)
   .handler(async ({ data, context }) => {
-    await assertAiSearchAccess(context.organizationId);
     return runExplorePrompt({ ...data, projectId: context.projectId }, context);
   });

@@ -20,6 +20,7 @@ import * as sqliteAgentReadiness from "./agent-readiness.schema";
 import * as sqliteBing from "./bing.schema";
 import * as sqliteIndexing from "./indexing.schema";
 import * as sqliteUmami from "./umami.schema";
+import * as sqliteAiVisibility from "./ai-visibility.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgProjectContext from "./pg/project-context.schema";
 import * as pgReports from "./pg/reports.schema";
@@ -35,6 +36,7 @@ import * as pgAgentReadiness from "./pg/agent-readiness.schema";
 import * as pgBing from "./pg/bing.schema";
 import * as pgIndexing from "./pg/indexing.schema";
 import * as pgUmami from "./pg/umami.schema";
+import * as pgAiVisibility from "./pg/ai-visibility.schema";
 
 // Guards the ONE structural artifact `db:generate` does not regenerate: the
 // hand-written Postgres schema. The provider-aware `db`/`@/db/schema` barrel
@@ -171,6 +173,7 @@ const sqliteAppTables = tablesFrom(
   sqliteBing,
   sqliteIndexing,
   sqliteUmami,
+  sqliteAiVisibility,
 );
 const pgAppTables = tablesFrom(
   pgApp,
@@ -187,6 +190,7 @@ const pgAppTables = tablesFrom(
   pgBing,
   pgIndexing,
   pgUmami,
+  pgAiVisibility,
 );
 const sqliteAuthTables = tablesFrom(sqliteAuth);
 const pgAuthTables = tablesFrom(pgAuth);

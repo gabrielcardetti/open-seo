@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- the core app tables: upstream's plus the fork's audit page signals */
 import {
   sqliteTable,
   text,
@@ -61,6 +62,9 @@ export const projects = sqliteTable(
     // Soft delete: archived projects are hidden everywhere but their data
     // (keywords, rank tracking, audits) is preserved.
     archivedAt: text("archived_at"),
+    // The Prompt Research keywords from AI visibility setup, one
+    // per line, most important first. Null until setup runs.
+    aiResearchKeywords: text("ai_research_keywords"),
   },
   (table) => [
     // Only the auto-created Default/null-domain project is a singleton. This
@@ -269,6 +273,9 @@ export const rankTrackingKeywords = sqliteTable(
     keywordDifficulty: integer("keyword_difficulty"),
     cpc: real("cpc"),
     metricsFetchedAt: text("metrics_fetched_at"),
+    // Set when a user pins the keyword to the top of the tracker's table.
+    // Pins are shared by everyone in the project.
+    pinnedAt: text("pinned_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(current_timestamp)`),

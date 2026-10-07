@@ -254,6 +254,20 @@ async function buildInventory(db: Db, user: UserRow) {
           )
           .orderBy(schema.rankCheckRuns.id);
 
+  const activeAiVisibilityWorkflows =
+    projectIds.length === 0
+      ? []
+      : await db
+          .select({ id: schema.aiRuns.id })
+          .from(schema.aiRuns)
+          .where(
+            and(
+              inArray(schema.aiRuns.projectId, projectIds),
+              inArray(schema.aiRuns.status, ["queued", "running"]),
+            ),
+          )
+          .orderBy(schema.aiRuns.id);
+
   // Any table with a `project_id`: the counts differ only in which table.
   const projectCount = async (table: PgTable & { projectId: PgColumn }) =>
     projectIds.length === 0
@@ -333,6 +347,10 @@ async function buildInventory(db: Db, user: UserRow) {
 
   return {
     organizations,
+    aiVisibilityProjectIds: projectIds,
+    activeAiVisibilityWorkflowIds: activeAiVisibilityWorkflows.map(
+      (row) => row.id,
+    ),
     samSessionIds: samSessions.map((row) => row.id),
     auditIds: audits.map((row) => row.id),
     r2Keys,
@@ -672,6 +690,8 @@ async function main() {
       auditIds: inventory.auditIds,
       activeAuditWorkflowIds: inventory.activeAuditWorkflowIds,
       activeRankWorkflowIds: inventory.activeRankWorkflowIds,
+      activeAiVisibilityWorkflowIds: inventory.activeAiVisibilityWorkflowIds,
+      aiVisibilityProjectIds: inventory.aiVisibilityProjectIds,
       r2Keys: inventory.r2Keys,
       googleAccounts: inventory.googleAccounts,
     });

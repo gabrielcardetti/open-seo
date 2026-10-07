@@ -145,6 +145,13 @@ function handleFetch(
   const pathname = new URL(publicRequest.url).pathname;
   ctx.waitUntil(maybeSendSelfHostHeartbeat(pathname));
 
+  if (pathname === "/api/ai-visibility/download") {
+    return import("@/server/features/ai-visibility/services/aiVisibilityExport").then(
+      ({ handleAiVisibilityDownload }) =>
+        handleAiVisibilityDownload(publicRequest),
+    );
+  }
+
   if (pathname === GDPR_STORAGE_ERASURE_PATH) {
     return handleGdprStorageErasure(publicRequest, env);
   }
@@ -179,6 +186,7 @@ function handleFetch(
 // AuditScratchpad DO live in the open-seo-audit aux worker
 // (src/audit-worker.ts); this worker reaches them via cross-script bindings.
 export { RankCheckWorkflow } from "./server/workflows/RankCheckWorkflow";
+export { AiVisibilityWorkflow } from "./server/workflows/AiVisibilityWorkflow";
 // Durable Object class for the SAM in-app agent (Agents SDK).
 export { SamChatAgent } from "./server/features/sam/SamChatAgent";
 
@@ -229,7 +237,14 @@ export default {
       console.error("[cron] Stale-audit reconcile failed:", err);
     }
     // Scope a per-request Postgres client for the cron run (no-op in D1 mode).
-    await withPgClient(() => runScheduledRankChecks(env));
+    const checks = await Promise.allSettled([
+      withPgClient(() => runScheduledRankChecks(env)),
+      withPgClient(async () => {
+        const { runScheduledAiVisibility } =
+          await import("@/server/features/ai-visibility/services/scheduledAiVisibility");
+        await runScheduledAiVisibility();
+      }),
+    ]);
     // Daily agent-readiness scans. Isolated so a scanner outage never stops
     // the other cron jobs, and loaded lazily to keep the probe code out of the
     // fetch path's baseline heap.
@@ -268,6 +283,8 @@ export default {
     } catch (err) {
       console.error("[cron] Indexing monitor failed:", err);
     }
+    for (const result of checks)
+      if (result.status === "rejected") throw result.reason;
     if (watchdogError) throw watchdogError;
   },
 };
