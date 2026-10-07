@@ -428,6 +428,13 @@
       "when": 1791317081141,
       "tag": "0058_url_inspections",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1791379825056,
+      "tag": "0061_google_indexing_connections",
+      "breakpoints": true
     }
   ]
 }

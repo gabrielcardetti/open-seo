@@ -7,6 +7,7 @@ import {
   text,
 } from "drizzle-orm/sqlite-core";
 import {
+  GOOGLE_INDEXING_STATUSES,
   URL_SUBMISSION_CHANNELS,
   URL_SUBMISSION_SOURCES,
   URL_SUBMISSION_STATUSES,
@@ -121,4 +122,39 @@ export const projectSitemaps = sqliteTable(
     confirmedAt: text("confirmed_at"),
   },
   (table) => [primaryKey({ columns: [table.projectId, table.url] })],
+);
+
+// A project's Google Indexing API service account and the health of its last
+// check. The API only accepts pages with JobPosting or BroadcastEvent
+// structured data; OpenSEO only checks the connection today, and a future
+// submission channel for those pages reads the same row.
+export const googleIndexingConnections = sqliteTable(
+  "google_indexing_connections",
+  {
+    projectId: text("project_id")
+      .primaryKey()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // The whole service-account JSON, as ciphertext from secretBox. The
+    // private key never leaves the server.
+    serviceAccountEncrypted: text("service_account_encrypted").notNull(),
+    // Copied from the JSON in clear, for display and the fix steps.
+    clientEmail: text("client_email").notNull(),
+    gcpProjectId: text("gcp_project_id"),
+    // The URL the check reads metadata for; null means the domain's home page.
+    sampleUrl: text("sample_url"),
+    status: text("status", { enum: GOOGLE_INDEXING_STATUSES }).notNull(),
+    // Google's own message when the last check failed.
+    lastError: text("last_error"),
+    lastCheckedAt: text("last_checked_at"),
+    // When the status last changed: "working since" / "failing since".
+    statusChangedAt: text("status_changed_at"),
+    // Daily check, claimed with compare-and-set like the other crons.
+    nextCheckAt: text("next_check_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
 );

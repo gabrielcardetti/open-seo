@@ -51,3 +51,22 @@ export const INDEXING_URL_STATUSES = [
   "not_indexed",
   "not_inspected",
 ] as const;
+
+// The Google Indexing API connection's health, from its last check.
+export const GOOGLE_INDEXING_STATUSES = [
+  // A token was minted and Google accepted a metadata read for the sample URL.
+  "ok",
+  // No service account saved.
+  "not_configured",
+  // The token endpoint refused the key (revoked, deleted, or a skewed clock).
+  "invalid_key",
+  // The Indexing API is not enabled in the service account's Cloud project.
+  "api_disabled",
+  // The service account is not an owner of the Search Console property.
+  "not_owner",
+  // Google's 429: the project's quota is used up for now.
+  "quota_exceeded",
+  // Anything else; the stored error keeps Google's message.
+  "error",
+] as const;
+export type GoogleIndexingStatus = (typeof GOOGLE_INDEXING_STATUSES)[number];
