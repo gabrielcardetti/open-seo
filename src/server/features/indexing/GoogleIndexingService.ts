@@ -147,7 +147,8 @@ function describe(
         steps: [
           `In Search Console, open the property that covers ${sample}.`,
           `Go to Settings → Users and permissions → Add user, enter ${email} and choose the Owner permission. If you are a delegated owner, use Manage property owners → Add an owner instead.`,
-          "Check again here.",
+          `If ${email} is already listed with Full permission, that is not enough: the Indexing API only accepts Owners. Make it an Owner.`,
+          "Owner changes can take a few minutes to reach the Indexing API. Check again here.",
         ],
         fixUrl: "https://search.google.com/search-console/users",
       };
