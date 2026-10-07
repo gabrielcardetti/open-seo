@@ -93,7 +93,8 @@ async function send(url: string, init: RequestInit): Promise<GoogleReply> {
     const body = await response.text();
     return {
       status: response.status,
-      message: googleMessage(body, response.status),
+      // Only errors carry a message; a success body may hold the token.
+      message: response.ok ? "" : googleMessage(body, response.status),
       body,
     };
   } catch (error) {
