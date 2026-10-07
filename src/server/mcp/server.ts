@@ -141,8 +141,8 @@ import {
   deleteSiteAuditTool,
   listSiteAuditsTool,
 } from "@/server/mcp/tools/site-audit-cleanup-tools";
+import { checkGoogleIndexingTool } from "@/server/mcp/tools/google-indexing-tools";
 import {
-  checkGoogleIndexingTool,
   getIndexingCandidatesTool,
   getIndexingLogTool,
   getIndexingSetupTool,

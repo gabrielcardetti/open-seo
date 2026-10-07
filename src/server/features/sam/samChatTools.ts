@@ -83,8 +83,8 @@ import {
   inspectUrlsTool,
 } from "@/server/mcp/tools/search-console-tools";
 import { getIndexingStatusTool } from "@/server/mcp/tools/indexing-monitor-tools";
+import { checkGoogleIndexingTool } from "@/server/mcp/tools/google-indexing-tools";
 import {
-  checkGoogleIndexingTool,
   getIndexingCandidatesTool,
   getIndexingLogTool,
   getIndexingSetupTool,
