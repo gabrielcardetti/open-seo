@@ -166,7 +166,6 @@ export function getProjectNavGroups(projectId: string) {
       items: [
         byPath("/p/$projectId/ai-visibility/research"),
         byPath("/p/$projectId/prompt-explorer"),
-        byPath("/p/$projectId/brand-lookup"),
         byPath("/p/$projectId/ai-visibility"),
       ],
     },
