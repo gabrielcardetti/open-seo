@@ -34,6 +34,10 @@ Search Console is optional and works in self-hosted deployments using your own G
 
 Bing Webmaster Tools and IndexNow are optional. Paste a Bing Webmaster API key to keep a history of your Bing traffic and crawl health on the Bing Insights page. Site audits then also list the crawl problems Bing found. Publish an IndexNow key file to announce new and changed pages to Bing and other IndexNow engines. Saved API keys are encrypted with `BETTER_AUTH_SECRET`, the only environment variable this needs. Daily syncs and sitemap checks run only on Cloudflare deployments; on Docker you sync on demand. See the [Bing Webmaster Tools guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/SELF_HOSTING_BING_WEBMASTER_TOOLS.md).
 
+### Google Indexing API
+
+If your site publishes job postings and its backend notifies Google through the Indexing API, paste the service account's JSON key on the Indexing page. OpenSEO checks every day that the key works, the API is enabled, and the service account owns your Search Console property, and tells you exactly what to fix when one of them breaks. It does not send notifications itself. The key is encrypted with `BETTER_AUTH_SECRET`. See the [Google Indexing API guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/GOOGLE_INDEXING_API.md).
+
 ### Umami analytics
 
 If your site uses Umami instead of Google Analytics, connect Umami Cloud (an API key) or your self-hosted Umami (its address and a view-only login) to see organic visitors on the dashboard and give agents your landing pages, traffic sources, and events. It reads Umami live and uses no credits. Saved credentials are encrypted with `BETTER_AUTH_SECRET`. See the [Umami guide on GitHub](https://github.com/gabrielcardetti/open-seo/blob/main/docs/SELF_HOSTING_UMAMI.md).
