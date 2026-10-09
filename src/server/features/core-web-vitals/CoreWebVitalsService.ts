@@ -4,7 +4,6 @@
  * Search's page experience signals), its weekly history, and PageSpeed
  * Insights runs. Needs GOOGLE_API_KEY; nothing is stored.
  */
-import { sortBy } from "remeda";
 import {
   queryCruxHistory,
   queryCruxRecord,
@@ -18,6 +17,7 @@ import {
   buildStoredLighthouseIssues,
   buildStoredLighthouseMetrics,
   scoreToPercent,
+  summarizeLighthouseIssues,
 } from "@/server/lib/lighthouseStoredPayload";
 import { getOptionalEnvValue } from "@/server/lib/runtime-env";
 import { AppError } from "@/server/lib/errors";
@@ -287,30 +287,7 @@ async function runPagespeed(input: {
     },
     lab: buildStoredLighthouseMetrics({ audits }),
     field,
-    // Biggest estimated savings first, as PageSpeed ranks them.
-    opportunities: sortBy(
-      issues.filter((issue) => issue.category === "performance"),
-      [(issue) => issue.impactMs ?? 0, "desc"],
-      [(issue) => issue.impactBytes ?? 0, "desc"],
-    )
-      .slice(0, 10)
-      .map((issue) => ({
-        auditKey: issue.auditKey,
-        title: issue.title,
-        displayValue: issue.displayValue,
-        savingsMs: issue.impactMs,
-        savingsBytes: issue.impactBytes,
-        severity: issue.severity,
-      })),
-    otherIssues: issues
-      .filter((issue) => issue.category !== "performance")
-      .slice(0, 15)
-      .map((issue) => ({
-        category: issue.category,
-        auditKey: issue.auditKey,
-        title: issue.title,
-        severity: issue.severity,
-      })),
+    ...summarizeLighthouseIssues(issues),
   };
 }
 

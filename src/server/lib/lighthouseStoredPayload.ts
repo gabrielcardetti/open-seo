@@ -1,3 +1,4 @@
+import { sortBy } from "remeda";
 import { z } from "zod";
 import { LIGHTHOUSE_CATEGORIES } from "@/shared/lighthouse";
 
@@ -269,4 +270,68 @@ export function buildStoredLighthouseMetrics(input: {
     ),
     serverResponseTime: buildStoredMetric(input.audits["server-response-time"]),
   };
+}
+
+const SEVERITY_ORDER = { critical: 0, warning: 1, info: 2 } as const;
+const OTHER_ISSUES_PER_CATEGORY = 8;
+const ITEMS_PER_ISSUE = 5;
+
+const clip = (value: string, max: number) =>
+  value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`;
+
+/** Lighthouse descriptions end in markdown "Learn more" links; keep the prose. */
+function shortDescription(description: string): string {
+  const text = description
+    .replace(/\s*\[Learn[^\]]*\]\([^)]*\)\.?/gi, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .trim();
+  return clip(text, 240);
+}
+
+/**
+ * What to fix first in one Lighthouse run: the biggest performance
+ * opportunities by estimated savings, as PageSpeed ranks them, and the
+ * failing audits of the other categories (worst first, a few per category,
+ * so a long accessibility list can't crowd out SEO) with a short
+ * description and their first offending items.
+ */
+export function summarizeLighthouseIssues(
+  issues: readonly StoredLighthouseIssue[],
+) {
+  const opportunities = sortBy(
+    issues.filter((issue) => issue.category === "performance"),
+    [(issue) => issue.impactMs ?? 0, "desc"],
+    [(issue) => issue.impactBytes ?? 0, "desc"],
+  )
+    .slice(0, 10)
+    .map((issue) => ({
+      auditKey: issue.auditKey,
+      title: issue.title,
+      displayValue: issue.displayValue,
+      savingsMs: issue.impactMs,
+      savingsBytes: issue.impactBytes,
+      severity: issue.severity,
+    }));
+
+  const otherIssues = LIGHTHOUSE_CATEGORIES.filter(
+    (category) => category !== "performance",
+  ).flatMap((category) =>
+    sortBy(
+      issues.filter((issue) => issue.category === category),
+      (issue) => SEVERITY_ORDER[issue.severity],
+    )
+      .slice(0, OTHER_ISSUES_PER_CATEGORY)
+      .map((issue) => ({
+        category: issue.category,
+        auditKey: issue.auditKey,
+        title: issue.title,
+        severity: issue.severity,
+        description: shortDescription(issue.description),
+        items: issue.items
+          .slice(0, ITEMS_PER_ISSUE)
+          .map((item) => clip(item, 300)),
+      })),
+  );
+
+  return { opportunities, otherIssues };
 }

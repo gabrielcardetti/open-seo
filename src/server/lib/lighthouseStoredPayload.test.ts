@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildStoredLighthouseIssues,
   buildStoredLighthouseMetrics,
+  summarizeLighthouseIssues,
 } from "@/server/lib/lighthouseStoredPayload";
 
 describe("lighthouse stored payload classification", () => {
@@ -155,5 +156,39 @@ describe("lighthouse stored payload classification", () => {
     expect(issues.issues[0]?.items[0]).toBe(
       '{"url":"https://cdn.example.com/script-0.js","wastedBytes":1000}',
     );
+  });
+});
+
+const failingAudit = (category: "accessibility" | "seo", auditKey: string) => ({
+  category,
+  auditKey,
+  title: auditKey,
+  description:
+    "Screen readers need labels. [Learn more about labels](https://developer.chrome.com/docs/lighthouse).",
+  score: 0,
+  scoreDisplayMode: "binary",
+  displayValue: null,
+  impactMs: null,
+  impactBytes: null,
+  severity: "critical" as const,
+  items: [],
+});
+
+describe("summarizeLighthouseIssues", () => {
+  // A page with many accessibility failures must still surface its SEO ones.
+  it("keeps every category in view and strips Learn more links", () => {
+    const issues = [
+      ...Array.from({ length: 20 }, (_, index) =>
+        failingAudit("accessibility", `a11y-${index}`),
+      ),
+      failingAudit("seo", "meta-description"),
+    ];
+
+    const { otherIssues } = summarizeLighthouseIssues(issues);
+
+    expect(otherIssues.at(-1)).toMatchObject({
+      auditKey: "meta-description",
+      description: "Screen readers need labels.",
+    });
   });
 });
