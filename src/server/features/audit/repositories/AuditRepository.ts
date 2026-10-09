@@ -291,6 +291,16 @@ async function getPagesForAudit(auditId: string) {
     .where(eq(auditPages.auditId, auditId));
 }
 
+/** The audit's Lighthouse checks with their page URL. Callers have already
+ *  scoped the audit to the project. */
+async function getLighthouseResultsForAudit(auditId: string) {
+  return db
+    .select({ lighthouse: auditLighthouseResults, pageUrl: auditPages.url })
+    .from(auditLighthouseResults)
+    .innerJoin(auditPages, eq(auditPages.id, auditLighthouseResults.pageId))
+    .where(eq(auditLighthouseResults.auditId, auditId));
+}
+
 async function countPagesByFetchClass(
   auditId: string,
   fetchClass: PageFetchClass,
@@ -424,6 +434,7 @@ export const AuditRepository = {
   getLatestAuditForProject,
   getIssuesForAudit,
   getPagesForAudit,
+  getLighthouseResultsForAudit,
   countPagesByFetchClass,
   hasPagesForAudit,
   getAuditsByProject,

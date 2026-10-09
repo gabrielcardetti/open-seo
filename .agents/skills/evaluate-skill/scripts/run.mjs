@@ -48,6 +48,7 @@ const allowed = new Set([
   "get_audit_status",
   "get_audit_issues",
   "get_audit_pages",
+  "get_audit_lighthouse",
   "get_domain_overview",
   "get_ranked_keywords",
   "get_backlinks_overview",

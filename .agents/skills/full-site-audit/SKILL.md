@@ -74,7 +74,7 @@ Cosas a tener en cuenta con los jueces:
 - Después de desplegar correcciones, corré de nuevo las fases 1–3 con la misma configuración y compará contra la auditoría anterior (IDs en el research log, o `list_site_audits`) con `compare_audits({ baseAuditId, auditId })`: páginas nuevas y eliminadas, issues resueltos y nuevos por tipo, veredictos de guías que mejoraron o empeoraron (los de Bing, aparte, en `guidelines.bing`). Si los dos crawls no cubrieron las mismas URLs, mirá `issues.common` (solo URLs presentes en ambas, también por plantilla): lo demás mezcla arreglos con cambios de muestra. Agent readiness guarda su propio historial en `get_agent_readiness`.
 - Anotá el resultado de cada ronda en el research log, para que la evolución quede en un solo lugar.
 - **Después de un lanzamiento de contenido**, seguí la fase 7 de `content-build`: indexación en Search Console (cuota de unas 10 a 12 por día), Bing, IndexNow y la línea base de medición.
-- **Lighthouse.** El MCP no devuelve los puntajes de Lighthouse. Para medir rendimiento, corré Lighthouse en local contra producción y mirá las peticiones más pesadas de cada página (comandos en `content-build/checks.md`).
+- **Lighthouse.** Si la auditoría corrió con `runLighthouse: true`, leé los resultados con `get_audit_lighthouse`: sin `pageUrl`, puntajes y Core Web Vitals de la muestra (peor rendimiento primero); con `pageUrl`, las oportunidades con su ahorro estimado y las auditorías fallidas con los elementos culpables. Para una página fuera de la muestra, `run_pagespeed`. Para mirar las peticiones más pesadas de cada página, corré Lighthouse en local contra producción (comandos en `content-build/checks.md`).
 
 ## Guardrails
 

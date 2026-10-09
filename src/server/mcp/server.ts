@@ -115,6 +115,7 @@ import {
 import { researchKeywordsTool } from "@/server/mcp/tools/research-keywords";
 import { saveKeywordsTool } from "@/server/mcp/tools/save-keywords";
 import { compareAuditsTool } from "@/server/mcp/tools/audit-compare-tool";
+import { getAuditLighthouseTool } from "@/server/mcp/tools/audit-lighthouse-tool";
 import {
   getSearchConsolePerformanceTool,
   inspectUrlsTool,
@@ -351,6 +352,7 @@ export function createOpenSeoMcpServer(authProps: McpProps) {
   register(getAuditStatusTool);
   register(getAuditIssuesTool);
   register(getAuditPagesTool);
+  register(getAuditLighthouseTool);
   register(compareAuditsTool);
   register(getGuidelineResultsTool);
   register(getGuidelinesEvaluationBatchTool);

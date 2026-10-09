@@ -61,7 +61,7 @@ const runInputSchema = {
     .boolean()
     .optional()
     .describe(
-      "Run Lighthouse on a sample of up to 10 representative pages (default false — it adds several minutes of wall-clock time). Pass true only when the user wants performance/Core Web Vitals detail.",
+      "Run Lighthouse on a sample of up to 10 representative pages (default false — it adds several minutes of wall-clock time). Pass true only when the user wants performance/Core Web Vitals detail. Read the scores, opportunities and failing audits with get_audit_lighthouse.",
     ),
   evaluateContent: z
     .boolean()
@@ -243,7 +243,7 @@ export const getAuditStatusTool = {
 
     const lighthouseNote =
       status.lighthouseTotal > 0
-        ? `, lighthouse ${status.lighthouseCompleted + status.lighthouseFailed}/${status.lighthouseTotal}`
+        ? `, lighthouse ${status.lighthouseCompleted + status.lighthouseFailed}/${status.lighthouseTotal} (read the results with get_audit_lighthouse)`
         : "";
     // Failed audits keep partial results — point agents at them instead of
     // letting a mid-crawl death read as "no data".

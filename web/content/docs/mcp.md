@@ -139,6 +139,7 @@ OpenSEO MCP exposes tools for SEO research workflows:
 - Research questions about a keyword with ChatGPT's answers and cited sources (uses credits).
 - Configure AI prompt tracking, preview cost, and start or pause scheduled checks.
 - Read and export saved AI answers, trends, citations, and competitor appearances without using credits.
+- Read the Lighthouse results of a site audit that ran Lighthouse: scores and lab Core Web Vitals for every sampled page, worst first, and for one page its biggest performance opportunities and its failing accessibility, best-practices, and SEO audits with the elements to fix (free, no credits).
 - Read first-party Google Search Console performance (clicks, impressions, CTR, position).
 - Inspect index status, crawl, and canonical for specific URLs (up to 10 per call).
 - Read which of your sitemap URLs Google has indexed: counts by coverage state and by URL template, a daily trend, and problem URLs (dropped from the index, noindex, fetch errors, a different canonical chosen by Google, still not indexed a week after publishing). OpenSEO checks your sitemap URLs with Search Console's URL Inspection API every day within Google's quota (free, no credits; needs Search Console connected).
