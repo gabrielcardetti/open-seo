@@ -16,7 +16,7 @@ export function sourceOf({ connection, projectHost }: ConnectedUmami) {
     websiteName: connection.websiteName,
     websiteDomain: connection.websiteDomain,
     // Reads count only this hostname (and its www twin), not every host the
-    // Umami website tracks. Realtime visitors can't be filtered by host.
+    // Umami website tracks.
     projectHost,
   };
 }

@@ -4,6 +4,7 @@ import {
   sourceOf,
   withUmami,
 } from "@/server/features/umami/umamiRead";
+import type { ConnectedUmami } from "@/server/features/umami/umamiAccess";
 import type { UmamiTotals } from "@/server/lib/umami/umamiClient";
 import {
   breakdownRows,
@@ -261,15 +262,35 @@ async function getEvents(
   });
 }
 
+const ACTIVE_WINDOW_MS = 5 * 60_000;
+
 async function getRealtime(projectId: string) {
   return withUmami(projectId, async (umami) => ({
     ok: true as const,
     source: sourceOf(umami),
-    activeVisitors: await umami.client.getActiveVisitors(
-      umami.connection.websiteId,
-    ),
+    activeVisitors: await activeVisitors(umami),
     window: "Visitors seen in the last 5 minutes.",
   }));
+}
+
+/** Umami's active count takes no filters and covers every host the website
+ *  tracks, so a project with a domain counts its own visitors over the same
+ *  five minutes instead. */
+async function activeVisitors({
+  client,
+  connection,
+  projectHost,
+  hostFilter,
+}: ConnectedUmami): Promise<number> {
+  if (!projectHost) return client.getActiveVisitors(connection.websiteId);
+  const endAt = Date.now();
+  const { current } = await client.getStats({
+    websiteId: connection.websiteId,
+    startAt: endAt - ACTIVE_WINDOW_MS,
+    endAt,
+    filters: hostFilter,
+  });
+  return current.visitors;
 }
 
 /** Organic entry pages with visits, bounces and time — the Umami side of

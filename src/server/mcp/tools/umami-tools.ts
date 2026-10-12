@@ -246,7 +246,7 @@ export const getUmamiRealtimeTool = {
   config: {
     title: "Get Umami realtime visitors",
     description:
-      "Count the visitors on the project's Umami website right now (seen in the last 5 minutes). Read-only and uses no OpenSEO credits.",
+      "Count the visitors on the project's site right now (seen in the last 5 minutes), from its Umami website, only on the project's domain. Read-only and uses no OpenSEO credits.",
     inputSchema: realtimeShape,
     outputSchema,
     annotations: READ_ONLY,

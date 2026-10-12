@@ -150,8 +150,9 @@ with a link to the integration settings.
 hostnames: a sister domain sharing the tracking script, the logged-in app,
 local development. Every read filters by the project's domain and its `www.`
 twin (Umami's `hostname` filter), so a project's numbers and its search
-opportunities only count its own pages. Realtime visitors can't be filtered by
-host and cover the whole website.
+opportunities only count its own pages. Umami's realtime count takes no
+filters, so realtime visitors are the project host's visitors over the last
+five minutes; only a project without a domain uses Umami's own count.
 
 ### Analytics page
 

@@ -119,6 +119,19 @@ describe("UmamiReportingService organic reads", () => {
     expect(result.current).toMatchObject({ visitors: 4, bounceRate: 0.2 });
   });
 
+  it("counts realtime visitors on the project's site only", async () => {
+    const result = await UmamiReportingService.getRealtime("project_1");
+
+    expect(result.activeVisitors).toBe(4);
+    const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input));
+    expect(urls.some((url) => url.pathname.endsWith("/active"))).toBe(false);
+    expect(
+      urls
+        .find((url) => url.pathname.endsWith("/stats"))
+        ?.searchParams.get("hostname"),
+    ).toBe("eq.example.com,www.example.com");
+  });
+
   it("gives entry pages the engagement Umami reports for the same path", async () => {
     const result = await UmamiReportingService.getBreakdown({
       projectId: "project_1",
