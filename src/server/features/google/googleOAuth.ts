@@ -380,6 +380,25 @@ export async function getGoogleAccessToken(input: {
   return tokens.access_token;
 }
 
+/**
+ * Whether a grant can still mint an access token. When Google revokes or
+ * expires a refresh token (apps in Testing lose theirs after seven days), the
+ * grant row and its project mappings stay, so a connection looks intact until
+ * every call fails. Only reaches Google when the cached access token is stale.
+ */
+export async function canMintGoogleAccessToken(input: {
+  userId: string;
+  providerId: string;
+  accountId?: string;
+}): Promise<boolean> {
+  try {
+    await getGoogleAccessToken(input);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function handleGoogleOAuthCallbackRequest(
   request: Request,
   integration: GoogleOAuthIntegration,

@@ -33,8 +33,12 @@ Under **APIs & Services → OAuth consent screen**:
   `https://www.googleapis.com/auth/webmasters`. The read-only one covers every
   report; the second lets OpenSEO submit sitemaps to Search Console.
 
-For personal or internal use you don't need to submit for verification; testing
-mode is enough.
+Once it works, publish the app (**Audience → Publish app**, publishing status
+**In production**). While it stays in Testing, Google expires every refresh
+token seven days after consent, so the connection stops loading data each week
+until you reconnect. For personal or internal use you don't need to submit for
+verification: an unverified app in production shows Google's "unverified app"
+warning on the consent screen, and connections stop expiring.
 
 ## 3) Create an OAuth client ID
 
@@ -130,6 +134,13 @@ docker compose up -d --force-recreate open-seo
 **`access_denied` during sign-in** — the Google account isn't listed as a test
 user on the OAuth consent screen (while the app is in Testing mode). Add it under
 **OAuth consent screen → Test users**.
+
+**"Reconnect needed" / Search Console stopped loading data** — Google revoked
+or expired the authorization behind the connection. Click **Reconnect Search
+Console** on the Search Console card with the Google account that connected the
+project; the property stays selected. If it happens again about a week later,
+the OAuth app is still in Testing: publish it (see
+[step 2](#2-configure-the-oauth-consent-screen)) and reconnect once more.
 
 **"Reconnect Search Console to let OpenSEO submit sitemaps"** — the
 connection was made before OpenSEO asked for write access, or the write scope

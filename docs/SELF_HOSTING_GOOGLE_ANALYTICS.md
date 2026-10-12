@@ -75,5 +75,8 @@ scheme, host, port, and `/api/ga4/oauth/callback` path used by the deployment.
 **No properties appear** — confirm that the Analytics Admin API is enabled and
 the connected Google account has access to the property.
 
-**Connection expired** — reconnect the Google account. OAuth apps left in
-Google's Testing status can receive short-lived refresh grants.
+**Connection expired ("Reconnect needed")** — click **Reconnect Google
+Analytics** on the card with the Google account that connected the project.
+Google expires refresh tokens seven days after consent while the OAuth app is
+in Testing; publish it (**Audience → Publish app**) so connections stop
+expiring.

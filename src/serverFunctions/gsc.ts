@@ -46,13 +46,18 @@ export const getGscConnection = createServerFn({ method: "POST" })
         GscService.userHasGrant(context.userId),
         hasGoogleOAuthConfig(),
       ]);
+    const [canSubmitSitemaps, hasUsableGrant] = connection
+      ? await Promise.all([
+          GscService.canSubmitSitemaps(connection),
+          GscService.hasUsableGrant(connection),
+        ])
+      : [false, true];
     return {
       // Grants from before OpenSEO asked for write access can't submit
       // sitemaps until the connector reconnects.
-      canSubmitSitemaps: connection
-        ? await GscService.canSubmitSitemaps(connection)
-        : false,
+      canSubmitSitemaps,
       connected: Boolean(connection),
+      requiresReconnect: !hasUsableGrant,
       canManage: hasOrgPermission(context.role, { integration: ["manage"] }),
       currentUserHasGrant,
       googleOAuthConfigured,

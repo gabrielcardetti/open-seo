@@ -42,6 +42,9 @@ export const getGa4Connection = createServerFn({ method: "POST" })
       ]);
     return {
       connected: Boolean(connection),
+      requiresReconnect: connection
+        ? !(await Ga4Service.hasUsableGrant(connection))
+        : false,
       canManage: hasOrgPermission(context.role, { integration: ["manage"] }),
       currentUserHasGrant,
       googleOAuthConfigured,

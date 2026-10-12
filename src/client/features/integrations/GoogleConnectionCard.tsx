@@ -167,7 +167,7 @@ export function GoogleConnectionCard({
       action={
         connectionQuery.isPending || connectionUnavailable ? undefined : (
           <ConnectionStatusPill
-            connected={connected && !needsGoogleOAuthSetup}
+            connection={connection}
             setupRequired={needsGoogleOAuthSetup}
           />
         )
@@ -213,6 +213,12 @@ export function GoogleConnectionCard({
             disconnecting={disconnectMutation.isPending}
             disabled={linking}
             canManage={canManage}
+          />
+          <ExpiredGrantAlert
+            name={config.name}
+            connection={connection}
+            disabled={linking}
+            onReconnect={handleConnect}
           />
           <ReadOnlySearchConsoleAlert
             connection={connection}
@@ -279,28 +285,76 @@ export function GoogleConnectionCard({
 }
 
 function ConnectionStatusPill({
-  connected,
+  connection,
   setupRequired,
 }: {
-  connected: boolean;
+  connection: GoogleConnection | undefined;
   setupRequired: boolean;
 }) {
+  const connected = Boolean(connection?.connected) && !setupRequired;
+  const healthy = connected && !connection?.requiresReconnect;
   return (
     <Badge
-      variant={connected ? "success" : setupRequired ? "warning" : "outline"}
+      variant={
+        healthy ? "success" : setupRequired || connected ? "warning" : "outline"
+      }
     >
       <span className="size-1.5 rounded-full bg-current" />
-      {connected
+      {healthy
         ? "Connected"
         : setupRequired
           ? "Setup required"
-          : "Not connected"}
+          : connected
+            ? "Reconnect needed"
+            : "Not connected"}
     </Badge>
   );
 }
 
+/** Google revoked or expired the grant behind the connection: the project
+ *  keeps its property, but no data loads until that account reconnects. */
+function ExpiredGrantAlert({
+  name,
+  connection,
+  disabled,
+  onReconnect,
+}: {
+  name: string;
+  connection: GoogleConnection | undefined;
+  disabled: boolean;
+  onReconnect: () => void;
+}) {
+  if (!connection?.requiresReconnect) return null;
+  return (
+    <Alert variant="warning" className="mt-4">
+      <TriangleAlert aria-hidden />
+      <AlertTitle className="font-normal">
+        Google no longer accepts OpenSEO&apos;s access to {name}: the
+        authorization expired or was revoked. Reconnect{" "}
+        {connection.connectedByEmail ??
+          "the Google account that connected this project"}{" "}
+        to load its data again.
+      </AlertTitle>
+      {connection.canManage ? (
+        <AlertDescription>
+          <Button
+            size="xs"
+            variant="outline"
+            className="mt-1"
+            disabled={disabled}
+            onClick={onReconnect}
+          >
+            Reconnect {name}
+          </Button>
+        </AlertDescription>
+      ) : null}
+    </Alert>
+  );
+}
+
 /** A Search Console grant from before OpenSEO asked for write access: reads
- *  work, but submitting sitemaps needs one reconnect. */
+ *  work, but submitting sitemaps needs one reconnect. An expired grant shows
+ *  ExpiredGrantAlert instead; its reconnect asks for write access too. */
 function ReadOnlySearchConsoleAlert({
   connection,
   disabled,
@@ -310,7 +364,8 @@ function ReadOnlySearchConsoleAlert({
   disabled: boolean;
   onReconnect: () => void;
 }) {
-  if (connection?.canSubmitSitemaps !== false) return null;
+  if (connection?.canSubmitSitemaps !== false || connection.requiresReconnect)
+    return null;
   return (
     <Alert variant="warning" className="mt-4">
       <TriangleAlert aria-hidden />

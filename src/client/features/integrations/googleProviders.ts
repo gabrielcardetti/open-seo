@@ -27,6 +27,8 @@ export type GoogleProvider = "gsc" | "ga4";
 /** One project's connection to a Google product, in the same shape for both. */
 export type GoogleConnection = {
   connected: boolean;
+  /** Connected, but Google revoked or expired the grant behind it. */
+  requiresReconnect: boolean;
   canManage: boolean;
   currentUserHasGrant: boolean;
   googleOAuthConfigured: boolean;
@@ -133,6 +135,7 @@ export const googleProviders: Record<GoogleProvider, ProviderConfig> = {
       });
       return {
         connected: true,
+        requiresReconnect: false,
         connectedByEmail: saved.connectedByEmail,
         property: saved.siteUrl,
       };
@@ -168,6 +171,7 @@ export const googleProviders: Record<GoogleProvider, ProviderConfig> = {
       const saved = await setGa4Property({ data: { projectId, ...selection } });
       return {
         connected: true,
+        requiresReconnect: false,
         connectedByEmail: saved.connectedByEmail,
         property: saved.propertyDisplayName,
         propertyDetail: saved.propertyId,

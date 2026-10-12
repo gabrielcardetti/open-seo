@@ -5,6 +5,7 @@ import { AppError } from "@/server/lib/errors";
 import { createGa4AdminClient } from "@/server/lib/ga4Client";
 import { Ga4AdminApiError, Ga4TokenError } from "@/server/lib/ga4Errors";
 import { GA4_OAUTH_PROVIDER_ID } from "@/shared/ga4";
+import { canMintGoogleAccessToken } from "@/server/features/google/googleOAuth";
 import {
   Ga4ConnectionRepository,
   type Ga4Connection,
@@ -133,6 +134,15 @@ async function setProperty(input: {
   });
 }
 
+/** False once Google has revoked or expired the grant behind the connection. */
+async function hasUsableGrant(connection: Ga4Connection): Promise<boolean> {
+  return canMintGoogleAccessToken({
+    providerId: GA4_OAUTH_PROVIDER_ID,
+    userId: connection.connectedByUserId,
+    accountId: connection.ga4AccountId,
+  });
+}
+
 async function disconnect(input: { projectId: string }): Promise<void> {
   await Ga4ConnectionRepository.deleteByProjectId(input.projectId);
 }
@@ -142,5 +152,6 @@ export const Ga4Service = {
   userHasGrant,
   listPropertiesForUserWithGrantStatus,
   setProperty,
+  hasUsableGrant,
   disconnect,
 };

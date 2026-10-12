@@ -3,6 +3,7 @@ import { chunk } from "remeda";
 import { db } from "@/db";
 import { account } from "@/db/schema";
 import { GSC_OAUTH_PROVIDER_ID, GSC_WRITE_SCOPE } from "@/shared/gsc";
+import { canMintGoogleAccessToken } from "@/server/features/google/googleOAuth";
 import { AppError } from "@/server/lib/errors";
 import {
   createGscClient,
@@ -334,6 +335,15 @@ async function canSubmitSitemaps(connection: GscConnection): Promise<boolean> {
   return (grant?.scope ?? "").split(/[\s,]+/).includes(GSC_WRITE_SCOPE);
 }
 
+/** False once Google has revoked or expired the grant behind the connection. */
+async function hasUsableGrant(connection: GscConnection): Promise<boolean> {
+  return canMintGoogleAccessToken({
+    providerId: GSC_OAUTH_PROVIDER_ID,
+    userId: connection.connectedByUserId,
+    accountId: connection.gscAccountId ?? undefined,
+  });
+}
+
 function clientFor(connection: GscConnection) {
   return createGscClient({
     userId: connection.connectedByUserId,
@@ -363,6 +373,7 @@ export const GscService = {
   getPerformance,
   inspectUrls,
   canSubmitSitemaps,
+  hasUsableGrant,
   listSitemaps,
   submitSitemap,
 };
