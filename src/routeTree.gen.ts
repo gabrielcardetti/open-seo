@@ -28,6 +28,8 @@ import { Route as AuthSignUpRouteImport } from './routes/_auth.sign-up'
 import { Route as AuthenticatedOauthConsentRouteImport } from './routes/_authenticated.oauth-consent'
 import { Route as AuthenticatedSubscribeRouteImport } from './routes/_authenticated.subscribe'
 import { Route as AuthenticatedYcRouteImport } from './routes/_authenticated.yc'
+import { Route as AboutIndexRouteImport } from './routes/about.index'
+import { Route as AboutPageRouteImport } from './routes/about.$page'
 import { Route as AcceptInvitationIdRouteImport } from './routes/accept-invitation.$id'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as RReportIdRouteImport } from './routes/r/$reportId'
@@ -170,6 +172,16 @@ const AuthenticatedYcRoute = AuthenticatedYcRouteImport.update({
   id: '/yc',
   path: '/yc',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AboutIndexRoute = AboutIndexRouteImport.update({
+  id: '/about/',
+  path: '/about/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutPageRoute = AboutPageRouteImport.update({
+  id: '/about/$page',
+  path: '/about/$page',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AcceptInvitationIdRoute = AcceptInvitationIdRouteImport.update({
   id: '/accept-invitation/$id',
@@ -449,9 +461,11 @@ export interface FileRoutesByFullPath {
   '/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/subscribe': typeof AuthenticatedSubscribeRoute
   '/yc': typeof AuthenticatedYcRoute
+  '/about/$page': typeof AboutPageRoute
   '/accept-invitation/$id': typeof AcceptInvitationIdRoute
   '/api/health': typeof ApiHealthRoute
   '/r/$reportId': typeof RReportIdRoute
+  '/about/': typeof AboutIndexRoute
   '/p/$projectId': typeof AppPProjectIdRouteRouteWithChildren
   '/billing/fix-payment': typeof AppBillingFixPaymentRoute
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
@@ -514,9 +528,11 @@ export interface FileRoutesByTo {
   '/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/subscribe': typeof AuthenticatedSubscribeRoute
   '/yc': typeof AuthenticatedYcRoute
+  '/about/$page': typeof AboutPageRoute
   '/accept-invitation/$id': typeof AcceptInvitationIdRoute
   '/api/health': typeof ApiHealthRoute
   '/r/$reportId': typeof RReportIdRoute
+  '/about': typeof AboutIndexRoute
   '/billing/fix-payment': typeof AppBillingFixPaymentRoute
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
   '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
@@ -579,10 +595,12 @@ export interface FileRoutesById {
   '/_authenticated/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/_authenticated/subscribe': typeof AuthenticatedSubscribeRoute
   '/_authenticated/yc': typeof AuthenticatedYcRoute
+  '/about/$page': typeof AboutPageRoute
   '/accept-invitation/$id': typeof AcceptInvitationIdRoute
   '/api/health': typeof ApiHealthRoute
   '/r/$reportId': typeof RReportIdRoute
   '/_app/': typeof AppIndexRoute
+  '/about/': typeof AboutIndexRoute
   '/_app/p/$projectId': typeof AppPProjectIdRouteRouteWithChildren
   '/_app/billing_/fix-payment': typeof AppBillingFixPaymentRoute
   '/_app/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
@@ -648,9 +666,11 @@ export interface FileRouteTypes {
     | '/oauth-consent'
     | '/subscribe'
     | '/yc'
+    | '/about/$page'
     | '/accept-invitation/$id'
     | '/api/health'
     | '/r/$reportId'
+    | '/about/'
     | '/p/$projectId'
     | '/billing/fix-payment'
     | '/help/dataforseo-api-key'
@@ -713,9 +733,11 @@ export interface FileRouteTypes {
     | '/oauth-consent'
     | '/subscribe'
     | '/yc'
+    | '/about/$page'
     | '/accept-invitation/$id'
     | '/api/health'
     | '/r/$reportId'
+    | '/about'
     | '/billing/fix-payment'
     | '/help/dataforseo-api-key'
     | '/help/openrouter-api-key'
@@ -777,10 +799,12 @@ export interface FileRouteTypes {
     | '/_authenticated/oauth-consent'
     | '/_authenticated/subscribe'
     | '/_authenticated/yc'
+    | '/about/$page'
     | '/accept-invitation/$id'
     | '/api/health'
     | '/r/$reportId'
     | '/_app/'
+    | '/about/'
     | '/_app/p/$projectId'
     | '/_app/billing_/fix-payment'
     | '/_app/help/dataforseo-api-key'
@@ -837,9 +861,11 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute: typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
+  AboutPageRoute: typeof AboutPageRoute
   AcceptInvitationIdRoute: typeof AcceptInvitationIdRoute
   ApiHealthRoute: typeof ApiHealthRoute
   RReportIdRoute: typeof RReportIdRoute
+  AboutIndexRoute: typeof AboutIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAutumnSplatRoute: typeof ApiAutumnSplatRoute
   STokenOgDotpngRoute: typeof STokenOgDotpngRoute
@@ -984,6 +1010,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/yc'
       preLoaderRoute: typeof AuthenticatedYcRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/about/': {
+      id: '/about/'
+      path: '/about'
+      fullPath: '/about/'
+      preLoaderRoute: typeof AboutIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about/$page': {
+      id: '/about/$page'
+      path: '/about/$page'
+      fullPath: '/about/$page'
+      preLoaderRoute: typeof AboutPageRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/accept-invitation/$id': {
       id: '/accept-invitation/$id'
@@ -1516,9 +1556,11 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute:
     Char91DotwellKnownChar93OpenaiAppsChallengeRoute,
+  AboutPageRoute: AboutPageRoute,
   AcceptInvitationIdRoute: AcceptInvitationIdRoute,
   ApiHealthRoute: ApiHealthRoute,
   RReportIdRoute: RReportIdRoute,
+  AboutIndexRoute: AboutIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAutumnSplatRoute: ApiAutumnSplatRoute,
   STokenOgDotpngRoute: STokenOgDotpngRoute,

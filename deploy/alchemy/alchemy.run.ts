@@ -247,17 +247,36 @@ const resolveSelfHostAccess = (
       const allowedEmails = yield* requireAllowedEmails(
         "Set ACCESS_ALLOWED_EMAILS to the comma-separated emails allowed through Cloudflare Access — or set TEAM_DOMAIN and POLICY_AUD to manage the Access application yourself.",
       );
+      // SELFHOST_DOMAIN moves the gate onto the custom hostname the worker
+      // serves; without it Access would only protect the workers.dev one.
+      const domain = customDomain || `${workerName(stage)}.${subdomain}`;
       const application = yield* emailAccessGate({
         policyId: "SelfHostAllowUsers",
         applicationId: "SelfHostAccess",
         policyName: `open-seo ${stage} self-host users`,
         applicationName: `open-seo ${stage}`,
-        // SELFHOST_DOMAIN moves the gate onto the custom hostname the worker
-        // serves; without it Access would only protect the workers.dev one.
-        domain: customDomain || `${workerName(stage)}.${subdomain}`,
+        domain,
         emails: allowedEmails,
       });
       policyAud = application.aud;
+
+      // The homepage, privacy policy and terms Google's OAuth consent screen
+      // links to (src/server/lib/aboutPages.ts) must load signed out. The
+      // more specific path wins over the gate above, and covers its subpaths.
+      const publicPages = yield* Cloudflare.Access.Policy(
+        "SelfHostPublicPages",
+        {
+          name: `open-seo ${stage} public pages`,
+          decision: "bypass",
+          include: [{ everyone: {} }],
+        },
+      );
+      yield* Cloudflare.Access.Application("SelfHostPublicPagesApp", {
+        type: "self_hosted",
+        name: `open-seo ${stage} public pages`,
+        domain: `${domain}/about`,
+        policies: [publicPages.policyId],
+      });
     }
 
     return { teamDomain, policyAud };
