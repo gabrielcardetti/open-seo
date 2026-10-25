@@ -30,7 +30,6 @@ import {
 import { objectSchema } from "@/server/mcp/output-schemas";
 import { memoizeJsonSchema } from "@/server/mcp/json-schema-memo";
 import { instrumentMcpToolHandler } from "@/server/mcp/instrumentation";
-import { submitIndexNowUrlsTool } from "@/server/mcp/tools/submit-indexnow-urls";
 import { getBacklinksOverviewTool } from "@/server/mcp/tools/get-backlinks-overview";
 import { getBacklinksProfileTool } from "@/server/mcp/tools/get-backlinks-profile";
 import { getDomainKeywordSuggestionsTool } from "@/server/mcp/tools/get-domain-keyword-suggestions";
@@ -395,7 +394,6 @@ export function createOpenSeoMcpServer(
   register(setSearchConsoleSiteTool);
   register(getSearchConsolePerformanceTool);
   register(inspectUrlsTool);
-  register(submitIndexNowUrlsTool);
   register(getIndexingStatusTool);
   register(getGoogleSearchUpdatesTool);
   register(getBingOverviewTool);

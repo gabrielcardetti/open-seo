@@ -89,8 +89,8 @@ export const projects = pgTable(
     // The Prompt Research keywords from AI visibility setup, one
     // per line, most important first. Null until setup runs.
     aiResearchKeywords: text("ai_research_keywords"),
-    // The IndexNow key the site hosts at /{key}.txt. Public by design, so it
-    // is stored as plain text. Null until IndexNow is first used.
+    // Upstream's IndexNow key. Unused in this fork, whose key lives in
+    // project_indexing_settings (indexing.schema.ts) with its verification.
     indexnowKey: text("indexnow_key"),
   },
   (table) => [

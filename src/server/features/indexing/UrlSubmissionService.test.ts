@@ -89,6 +89,35 @@ describe("UrlSubmissionService.submitUrls", () => {
     expect(init?.headers).toMatchObject({ "X-Relay-Secret": "relay-secret" });
   });
 
+  it("sends through another IndexNow engine while the relay is unreachable", async () => {
+    await verifiedIndexNowKey();
+    vi.stubEnv("INDEXNOW_API_BASE_URL", "https://relay.example.com");
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(
+        new Response(null, {
+          status:
+            typeof input === "string" && input.startsWith("https://relay.")
+              ? 530
+              : 200,
+        }),
+      ),
+    );
+
+    const result = await UrlSubmissionService.submitUrls(
+      "project-1",
+      ["https://example.com/a"],
+      "manual",
+    );
+
+    expect(result.problem).toBeNull();
+    expect(result.results).toEqual([
+      expect.objectContaining({ status: "received", channel: "indexnow" }),
+    ]);
+    expect(vi.mocked(fetch).mock.calls.at(-1)?.[0]).toBe(
+      "https://yandex.com/indexnow",
+    );
+  });
+
   it("records a 403 as rejected and stops treating the key as verified", async () => {
     await verifiedIndexNowKey();
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 403 }));

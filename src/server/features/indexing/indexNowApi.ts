@@ -1,7 +1,9 @@
 /**
  * One IndexNow request: POST the URLs of one host to api.indexnow.org, which
  * shares them with every participating engine (Bing, Yandex, Naver, Seznam…).
- * Google does not participate.
+ * When that path rate-limits, fails or can't be reached, the same request goes
+ * straight to engines that take part: any of them shares an accepted
+ * submission with the others. Google does not participate.
  *
  * https://www.indexnow.org/documentation
  */
@@ -19,6 +21,15 @@ export const INDEXNOW_MAX_URLS = 10_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 /** Waits before the 2nd and 3rd attempt of a throttled or failed request. */
 const RETRY_DELAYS_MS = [250, 1_000];
+/**
+ * Engines tried in order, called directly, when api.indexnow.org (or the relay
+ * in front of it) still refuses or fails after its retries. Bing is left out:
+ * it is the one that rate-limits Cloudflare Workers' shared IPs.
+ */
+const FALLBACK_ENGINES = [
+  "https://yandex.com/indexnow",
+  "https://indexnow.yep.com/indexnow",
+];
 
 type IndexNowOutcome = {
   status: UrlSubmissionStatus;
@@ -79,10 +90,11 @@ const isRetryable = (outcome: Omit<IndexNowOutcome, "attempts">) =>
 
 /**
  * Send one host's URLs. 429, 5xx and network failures are retried up to three
- * attempts in total; the last outcome is what the ledger records. When the
- * last attempt still failed in transport (IndexNow or its relay unreachable,
- * see isTransportStatus), or the breaker is already open, the result is the
- * outage instead: nothing was asked of IndexNow, so there is no outcome.
+ * attempts in total, then the fallback engines are tried; the last outcome is
+ * what the ledger records. When every route failed in transport (IndexNow or
+ * its relay unreachable, see isTransportStatus, or the breaker already open)
+ * and no engine answered, the result is the outage instead: nothing was
+ * asked of IndexNow, so there is no outcome.
  */
 export async function postIndexNow(input: {
   host: string;
@@ -90,15 +102,52 @@ export async function postIndexNow(input: {
   keyLocation: string | null;
   urlList: string[];
 }): Promise<IndexNowOutcome | { unreachable: UpstreamOutage }> {
-  const gate = createUpstreamGate("indexnow");
-  const blocked = await gate.admit();
-  if (blocked) return { unreachable: blocked };
   const body = JSON.stringify({
     host: input.host,
     key: input.key,
     ...(input.keyLocation ? { keyLocation: input.keyLocation } : {}),
     urlList: input.urlList,
   });
+  const primary = await postToIndexNow(body);
+  if (!("unreachable" in primary) && !isRetryable(primary)) return primary;
+  for (const endpoint of FALLBACK_ENGINES) {
+    const outcome = await postToEngine(endpoint, body);
+    if (outcome && !isRetryable(outcome)) {
+      console.warn(
+        `indexnow.fallback ${endpoint} answered HTTP ${outcome.httpStatus} for ${input.host}`,
+      );
+      return { ...outcome, attempts: 1 };
+    }
+  }
+  return primary;
+}
+
+/** One POST straight to an engine; null when it didn't answer. */
+async function postToEngine(
+  endpoint: string,
+  body: string,
+): Promise<Omit<IndexNowOutcome, "attempts"> | null> {
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    await response.body?.cancel();
+    return outcomeFor(response.status);
+  } catch {
+    return null;
+  }
+}
+
+/** api.indexnow.org, or the relay in front of it, behind the breaker. */
+async function postToIndexNow(
+  body: string,
+): Promise<IndexNowOutcome | { unreachable: UpstreamOutage }> {
+  const gate = createUpstreamGate("indexnow");
+  const blocked = await gate.admit();
+  if (blocked) return { unreachable: blocked };
   let outcome: Omit<IndexNowOutcome, "attempts"> = {
     status: "failed",
     httpStatus: null,

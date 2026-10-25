@@ -40,6 +40,8 @@ Each project can have an IndexNow key. OpenSEO generates one (32 hex characters)
 
 URLs go out on one of two channels. `auto` uses IndexNow once the key is verified, and otherwise Bing's URL submission API when the project has a Bing connection. Callers can force either channel. Before sending, OpenSEO keeps only http(s) URLs on the project's site (www and the apex count as one site) and skips URLs announced successfully within the project's dedupe window (24 hours by default) unless the caller forces a resend. Bing's API sends at most the remaining daily and monthly quota and marks the rest as skipped. If IndexNow answers that it cannot validate the key, OpenSEO clears the verification so `auto` falls back to Bing until the key file is fixed and verified again. An archived project sends nothing on any path.
 
+IndexNow requests go to api.indexnow.org, through a relay where the deployment configures one. When that route still rate-limits, fails or can't be reached after its retries, the same request goes straight to Yandex and then Yep. Participants share every accepted submission with each other, so the notice reaches Bing either way. Bing's own endpoint is not a fallback: it is the engine that rate-limits shared hosting IPs.
+
 Every URL gets a ledger row per announcement: channel, source (manual, MCP, sitemap, deploy hook or audit), status and HTTP status. `received` and `pending` mean the engine got the notice; they never mean the page is indexed. URLs not sent because Bing or IndexNow (or the relay in front of them) was unreachable get no row; spec 0021 covers that circuit breaker.
 
 URLs reach the ledger from four automatic or manual paths:
@@ -74,7 +76,7 @@ Bing's Webmaster Guidelines can also be part of an audit's content evaluation; s
 All are project-scoped through the shared MCP project auth, and expected failures (not connected, key rejected, site not readable, throttled) come back as `ok: false` with a reason and a link to the connection settings rather than as errors.
 
 - Bing: `get_bing_overview`, `get_bing_search_performance` (by query, page or date over any stored range, with position and impression filters and a live drill-down), `get_bing_crawl_health`, `get_bing_backlinks`, `get_bing_keyword_stats`, `compare_search_engines` (Search Console and Bing side by side per query or page), `get_bing_ai_citations`, and `sync_bing_now`.
-- Indexing: `get_indexing_setup`, `verify_indexnow_key`, `submit_urls_for_indexing`, `get_indexing_log`, and `get_indexing_candidates` (a live preview of what the sitemap watch would send, which records and sends nothing).
+- Indexing: `get_indexing_setup`, `verify_indexnow_key`, `submit_urls_for_indexing`, `get_indexing_log`, and `get_indexing_candidates` (a live preview of what the sitemap watch would send, which records and sends nothing). The first `submit_urls_for_indexing` call for a project without an IndexNow key creates one (unless it forces Bing's API) and names the file to publish, so an agent that can edit the site can finish the setup and call again.
 
 The tools that change state (`sync_bing_now`, `verify_indexnow_key`, `submit_urls_for_indexing`) require permission to manage integrations.
 
@@ -85,6 +87,8 @@ The tools that change state (`sync_bing_now`, `verify_indexnow_key`, `submit_url
 **Daily snapshots rather than live reads.** Search Console is read live because Google serves sixteen months with arbitrary date ranges. Bing's fixed window and weekly buckets make live reads unable to compare periods reliably, and anything older than six months would be lost for good. Storing a daily copy gives users their own history and lets every read take a date range. The trade-off is that data is up to a day old unless someone syncs on demand.
 
 **IndexNow first, Bing's API as fallback.** One IndexNow request reaches every participating engine, takes up to 10,000 URLs, and has no daily quota; Bing has said its URL submission API may give way to IndexNow. IndexNow needs a key file published on the site, though, and some users cannot publish one right away. Bing's API needs only the existing connection, so `auto` falls back to it, and both channels can be forced when diagnosing a problem.
+
+**One IndexNow setup, with engine fallback.** A lighter design keeps only the key on the project and sends each submission to Bing, then Yandex, then Yep, with no record and no relay. It needs no setup beyond the key file, but without a ledger nothing can deduplicate, explain a refusal, or tell the sitemap watch what still needs sending, and without the relay most requests from shared hosting IPs start with a rate limit. Its engine fallback is worth keeping, though: it lets notices through while the relay is down, so it sits behind the relay here instead of replacing it.
 
 **A sitemap baseline.** Submitting a whole sitemap the first time a site is connected would send thousands of URLs that engines already know, spend Bing's quota in a day, and resemble the kind of bulk submission engines discourage. Recording a baseline first means the watch only ever announces real changes.
 

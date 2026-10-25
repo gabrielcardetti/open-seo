@@ -8,7 +8,6 @@ import { bingConnectionOptions } from "@/client/features/bing/bingQueries";
 import { SitemapCoverageNotice } from "@/client/features/sitemaps/SitemapCoverageNotice";
 import { UmamiConnectionCard } from "@/client/features/umami/UmamiConnectionCard";
 import { umamiConnectionOptions } from "@/client/features/umami/umamiQueries";
-import { IndexNowSettings } from "@/client/features/settings/IndexNowSettings";
 
 export const Route = createFileRoute(
   "/_app/p/$projectId/settings/integrations",
@@ -59,7 +58,6 @@ function ProjectIntegrationsRoute() {
           notice={<SitemapCoverageNotice projectId={projectId} engine="bing" />}
         />
       </section>
-      <IndexNowSettings projectId={projectId} />
 
       <CrawlerAccessSettings projectId={projectId} />
     </div>

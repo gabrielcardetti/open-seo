@@ -85,7 +85,7 @@ export const getIndexingSetupTool = {
       `Indexing for ${setup.host ?? "(no domain set)"}:`,
       indexNow.key
         ? `- IndexNow key ${indexNow.key}, file ${indexNow.keyFileUrl ?? "(set a domain)"} must contain exactly the key. ${indexNow.verifiedAt ? `Verified ${indexNow.verifiedAt}.` : `Not verified${indexNow.lastError ? `: ${indexNow.lastError}` : "."}`}`
-        : "- No IndexNow key yet (generate or import one in the app).",
+        : "- No IndexNow key yet (generate or import one in the app; submit_urls_for_indexing creates one on its first call).",
       `- Bing URL submission: ${setup.bing ? `connected (${setup.bing.siteUrl}), daily quota left ${setup.bing.dailyQuotaRemaining ?? "unknown"}` : "not connected"}.`,
       `- Channel used by auto: ${setup.autoChannel ?? "none — set up IndexNow or connect Bing"}.`,
       `- Auto-submit ${setup.autoSubmitEnabled ? "on" : "off"}; dedupe window ${setup.dedupeHours} h.`,
@@ -176,7 +176,7 @@ export const submitUrlsForIndexingTool = {
   config: {
     title: "Submit URLs for indexing",
     description:
-      "Announce new or changed URLs of the project's site to search engines via IndexNow (Bing, Yandex, Naver, Seznam and other participants) or Bing's URL submission API (daily quota; URLs past it come back skipped_quota). Google does not participate in IndexNow; use inspect_urls or Search Console for Google. Each URL gets a ledger row and a status: received/pending mean the engine got the notice, not that the page is indexed; rejected/failed/throttled say why not. URLs announced successfully within the project's dedupe window (default 24 h) are skipped as skipped_duplicate unless force is true, so repeating a call is safe. When IndexNow or Bing (or the relay in front of them) is unreachable, the URLs not sent get no result and problem says since when and when it retries; the sitemap watch resends new and changed sitemap URLs then. Requires an organization owner or admin. Uses no credits.",
+      "Announce new or changed URLs of the project's site to search engines via IndexNow (Bing, Yandex, Naver, Seznam and other participants) or Bing's URL submission API (daily quota; URLs past it come back skipped_quota). Google does not participate in IndexNow; use inspect_urls or Search Console for Google. Each URL gets a ledger row and a status: received/pending mean the engine got the notice, not that the page is indexed; rejected/failed/throttled say why not. URLs announced successfully within the project's dedupe window (default 24 h) are skipped as skipped_duplicate unless force is true, so repeating a call is safe. A project with no IndexNow key gets one on the first call that doesn't force bing_api: indexNowKeyCreated names the file to publish (it must contain only the key); an agent that can edit the site can add it, run verify_indexnow_key, and call again. When IndexNow (or its relay) rate-limits or is unreachable, the notice goes straight to Yandex and Yep, which share it with the other engines. When nothing answers, or Bing's API (or its relay) is unreachable, the URLs not sent get no result and problem says since when and when it retries; the sitemap watch resends new and changed sitemap URLs then. Requires an organization owner or admin. Uses no credits.",
     inputSchema: submitInput,
     outputSchema: z.looseObject({
       ok: z.boolean(),
@@ -196,6 +196,10 @@ export const submitUrlsForIndexingTool = {
   handler: withMcpProjectAuth(
     async (args: z.infer<z.ZodObject<typeof submitInput>>, context) => {
       requireOrgPermission(context.auth, { integration: ["manage"] });
+      const created =
+        args.channel === "bing_api"
+          ? null
+          : await IndexingService.createKeyIfMissing(args.projectId);
       const result = await UrlSubmissionService.submitUrls(
         args.projectId,
         args.urls,
@@ -218,6 +222,11 @@ export const submitUrlsForIndexingTool = {
                   (row) => `- ${row.status} ${row.url}: ${row.errorMessage}`,
                 ),
             ];
+      if (created) {
+        lines.unshift(
+          `Created this project's IndexNow key. Publish ${created.keyFileUrl} containing only ${created.key}, run verify_indexnow_key, then call again to send over IndexNow.`,
+        );
+      }
       if (result.dropped.length > 0) {
         lines.push(
           `Dropped ${result.dropped.length} not on the project's site or invalid, e.g. ${result.dropped[0]?.url}.`,
@@ -238,6 +247,7 @@ export const submitUrlsForIndexingTool = {
           counts: result.counts,
           results: result.results,
           dropped: result.dropped,
+          indexNowKeyCreated: created,
         },
       });
     },

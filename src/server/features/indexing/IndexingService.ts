@@ -122,6 +122,24 @@ async function generateKey(projectId: string): Promise<{ key: string }> {
   return { key: settings.indexnowKey };
 }
 
+/**
+ * For agents, whose first submission sets IndexNow up: creates the project's
+ * key when it has none and returns the file to publish. Null when it already
+ * had a key, or has no website to publish on.
+ */
+async function createKeyIfMissing(
+  projectId: string,
+): Promise<{ key: string; keyFileUrl: string } | null> {
+  const [project, settings] = await Promise.all([
+    requireProject(projectId),
+    IndexingRepository.getSettings(projectId),
+  ]);
+  const host = projectHost(project.domain);
+  if (!host || settings?.indexnowKey) return null;
+  const { key } = await generateKey(projectId);
+  return { key, keyFileUrl: `https://${host}/${key}.txt` };
+}
+
 /** Adopt a key already published on the site. Resets verification. */
 async function importKey(
   projectId: string,
@@ -340,6 +358,7 @@ async function getLog(
 export const IndexingService = {
   getSetup,
   generateKey,
+  createKeyIfMissing,
   importKey,
   verifyKey,
   updateSettings,

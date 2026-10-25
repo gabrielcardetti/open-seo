@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { revalidateLogic } from "@tanstack/react-form";
-import { CircleCheck, TriangleAlert } from "lucide-react";
+import {
+  ChevronRight,
+  CircleCheck,
+  Download,
+  TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { CopyButton } from "@/client/components/CopyButton";
@@ -9,6 +14,11 @@ import { PermissionHint } from "@/client/components/PermissionHint";
 import { useAppForm } from "@/client/components/form/useAppForm";
 import { Alert, AlertTitle } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/client/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -42,6 +52,47 @@ const importSchema = z.object({
       "Use the full https URL of the key file, or leave it empty.",
     ),
 });
+
+function downloadKeyFile(key: string) {
+  const url = URL.createObjectURL(new Blob([key], { type: "text/plain" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${key}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Where the key file goes on the common ways sites are built. */
+function KeyFileHelp() {
+  return (
+    <Collapsible>
+      <CollapsibleTrigger className="group inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ChevronRight
+          className="size-3.5 transition-transform group-data-[panel-open]:rotate-90"
+          aria-hidden
+        />
+        How do I add a file to my site?
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>
+            Site built from code: put the file in the folder your site serves
+            as-is, often called <code>public</code> or <code>static</code>.
+          </li>
+          <li>
+            WordPress: upload it with your host&apos;s file manager or SFTP to
+            the folder that holds <code>wp-config.php</code>.
+          </li>
+          <li>
+            Website builders like Webflow, Shopify, Squarespace and Wix usually
+            don&apos;t let you add files at the root. Import the key your
+            builder already publishes instead, if it supports IndexNow.
+          </li>
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 function ImportKeyForm({
   projectId,
@@ -212,6 +263,19 @@ export function IndexNowKeyCard({
                   label="Copy content"
                 />
               </div>
+              {!indexNow.verifiedAt && !indexNow.keyLocation && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadKeyFile(indexNow.key ?? "")}
+                  >
+                    <Download className="size-4" aria-hidden />
+                    Download key file
+                  </Button>
+                  <KeyFileHelp />
+                </>
+              )}
             </div>
 
             {indexNow.verifiedAt ? (

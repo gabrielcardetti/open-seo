@@ -5,6 +5,7 @@ import { makeToolContext } from "./tool-test-support";
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
   submitUrls: vi.fn(),
+  createKeyIfMissing: vi.fn(),
 }));
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
@@ -12,6 +13,9 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
   ProjectService: {
     getProjectForOrganization: mocks.getProjectForOrganization,
   },
+}));
+vi.mock("@/server/features/indexing/IndexingService", () => ({
+  IndexingService: { createKeyIfMissing: mocks.createKeyIfMissing },
 }));
 vi.mock("@/server/features/indexing/UrlSubmissionService", () => ({
   UrlSubmissionService: { submitUrls: mocks.submitUrls },
@@ -22,6 +26,7 @@ const args = { projectId: "project_1", urls: ["https://example.com/a"] };
 describe("submit_urls_for_indexing", () => {
   beforeEach(() => {
     mocks.getProjectForOrganization.mockResolvedValue({ id: "project_1" });
+    mocks.createKeyIfMissing.mockResolvedValue(null);
     mocks.submitUrls.mockResolvedValue({
       batchId: "batch_1",
       channel: "indexnow",

@@ -153,6 +153,27 @@ describe("SitemapWatchService.runSitemapCheck", () => {
   });
 
   it("holds URLs back without calling IndexNow while its relay is down, then sends them once a probe gets through", async () => {
+    // IndexNow answers `status`; the fallback engines are down throughout.
+    const indexNowAnswers = (status: number) =>
+      vi.mocked(fetch).mockImplementation((input) =>
+        Promise.resolve(
+          new Response(null, {
+            status:
+              typeof input === "string" &&
+              input.startsWith("https://api.indexnow.org")
+                ? status
+                : 530,
+          }),
+        ),
+      );
+    const indexNowCalls = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([input]) =>
+            typeof input === "string" &&
+            input.startsWith("https://api.indexnow.org"),
+        ).length;
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-06T08:00:00.000Z"));
     const urls = ["https://example.com/a", "https://example.com/c"];
@@ -163,11 +184,11 @@ describe("SitemapWatchService.runSitemapCheck", () => {
     mocks.collectSitemapEntries.mockResolvedValue(
       sitemap(urls.map((url) => [url, null])),
     );
-    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 530 }));
+    indexNowAnswers(530);
     const down = await check();
-    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 200 }));
+    indexNowAnswers(200);
     const stillOpen = await check();
-    const callsWhileDown = vi.mocked(fetch).mock.calls.length;
+    const callsWhileDown = indexNowCalls();
     vi.setSystemTime(new Date("2026-10-06T08:16:00.000Z"));
     const probe = await check();
     mocks.collectSitemapEntries.mockResolvedValue(
@@ -175,7 +196,8 @@ describe("SitemapWatchService.runSitemapCheck", () => {
     );
     const afterProbe = await check();
 
-    // One failed POST (three attempts); no row says IndexNow refused anything.
+    // One failed POST (three attempts) and no engine to fall back to; no row
+    // says IndexNow refused anything.
     expect(down).toMatchObject({ submission: { results: [] } });
     expect(down.ok && down.submission?.problem).toContain(
       "IndexNow is unreachable since 2026-10-06T08:00:00.000Z (HTTP 530); retrying at 2026-10-06T08:15:00.000Z.",
