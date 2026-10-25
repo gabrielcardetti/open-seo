@@ -1,15 +1,22 @@
+/* eslint-disable max-lines -- robots and sitemap reading for both the audit crawl and the sitemap inventory share one walker */
 /**
  * robots.txt and sitemap.xml discovery for the site audit crawler.
  */
 import robotsParser from "robots-parser";
 import { XMLParser } from "fast-xml-parser";
+import { readBodyCapped } from "./html-response";
 import { isSameOrigin, normalizeUrl } from "./url-utils";
 import {
   isCrawlableUrl,
   normalizeAndValidateStartUrl,
   resolveStartUrlRedirects,
 } from "./url-policy";
-import { crawlerHeadersFor, type CrawlerAccess } from "@/shared/crawler-access";
+import { createRateLimitWait, type RateLimitWait } from "./crawl-throttle";
+import type { CrawlerAccess } from "@/shared/crawler-access";
+import {
+  auditRequestHeaders,
+  CRAWL_USER_AGENT,
+} from "@/server/lib/audit/web-bot-auth";
 
 const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
 // robots.txt is checkpointed as durable Workflow step state (~1MiB cap, shared
@@ -27,7 +34,6 @@ const SITEMAP_RETRIES = 1;
 // shards are skipped whole — truncated XML would not parse anyway, and real
 // generators shard far below this.
 const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
-
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   isArray: (name) => name === "sitemap" || name === "url",
@@ -46,13 +52,18 @@ export interface RobotsResult {
 export async function fetchRobotsTxtText(
   origin: string,
   access?: CrawlerAccess | null,
+  waitForRateLimit: RateLimitWait = createRateLimitWait(),
 ): Promise<string | null> {
   try {
-    const fetched = await fetchFollowingRedirects(
-      `${origin}/robots.txt`,
-      10_000,
-      access,
-    );
+    const fetchRobots = () =>
+      fetchFollowingRedirects(`${origin}/robots.txt`, 10_000, access);
+    let fetched = await fetchRobots();
+    if (
+      fetched?.response.status === 429 &&
+      (await waitForRateLimit(fetched.response))
+    ) {
+      fetched = await fetchRobots();
+    }
     if (!fetched?.response.ok) return null;
     return (await fetched.response.text()).slice(0, MAX_ROBOTS_TXT_BYTES);
   } catch (error) {
@@ -78,10 +89,7 @@ async function fetchFollowingRedirects(
   let current = url;
   for (let hop = 0; hop <= MAX_DISCOVERY_REDIRECT_HOPS; hop++) {
     const response = await fetch(current, {
-      headers: {
-        "User-Agent": "OpenSEO-Audit/1.0",
-        ...crawlerHeadersFor(current, access),
-      },
+      headers: await auditRequestHeaders(current, access),
       redirect: "manual",
       signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
     });
@@ -117,7 +125,8 @@ export function parseRobotsTxt(
 
   const robots = robotsParser(`${origin}/robots.txt`, text);
   return {
-    isAllowed: (url: string) => robots.isAllowed(url) ?? true,
+    // Our UA so an `OpenSEO-Audit` group wins over `*`.
+    isAllowed: (url: string) => robots.isAllowed(url, CRAWL_USER_AGENT) ?? true,
     sitemapUrls: robots.getSitemaps(),
   };
 }
@@ -192,34 +201,6 @@ function isTimeoutError(error: unknown): boolean {
   return "name" in error && error.name === "TimeoutError";
 }
 
-/** Read a response body up to maxBytes; null when the body exceeds it. */
-async function readBodyCapped(
-  response: Response,
-  maxBytes: number,
-): Promise<string | null> {
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    joined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(joined);
-}
-
 /** Answers that say the server could not serve the file right now. */
 const isTransientStatus = (status: number) => status === 429 || status >= 500;
 
@@ -230,7 +211,8 @@ const isTransientStatus = (status: number) => status === 429 || status >= 500;
  */
 async function fetchSitemapDocumentWithRetry(
   sitemapUrl: string,
-  access?: CrawlerAccess | null,
+  access: CrawlerAccess | null | undefined,
+  waitForRateLimit: RateLimitWait,
 ): Promise<{
   nestedSitemaps: string[];
   pageEntries: SitemapEntry[];
@@ -267,6 +249,13 @@ async function fetchSitemapDocumentWithRetry(
       }
       finalUrl = resolvedUrl;
 
+      if (
+        response.status === 429 &&
+        attempt < SITEMAP_RETRIES &&
+        (await waitForRateLimit(response))
+      ) {
+        continue;
+      }
       if (!response.ok) {
         await response.body?.cancel();
         return { ...empty, failed: isTransientStatus(response.status) };
@@ -333,7 +322,8 @@ async function walkSitemaps(
   origin: string,
   sitemapSources: Iterable<string>,
   maxUrls: number,
-  access?: CrawlerAccess | null,
+  access: CrawlerAccess | null | undefined,
+  waitForRateLimit: RateLimitWait,
 ): Promise<SitemapWalk> {
   const allUrls: SitemapWalk["urls"] = new Map();
 
@@ -379,7 +369,11 @@ async function walkSitemaps(
     const results = await Promise.all(
       batch.map(async (doc) => ({
         ...doc,
-        result: await fetchSitemapDocumentWithRetry(doc.url, access),
+        result: await fetchSitemapDocumentWithRetry(
+          doc.url,
+          access,
+          waitForRateLimit,
+        ),
       })),
     );
 
@@ -444,7 +438,8 @@ export async function discoverUrls(
   maxPages = 50,
   access?: CrawlerAccess | null,
 ): Promise<{ urls: string[]; robotsText: string | null }> {
-  const robotsText = await fetchRobotsTxtText(origin, access);
+  const waitForRateLimit = createRateLimitWait();
+  const robotsText = await fetchRobotsTxtText(origin, access, waitForRateLimit);
   const robots = parseRobotsTxt(origin, robotsText);
 
   const maxDiscoveredUrls = Math.min(Math.max(maxPages * 20, 500), 50_000);
@@ -453,12 +448,18 @@ export async function discoverUrls(
     sitemapSourcesFor(origin, robots),
     maxDiscoveredUrls,
     access,
+    waitForRateLimit,
   );
 
-  // Cap at the crawl's page budget: these are seeds, the crawl can never use
-  // more — and an uncapped list can blow the ~1MiB Workflow step-state limit.
+  // Every discovered URL is returned, not just the first maxPages. Seeding is
+  // also what records each page's in-sitemap flag on the frontier, so
+  // truncating here made every sitemap URL past the budget report
+  // inSitemap: false once the crawl reached it through a link. The set is
+  // already bounded by maxDiscoveredUrls, seeds go straight into the
+  // scratchpad DO rather than through durable step state, and the crawl still
+  // stops at maxPages.
   return {
-    urls: Array.from(allUrls.keys()).slice(0, maxPages),
+    urls: Array.from(allUrls.keys()),
     robotsText,
   };
 }
@@ -494,14 +495,24 @@ export async function collectSitemapEntries(
   const tracked = sitemapUrls.filter((sitemapUrl) =>
     isSameOrigin(sitemapUrl, origin),
   );
+  const waitForRateLimit = createRateLimitWait();
   const sources =
     tracked.length > 0
       ? tracked
       : sitemapSourcesFor(
           origin,
-          parseRobotsTxt(origin, await fetchRobotsTxtText(origin)),
+          parseRobotsTxt(
+            origin,
+            await fetchRobotsTxtText(origin, null, waitForRateLimit),
+          ),
         );
-  const walk = await walkSitemaps(origin, sources, MAX_INVENTORY_URLS);
+  const walk = await walkSitemaps(
+    origin,
+    sources,
+    MAX_INVENTORY_URLS,
+    null,
+    waitForRateLimit,
+  );
   return {
     origin,
     entries: Array.from(walk.urls, ([pageUrl, entry]) => ({

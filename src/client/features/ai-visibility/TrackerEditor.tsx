@@ -17,10 +17,14 @@ import {
   aiTrackerPatchSchema,
   type AiTrackerPatch,
 } from "@/types/schemas/ai-visibility";
-import type { AiTrackerState, AiRun } from "@/shared/ai-visibility";
+import {
+  aiEnginesWithoutLocation,
+  type AiTrackerState,
+  type AiRun,
+} from "@/shared/ai-visibility";
+import { DEFAULT_LOCATION_CODE } from "@/shared/keyword-locations";
 import {
   TrackerTrackingFields,
-  collectableMarket,
   type TrackerDraft,
 } from "./TrackerTrackingFields";
 import { TrackerPromptFields } from "./TrackerPromptFields";
@@ -73,6 +77,13 @@ export function TrackerEditor({
   const engines = state.engines.length
     ? state.engines
     : state.capabilities.slice(0, 1).map((capability) => capability.engine);
+  // A new tracker starts in the project's market when its engines support it.
+  const newMarket = aiEnginesWithoutLocation(
+    engines,
+    defaultMarket.locationCode,
+  ).length
+    ? { locationCode: DEFAULT_LOCATION_CODE, languageCode: "en" }
+    : defaultMarket;
   const defaultDraft: TrackerDraft = {
     engines,
     ...(state.tracker
@@ -80,13 +91,20 @@ export function TrackerEditor({
           locationCode: state.tracker.locationCode,
           languageCode: state.tracker.languageCode,
         }
-      : collectableMarket(engines, defaultMarket)),
+      : newMarket),
     topic: { name: topic, prompts: ["", "", ""] },
   };
   const prepare = useMutation({
     mutationFn: async (patch: AiTrackerPatch) => ({
       patch,
-      estimate: await estimateAiVisibilityCost({ data: { projectId, patch } }),
+      estimate: await estimateAiVisibilityCost({
+        // An unscheduled tracker is offered weekly tracking.
+        data: {
+          projectId,
+          patch,
+          scheduleInterval: state.tracker?.enabled ? undefined : "weekly",
+        },
+      }),
     }),
     onSuccess: setReview,
   });
@@ -172,21 +190,21 @@ export function TrackerEditor({
           <TrackerSetupReview
             review={review}
             enabled={Boolean(state.tracker?.enabled)}
+            creating={!state.tracker}
             pending={save.isPending}
             error={save.error}
-            canRun={
-              state.providerConfigured &&
-              !state.recentRuns.some(
-                (run) => run.status === "queued" || run.status === "running",
-              )
-            }
-            running={save.variables?.runNow ?? false}
+            canSchedule={state.providerConfigured}
+            scheduling={save.variables?.scheduleWeekly ?? false}
             onBack={() => {
               setReview(null);
               save.reset();
             }}
-            onSave={() => save.mutate({ accepted: review, runNow: false })}
-            onSaveAndRun={() => save.mutate({ accepted: review, runNow: true })}
+            onSave={() =>
+              save.mutate({ accepted: review, scheduleWeekly: false })
+            }
+            onSaveAndSchedule={() =>
+              save.mutate({ accepted: review, scheduleWeekly: true })
+            }
           />
         ) : (
           <form
@@ -234,7 +252,6 @@ export function TrackerEditor({
                     {!adding && (
                       <TrackerTrackingFields
                         state={state}
-                        defaultMarket={defaultMarket}
                         value={field.state.value}
                         onChange={field.handleChange}
                         disabled={prepare.isPending}

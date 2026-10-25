@@ -12,6 +12,7 @@ import {
 import { hasOrgPermission } from "@/lib/org-permissions";
 import { requireOrgPermission } from "@/server/auth/org-gate";
 import { captureServerEvent } from "@/server/lib/posthog";
+import { markOnboardingMilestone } from "@/server/email/onboarding-drip";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
 import {
   requireAuthenticatedContext,
@@ -88,6 +89,7 @@ export const listGscSites = createServerFn({ method: "POST" })
         email: grant.email,
         requiresReconnect: grant.requiresReconnect,
         propertiesUnavailable: grant.propertiesUnavailable,
+        apiDisabled: grant.apiDisabled,
         sites: grant.sites.map((site) => {
           const isSelected = connection?.gscAccountId
             ? connection.gscAccountId === grant.accountId &&
@@ -117,6 +119,7 @@ export const setGscSite = createServerFn({ method: "POST" })
       siteUrl: data.siteUrl,
       userId: context.userId,
     });
+    await markOnboardingMilestone(context, "gscConnected");
     // Suggest the site's sitemaps so they can be compared with Google's.
     waitUntil(
       SitemapRegistryService.detect(context.projectId).catch((error) =>
@@ -128,7 +131,7 @@ export const setGscSite = createServerFn({ method: "POST" })
         distinctId: context.userId,
         event: "gsc:property_select",
         organizationId: context.organizationId,
-        properties: { project_id: context.projectId, site_url: data.siteUrl },
+        properties: { project_id: context.projectId },
       }),
     );
     return {

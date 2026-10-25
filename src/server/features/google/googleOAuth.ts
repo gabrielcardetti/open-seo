@@ -8,12 +8,21 @@ import { resolveUserContextFromHeaders } from "@/middleware/ensure-user/resolve"
 import { AppError } from "@/server/lib/errors";
 import { responseForAppError } from "@/server/lib/http-errors";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
-import { GA4_OAUTH_PROVIDER_ID, GA4_OAUTH_SCOPES } from "@/shared/ga4";
+import {
+  GA4_DATA_SCOPE,
+  GA4_OAUTH_PROVIDER_ID,
+  GA4_OAUTH_SCOPES,
+} from "@/shared/ga4";
 import {
   GOOGLE_LINK_ERROR_PARAM,
   type GoogleLinkProvider,
 } from "@/shared/google-link";
-import { GSC_OAUTH_PROVIDER_ID, GSC_OAUTH_SCOPES } from "@/shared/gsc";
+import {
+  GSC_DATA_SCOPE,
+  GSC_WRITE_SCOPE,
+  GSC_OAUTH_PROVIDER_ID,
+  GSC_OAUTH_SCOPES,
+} from "@/shared/gsc";
 import {
   getGoogleOAuthClientConfig,
   hasGoogleOAuthConfig,
@@ -42,6 +51,7 @@ import {
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 // Refresh when the stored access token is within this many ms of expiry.
 const ACCESS_TOKEN_SKEW_MS = 5_000;
 
@@ -51,6 +61,9 @@ export type GoogleOAuthIntegration = {
   displayName: string;
   callbackPath: `/${string}`;
   scopes: readonly string[];
+  /** The data permissions the integration can't work without one of. Search
+   *  Console's write scope also reads, so either of its scopes will do. */
+  requiredScopes: readonly string[];
 };
 
 export const GSC_INTEGRATION: GoogleOAuthIntegration = {
@@ -59,6 +72,7 @@ export const GSC_INTEGRATION: GoogleOAuthIntegration = {
   displayName: "Search Console",
   callbackPath: "/api/gsc/oauth/callback",
   scopes: GSC_OAUTH_SCOPES,
+  requiredScopes: [GSC_DATA_SCOPE, GSC_WRITE_SCOPE],
 };
 
 export const GA4_INTEGRATION: GoogleOAuthIntegration = {
@@ -67,6 +81,7 @@ export const GA4_INTEGRATION: GoogleOAuthIntegration = {
   displayName: "Google Analytics",
   callbackPath: "/api/ga4/oauth/callback",
   scopes: GA4_OAUTH_SCOPES,
+  requiredScopes: [GA4_DATA_SCOPE],
 };
 
 const googleTokenResponseSchema = z.object({
@@ -279,6 +294,19 @@ async function handleGoogleOAuthCallback(input: {
     return fail("oauth_code_verification_failed");
   }
   if (!tokens) return fail("oauth_code_verification_failed");
+  // Google's consent screen lets the user approve sign-in while leaving the
+  // Search Console or Analytics box unchecked. That grant gets a 403 on every
+  // API call, so send them back to check it rather than saving it. An omitted
+  // scope means everything requested was granted.
+  const grantedScopes = tokens.scope?.split(/\s+/);
+  if (
+    grantedScopes &&
+    !input.integration.requiredScopes.some((scope) =>
+      grantedScopes.includes(scope),
+    )
+  ) {
+    return fail("scope_not_granted");
+  }
   let googleAccountId: string;
   try {
     googleAccountId = await getGoogleAccountId(
@@ -396,6 +424,25 @@ export async function canMintGoogleAccessToken(input: {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Revokes a Google access or refresh token. Google revokes the whole grant
+ * the token belongs to (every scope this OAuth client holds for that Google
+ * account), so callers must make sure no other stored grant still needs it.
+ */
+export async function revokeGoogleToken(token: string): Promise<void> {
+  const response = await fetch(GOOGLE_REVOKE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  // Google answers 400 invalid_token for an already-revoked or expired token,
+  // which leaves no live grant either way.
+  if (!response.ok && response.status !== 400) {
+    throw new Error(`Google token revocation failed: ${response.status}`);
   }
 }
 

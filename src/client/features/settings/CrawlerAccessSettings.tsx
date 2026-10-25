@@ -21,7 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/client/components/ui/table";
-import { SectionHeader } from "@/client/components/PageHeader";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/client/components/ui/card";
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString();
 
@@ -59,92 +65,95 @@ export function CrawlerAccessSettings({ projectId }: { projectId: string }) {
   const credentials = credentialsQuery.data ?? [];
 
   return (
-    <section className="space-y-3">
-      <SectionHeader title="Crawler access" />
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <p className="text-sm">
-            Let the audit crawler through Shopify or Cloudflare Access
+    <Card size="lg">
+      <CardHeader className={isAdding ? "border-b" : undefined}>
+        <CardTitle>
+          <h2 className="leading-tight">Crawler access</h2>
+        </CardTitle>
+        <CardAction className="self-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAdding((value) => !value)}
+          >
+            {isAdding ? "Cancel" : "Add credential"}
+          </Button>
+        </CardAction>
+      </CardHeader>
+      {isAdding ? (
+        <CardContent className="space-y-4">
+          <p className="text-muted-foreground">
+            Let the audit crawler through Shopify or Cloudflare Access. Paste a
+            Shopify crawler signature (Online Store &rarr; Preferences &rarr;
+            Crawler access) or a Cloudflare Access service token. Every audit of
+            that domain in your organization sends it with each request.
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Paste a Shopify crawler signature (Online Store &rarr; Preferences
-            &rarr; Crawler access) or a Cloudflare Access service token. Every
-            audit of that domain in your organization sends it with each
-            request.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsAdding((value) => !value)}
-        >
-          {isAdding ? "Cancel" : "Add credential"}
-        </Button>
-      </div>
-
-      {isAdding && (
-        <div className="rounded-lg border border-border bg-card p-4">
           <CrawlerAccessForm
             projectId={projectId}
             initialHost=""
             onSaved={() => setIsAdding(false)}
           />
-        </div>
-      )}
-
-      {credentialsQuery.isError ? (
-        <p className="text-sm text-destructive">
-          We couldn't load your crawler access.
-        </p>
-      ) : credentials.length > 0 ? (
-        <TableCard>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Domain</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {credentials.map((credential) => (
-                <TableRow key={credential.id}>
-                  <TableCell className="font-mono">{credential.host}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {providerLabels[credential.provider]}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(credential.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {credential.expiresAt
-                      ? formatDate(credential.expiresAt)
-                      : credential.provider === "cloudflare_access"
-                        ? "—"
-                        : "Unknown"}
-                    {isCrawlerAccessExpired(credential.expiresAt) && (
-                      <span className="ml-2 text-destructive">Expired</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Remove crawler access for ${credential.host}`}
-                      disabled={deleteMutation.isPending}
-                      onClick={() => deleteMutation.mutate(credential.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableCard>
+        </CardContent>
       ) : null}
-    </section>
+      {credentialsQuery.isError || credentials.length > 0 ? (
+        <CardContent>
+          {credentialsQuery.isError ? (
+            <p className="text-sm text-destructive">
+              We couldn't load your crawler access.
+            </p>
+          ) : credentials.length > 0 ? (
+            <TableCard>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Domain</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Added</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {credentials.map((credential) => (
+                    <TableRow key={credential.id}>
+                      <TableCell className="font-mono">
+                        {credential.host}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {providerLabels[credential.provider]}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(credential.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {credential.expiresAt
+                          ? formatDate(credential.expiresAt)
+                          : credential.provider === "cloudflare_access"
+                            ? "—"
+                            : "Unknown"}
+                        {isCrawlerAccessExpired(credential.expiresAt) && (
+                          <span className="ml-2 text-destructive">Expired</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Remove crawler access for ${credential.host}`}
+                          disabled={deleteMutation.isPending}
+                          onClick={() => deleteMutation.mutate(credential.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableCard>
+          ) : null}
+        </CardContent>
+      ) : null}
+    </Card>
   );
 }

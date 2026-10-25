@@ -59,7 +59,10 @@ import {
   fetchLlmResponse,
   fetchLlmTopPages,
 } from "@/server/lib/dataforseo/ai";
-import { postAiTrackingTasks } from "@/server/lib/dataforseo/ai-tracking";
+import {
+  fetchAiTrackingLiveAnswer,
+  postAiTrackingTasks,
+} from "@/server/lib/dataforseo/ai-tracking";
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { AppError } from "@/server/lib/errors";
 
@@ -230,6 +233,17 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         dataforseoPricing.serp.local,
         "local_seo",
       ),
+      // Live Maps searches for a Local SEO check, one per grid point; one
+      // credit hold covers the batch.
+      localBatch: (inputs: Parameters<typeof fetchLocalSerp>[0][]) =>
+        meterDataforseoCalls(
+          customer,
+          inputs.map((input) => () => fetchLocalSerp(input)),
+          inputs.map((input) =>
+            creditsForProviderUsd(dataforseoPricing.serp.local(input)),
+          ),
+          "local_seo",
+        ),
       // One queued Maps task per rank grid point; one metered charge covers
       // them all (DataForSEO bills task_post, collection is free).
       localTaskPost: meter(
@@ -296,6 +310,21 @@ export function createDataforseoClient(customer: BillingCustomerContext) {
         dataforseoPricing.aiSearch.trackingTaskPost,
         "ai_prompt_responses",
       ),
+      // A manual run's live answers share one credit hold and one settle (see
+      // meterDataforseoCalls). Resolves per call, in order.
+      trackingLiveBatch: (
+        inputs: Parameters<typeof fetchAiTrackingLiveAnswer>[0][],
+      ) =>
+        meterDataforseoCalls(
+          customer,
+          inputs.map((input) => () => fetchAiTrackingLiveAnswer(input)),
+          inputs.map((input) =>
+            creditsForProviderUsd(
+              dataforseoPricing.aiSearch.trackingLive(input),
+            ),
+          ),
+          "ai_prompt_responses",
+        ),
     },
   } as const;
 }

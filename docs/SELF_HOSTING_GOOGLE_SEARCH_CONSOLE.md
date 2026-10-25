@@ -150,6 +150,10 @@ the Google account that connected the project, and allow Search Console
 access. On self-hosted deployments, add the `webmasters` scope to the OAuth
 consent screen first (see [step 2](#2-configure-the-oauth-consent-screen)).
 
+**"Search Console API isn't enabled"** — the API isn't enabled in the Google
+Cloud project that owns your OAuth client. Enable it (step 1), wait a minute,
+then click **Try again**.
+
 **Connected, but no properties to pick** — the Google account you authorized
 doesn't have a verified property in Search Console. Verify the site in
 [Search Console](https://search.google.com/search-console) first, then reconnect.

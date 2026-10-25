@@ -32,7 +32,7 @@ import {
   exportDimensionRows,
   exportStriking,
   StrikingDistanceTable,
-  TotalsCards,
+  TotalsTable,
   type ExportTarget,
 } from "@/client/features/search-performance/SearchPerformanceParts";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
@@ -256,7 +256,7 @@ export function SearchPerformancePage({
               <SearchPerformanceLoadingState />
             ) : (
               <>
-                <TotalsCards report={report} />
+                <TotalsTable report={report} />
                 {report.daily.length > 0 ? (
                   <Card className="p-4">
                     <SearchTrafficChart

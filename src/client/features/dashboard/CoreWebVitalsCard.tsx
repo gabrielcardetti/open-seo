@@ -9,7 +9,6 @@ import {
   RatingBadge,
   WEB_VITAL_LABELS,
 } from "@/client/features/analytics/WebVitalsTab";
-import { StatGridSkeleton } from "@/client/features/dashboard/cardParts";
 import { getProjectCoreWebVitals } from "@/serverFunctions/coreWebVitals";
 import type { WebVital } from "@/shared/web-vitals";
 
@@ -37,11 +36,6 @@ export function CoreWebVitalsCard({ projectId }: { projectId: string }) {
   return (
     <CardShell
       title="Core Web Vitals"
-      stamp={
-        data?.status === "ok" && data.collectionPeriod
-          ? `Chrome UX Report · mobile · ${data.target} · to ${data.collectionPeriod.lastDate}`
-          : "Chrome UX Report · mobile"
-      }
       action={
         data?.status === "ok" && data.assessment ? (
           <Badge
@@ -53,13 +47,22 @@ export function CoreWebVitalsCard({ projectId }: { projectId: string }) {
         ) : null
       }
     >
+      <p className="mb-4 text-sm text-muted-foreground">
+        {data?.status === "ok" && data.collectionPeriod
+          ? `Chrome UX Report · Mobile · ${data.target} · To ${data.collectionPeriod.lastDate}`
+          : "Chrome UX Report · Mobile"}
+      </p>
       {query.isError ? (
         <p className="text-sm text-muted-foreground">
           Couldn&rsquo;t load Chrome UX Report data. Try again shortly.
         </p>
       ) : !data ? (
         <div className="space-y-3" aria-busy>
-          <StatGridSkeleton tileClassName="h-16" />
+          <div className="grid grid-cols-3 gap-3">
+            {CORE_METRICS.map((metric) => (
+              <Skeleton key={metric} className="h-16" />
+            ))}
+          </div>
           <Skeleton className="h-6" />
         </div>
       ) : data.status === "no_data" ? (

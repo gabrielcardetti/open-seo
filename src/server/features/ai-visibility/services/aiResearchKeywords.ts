@@ -20,7 +20,11 @@ import {
   writeConfiguration,
   writeResearchKeywords,
 } from "../repositories/aiVisibilityConfigurationRepository";
-import { prepareWebsiteTracking } from "./websiteTrackingSetup";
+import {
+  prepareWebsiteTracking,
+  startWebsiteTrackingRun,
+} from "./websiteTrackingSetup";
+import { startWorkflow } from "@/server/lib/startWorkflow";
 
 /**
  * Prompt Research needs saved keywords. Website setup writes them; a
@@ -100,6 +104,9 @@ export async function getAiResearchSetup(projectId: string) {
 export async function startAiResearchSetup(
   input: { projectId: string },
   customer: BillingCustomerContext,
+  // In-app onboarding runs seeded tracking once. MCP setup never spends on
+  // answers. A restarted setup keeps the flag it was first started with.
+  { runSeededTracking = false } = {},
 ) {
   const setup = await getAiResearchSetup(input.projectId);
   if (setup.status !== "none" && setup.status !== "failed") return setup;
@@ -117,19 +124,24 @@ export async function startAiResearchSetup(
   const { instance } = await readSetupRun(input.projectId);
   if (instance) await instance.restart();
   else
-    await env.AI_VISIBILITY_WORKFLOW.create({
-      id: setupInstanceId(input.projectId),
-      // Only the billing fields: the request context is not serializable.
-      params: {
-        setupProjectId: input.projectId,
-        customer: {
-          organizationId: customer.organizationId,
-          userId: customer.userId,
-          userEmail: customer.userEmail,
-          projectId: input.projectId,
+    await startWorkflow(
+      env.AI_VISIBILITY_WORKFLOW,
+      {
+        id: setupInstanceId(input.projectId),
+        // Only the billing fields: the request context is not serializable.
+        params: {
+          setupProjectId: input.projectId,
+          runSeededTracking,
+          customer: {
+            organizationId: customer.organizationId,
+            userId: customer.userId,
+            userEmail: customer.userEmail,
+            projectId: input.projectId,
+          },
         },
       },
-    });
+      "AI research setup",
+    );
   return { ...setup, status: "running" as const, failure: null };
 }
 
@@ -137,6 +149,7 @@ export async function startAiResearchSetup(
 export async function runAiResearchSetup(
   input: { projectId: string },
   customer: BillingCustomerContext,
+  { runSeededTracking = false } = {},
 ): Promise<{ review: WebsiteResearch | null }> {
   const project = await ProjectRepository.getProjectForOrganization(
     input.projectId,
@@ -177,5 +190,7 @@ export async function runAiResearchSetup(
       ...review.suggestedKeywords,
     ]),
   ]);
+  if (tracking && runSeededTracking)
+    await startWebsiteTrackingRun(input.projectId, customer);
   return { review: null };
 }

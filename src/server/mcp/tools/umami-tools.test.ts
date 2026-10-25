@@ -38,7 +38,7 @@ function opportunities(source: Record<string, unknown>) {
   return {
     status: "ok",
     source,
-    request: {},
+    request: { dateRange: { startDate: "2026-07-01", endDate: "2026-07-28" } },
     rowCount: 0,
     totalCandidateRows: 0,
     rows: [],

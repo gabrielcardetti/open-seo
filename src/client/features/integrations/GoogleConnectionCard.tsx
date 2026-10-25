@@ -29,7 +29,6 @@ import {
 } from "@/client/features/integrations/googleProviders";
 import { useGooglePickerResume } from "@/client/features/integrations/useGooglePickerResume";
 import { getStandardErrorMessage } from "@/client/lib/error-messages";
-import { captureClientEvent } from "@/client/lib/posthog";
 
 /**
  * Connects one project to Search Console or Google Analytics: link a Google
@@ -118,7 +117,6 @@ export function GoogleConnectionCard({
         (current: GoogleConnection | undefined) =>
           current ? { ...current, ...saved } : current,
       );
-      captureClientEvent(`${provider}:property_select`);
       toast.success(`${config.name} connected`);
       afterChange();
     },

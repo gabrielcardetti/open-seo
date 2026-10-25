@@ -13,11 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/client/components/ui/table";
-import { getAiVisibilityTrend } from "@/serverFunctions/ai-visibility";
 import type { AiTrend, AiTrendMetric } from "@/shared/ai-visibility";
 import { EngineLabel } from "./EngineLabel";
 import { trendSeries, VisibilityTrendChart } from "./VisibilityTrendChart";
-import { AiQueryError, aiVisibilityKey } from "./shared";
+import { AiQueryError, type AiTrendDays, aiTrendQueryOptions } from "./shared";
 
 const periods = [
   { value: "7", icon: null, label: "7d" },
@@ -28,7 +27,7 @@ const periods = [
 const rate = (value: number | null) =>
   value === null ? "—" : `${Math.round(value)}%`;
 
-function notice(trend: AiTrend) {
+function notice(trend: AiTrend, collecting: boolean) {
   const { days } = trend;
   switch (trend.comparison) {
     case "incomplete":
@@ -36,21 +35,26 @@ function notice(trend: AiTrend) {
     case "scope_changed":
       return `No prompt and engine has answers for the same market and brand in both periods. The tracked scope changed, so the periods cannot be compared.`;
     case "no_data":
-      return `There are no finished runs in the last ${days} days.`;
+      return collecting
+        ? "Collecting answers. Visibility appears here when the run finishes."
+        : `There are no finished runs in the last ${days} days.`;
     default:
       return null;
   }
 }
 
 /** The trend panel inside the Prompt tracking card, laid out like rank tracking's overview. */
-export function VisibilityTrend({ projectId }: { projectId: string }) {
-  const [days, setDays] = useState<7 | 28 | 90>(7);
-  const query = useQuery({
-    queryKey: [...aiVisibilityKey(projectId), "results", "trend", days],
-    queryFn: () => getAiVisibilityTrend({ data: { projectId, days } }),
-  });
+export function VisibilityTrend({
+  projectId,
+  collecting,
+}: {
+  projectId: string;
+  collecting: boolean;
+}) {
+  const [days, setDays] = useState<AiTrendDays>(7);
+  const query = useQuery(aiTrendQueryOptions(projectId, days));
   const trend = query.data;
-  const message = trend && notice(trend);
+  const message = trend && notice(trend, collecting);
   // Incomplete collection and a changed scope need attention; missing history does not.
   const warning =
     trend?.comparison === "incomplete" || trend?.comparison === "scope_changed";

@@ -9,6 +9,7 @@ import {
 } from "@/shared/audit-issues";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
+import { formatMcpCell } from "@/server/mcp/table";
 import {
   looseObjectOutputSchema,
   optionalMetaOutputSchema,
@@ -22,6 +23,28 @@ import {
 
 /** Example URLs listed per template group; the count is always exact. */
 const GROUP_EXAMPLES = 3;
+
+// Text-only clients read just the text block, so each issue type renders its
+// remediation steps plus a bounded sample of affected URLs. Every URL of every
+// type would be a data dump; the per-type count keeps the sample honest.
+const ISSUE_SAMPLE_SIZE = 5;
+
+/** Render an issue's parsed details record as ` (statusCode: 404, length: 12)`. */
+function formatIssueDetails(details: unknown): string {
+  if (typeof details !== "object" || details === null || Array.isArray(details))
+    return "";
+  const parts = Object.entries(details)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(
+      ([key, value]) =>
+        `${key}: ${
+          Array.isArray(value)
+            ? value.map(formatMcpCell).join(" → ")
+            : formatMcpCell(value)
+        }`,
+    );
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+}
 
 const issuesInputSchema = {
   projectId: projectIdSchema,
@@ -175,7 +198,9 @@ export const getAuditIssuesTool = {
         text:
           args.severity || args.issueType
             ? `No issues found for audit ${audit.id} matching the given filters.`
-            : `No issues recorded for audit ${audit.id}. Note: audits run before issue checks existed have no issue data — re-run the audit with run_site_audit to get a real report.`,
+            : audit.status === "running"
+              ? `Audit ${audit.id} is still running; issues are recorded when it finishes. Poll get_audit_status.`
+              : `Audit ${audit.id} found no issues across ${audit.pagesCrawled} crawled page${audit.pagesCrawled === 1 ? "" : "s"}.`,
         meta,
         structuredContent: { summary, issues: [] },
       });
@@ -214,12 +239,52 @@ export const getAuditIssuesTool = {
       };
     });
 
+    // Sample affected URLs from the returned rows, keyed by issue type; counts
+    // still come from `summary`, which covers every matching row.
+    const samples = new Map<string, typeof issues>();
+    for (const issue of issues) {
+      const sample = samples.get(issue.issueType) ?? [];
+      if (sample.length < ISSUE_SAMPLE_SIZE) sample.push(issue);
+      samples.set(issue.issueType, sample);
+    }
+    let sampled = false;
+
+    const sections = summary.map((entry) => {
+      const shown = samples.get(entry.issueType) ?? [];
+      const remaining = entry.count - shown.length;
+      if (remaining > 0) sampled = true;
+      const howToFix = getIssueDescriptor(entry.issueType)?.howToFix;
+      return [
+        `[${entry.severity}] ${entry.title} (${entry.issueType}): ${entry.count} affected page${entry.count === 1 ? "" : "s"}`,
+        howToFix ? `  Fix: ${howToFix}` : null,
+        ...shown.map(
+          (issue) => `  - ${issue.url}${formatIssueDetails(issue.details)}`,
+        ),
+        // A low-severity type can fall entirely outside the limit-truncated
+        // rows, leaving counts with no rows to sample from.
+        shown.length === 0
+          ? `  (no sample URLs within the first ${limit} issue rows — raise limit to see examples)`
+          : remaining > 0
+            ? `  …and ${remaining} more affected URL${remaining === 1 ? "" : "s"} in this issue.`
+            : null,
+      ]
+        .filter((line) => line !== null)
+        .join("\n");
+    });
+
     return mcpResponse({
       text: [
-        `Audit ${audit.id} (${audit.startUrl}): ${rows.length} issues${rows.length > limit ? ` (showing ${limit})` : ""}.`,
-        ...byType,
-        "Full issue rows with how_to_fix instructions are in structuredContent.issues.",
-      ].join("\n"),
+        `Audit ${audit.id} (${audit.startUrl}): ${rows.length} issues across ${summary.length} issue type${summary.length === 1 ? "" : "s"}.`,
+        ...sections,
+        sampled
+          ? `Up to ${ISSUE_SAMPLE_SIZE} affected URLs are listed per issue type — open the audit in the dashboard for the full list, or pass groupBy: "template" to group them by URL template.`
+          : null,
+        rows.length > limit
+          ? `Structured issue rows are capped at the ${limit} highest-severity issues; raise limit (max 1000) for more.`
+          : null,
+      ]
+        .filter((block) => block !== null)
+        .join("\n\n"),
       meta,
       structuredContent: { summary, issues },
     });

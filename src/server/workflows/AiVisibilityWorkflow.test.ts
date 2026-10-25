@@ -5,6 +5,8 @@ import { AiVisibilityWorkflow } from "./AiVisibilityWorkflow";
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   post: vi.fn(),
+  live: vi.fn(),
+  model: vi.fn(),
   collect: vi.fn(),
   finalize: vi.fn(),
   markFailed: vi.fn(),
@@ -20,6 +22,8 @@ vi.mock(
   () => ({
     prepareAiRun: mocks.prepare,
     postAiBatch: mocks.post,
+    collectAiLiveBatch: mocks.live,
+    collectAiModelBatch: mocks.model,
     collectAiRound: mocks.collect,
     finalizeAiRun: mocks.finalize,
     markAiRunFailed: mocks.markFailed,
@@ -61,13 +65,15 @@ function execute() {
 beforeEach(() => {
   mocks.prepare.mockResolvedValue({
     market: { locationCode: 2840, languageCode: "en" },
+    modelBatches: [],
+    live: false,
     batches: [
       { engine: "chatgpt", tasks: [] },
       { engine: "gemini", tasks: [] },
     ],
   });
   mocks.post.mockResolvedValue([task]);
-  mocks.collect.mockResolvedValue([]);
+  mocks.collect.mockResolvedValue({ pending: [], retry: [] });
 });
 
 describe("AI visibility workflow", () => {
@@ -78,23 +84,115 @@ describe("AI visibility workflow", () => {
       retries: { limit: 0, delay: "1 second" },
       timeout: "2 minutes",
     });
-    expect(mocks.collect).toHaveBeenCalledExactlyOnceWith("run", [task, task]);
+    expect(mocks.collect).toHaveBeenCalledExactlyOnceWith(
+      "run",
+      [task, task],
+      true,
+    );
     expect(mocks.sleep).toHaveBeenCalledOnce();
     expect(mocks.finalize).toHaveBeenCalledExactlyOnceWith("run");
   });
 
+  it("asks the model API for Claude and Perplexity, then reads queued answers before sleeping", async () => {
+    mocks.prepare.mockResolvedValue({
+      market: { locationCode: 2840, languageCode: "en" },
+      modelBatches: [{ engine: "claude", tasks: [] }],
+      live: false,
+      batches: [{ engine: "chatgpt", tasks: [] }],
+    });
+    await execute();
+    expect(mocks.model).toHaveBeenCalledOnce();
+    expect(mocks.steps).toHaveBeenCalledWith("read-model-0", {
+      retries: { limit: 2, delay: "10 seconds" },
+      timeout: "5 minutes",
+    });
+    expect(mocks.sleep).not.toHaveBeenCalled();
+    expect(mocks.finalize).toHaveBeenCalledExactlyOnceWith("run");
+  });
+
+  it("collects a manual run's live batches without posting or polling", async () => {
+    mocks.prepare.mockResolvedValue({
+      market: { locationCode: 2840, languageCode: "en" },
+      modelBatches: [],
+      live: true,
+      batches: [[]],
+    });
+    await execute();
+    expect(mocks.live).toHaveBeenCalledOnce();
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.sleep).not.toHaveBeenCalled();
+    expect(mocks.finalize).toHaveBeenCalledExactlyOnceWith("run");
+  });
+
   it("stops polling when the collection window closes and finalizes what arrived", async () => {
-    mocks.collect.mockResolvedValue([task]);
+    mocks.collect.mockResolvedValue({ pending: [task], retry: [] });
     await execute();
     expect(mocks.sleep).toHaveBeenCalledTimes(9);
     expect(mocks.finalize).toHaveBeenCalledOnce();
   });
 
-  it("fails the run when preparation fails, such as when credits run out", async () => {
-    const error = new Error("Not enough credits");
+  it("posts failed answers again in a step that never retries, but not after the last round", async () => {
+    const batch = { engine: "chatgpt", tasks: [{ tag: "answer", prompt: "" }] };
+    mocks.collect.mockResolvedValue({ pending: [task], retry: [batch] });
+    await execute();
+    expect(mocks.post).toHaveBeenCalledWith(
+      "run",
+      customer,
+      expect.anything(),
+      batch,
+    );
+    expect(mocks.steps).toHaveBeenCalledWith("repost-0-0", {
+      retries: { limit: 0, delay: "1 second" },
+      timeout: "2 minutes",
+    });
+    expect(mocks.collect).toHaveBeenLastCalledWith(
+      "run",
+      expect.anything(),
+      false,
+    );
+  });
+
+  it("keeps collecting when a live batch's step fails, and finalizes what arrived", async () => {
+    mocks.prepare.mockResolvedValue({
+      market: { locationCode: 2840, languageCode: "en" },
+      modelBatches: [],
+      live: true,
+      batches: [[], []],
+    });
+    mocks.live.mockRejectedValueOnce(new Error("internal workflows error"));
+    await execute();
+    expect(mocks.live).toHaveBeenCalledTimes(2);
+    expect(mocks.finalize).toHaveBeenCalledExactlyOnceWith("run");
+    expect(mocks.markFailed).not.toHaveBeenCalled();
+  });
+
+  it("gives the free bookkeeping steps retries", async () => {
+    await execute();
+    for (const name of ["prepare", "finalize"])
+      expect(mocks.steps).toHaveBeenCalledWith(name, {
+        retries: { limit: 2, delay: "10 seconds" },
+        timeout: "2 minutes",
+      });
+  });
+
+  it("fails the run when preparation fails", async () => {
+    const error = new Error();
     mocks.prepare.mockRejectedValue(error);
     await expect(execute()).rejects.toThrow(error);
     expect(mocks.post).not.toHaveBeenCalled();
-    expect(mocks.markFailed).toHaveBeenCalledExactlyOnceWith("run", error);
+    expect(mocks.markFailed).toHaveBeenCalledExactlyOnceWith("run");
+    expect(mocks.steps).toHaveBeenCalledWith("mark-failed", {
+      retries: { limit: 2, delay: "10 seconds" },
+      timeout: "2 minutes",
+    });
+  });
+
+  it("does not log a rejected poll sleep as a failure, but still marks the run failed", async () => {
+    const error = new Error();
+    mocks.sleep.mockRejectedValueOnce(error);
+    const consoleError = vi.spyOn(console, "error");
+    await expect(execute()).rejects.toThrow(error);
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(mocks.markFailed).toHaveBeenCalledExactlyOnceWith("run");
   });
 });

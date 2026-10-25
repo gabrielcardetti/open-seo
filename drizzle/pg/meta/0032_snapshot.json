@@ -1,6 +1,6 @@
 {
-  "id": "f23dd8f2-4bf4-4759-a92d-db1e73e4dea4",
-  "prevId": "8b4567e5-d581-4c0c-9786-c20437076cd8",
+  "id": "cdab94bf-52ab-4d03-b9a5-1280da51a9c3",
+  "prevId": "00d55d7e-d89a-4de8-b216-b6a0cfbfb380",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -308,6 +308,57 @@
           ]
         }
       },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.data_refresh_claims": {
+      "name": "data_refresh_claims",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "data_refresh_claims_organization_id_organization_id_fk": {
+          "name": "data_refresh_claims_organization_id_organization_id_fk",
+          "tableFrom": "data_refresh_claims",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -1280,18 +1331,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "pinned_at": {
+          "name": "pinned_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
-        },
-        "pinned_at": {
-          "name": "pinned_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -4612,642 +4663,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.audit_page_evaluations": {
-      "name": "audit_page_evaluations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "page_id": {
-          "name": "page_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "page_url": {
-          "name": "page_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "catalog_version": {
-          "name": "catalog_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "page_type": {
-          "name": "page_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ymyl": {
-          "name": "ymyl",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "ymyl_topics_json": {
-          "name": "ymyl_topics_json",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ai_suspected": {
-          "name": "ai_suspected",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "verdict": {
-          "name": "verdict",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "critical_fails": {
-          "name": "critical_fails",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "high_fails": {
-          "name": "high_fails",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "medium_fails": {
-          "name": "medium_fails",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "low_fails": {
-          "name": "low_fails",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "unknown_count": {
-          "name": "unknown_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "judge": {
-          "name": "judge",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_at": {
-          "name": "evaluated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "audit_page_evaluations_audit_id_idx": {
-          "name": "audit_page_evaluations_audit_id_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "audit_page_evaluations_page_id_idx": {
-          "name": "audit_page_evaluations_page_id_idx",
-          "columns": [
-            {
-              "expression": "page_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "audit_page_evaluations_audit_id_audits_id_fk": {
-          "name": "audit_page_evaluations_audit_id_audits_id_fk",
-          "tableFrom": "audit_page_evaluations",
-          "tableTo": "audits",
-          "columnsFrom": [
-            "audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "audit_page_evaluations_page_id_audit_pages_id_fk": {
-          "name": "audit_page_evaluations_page_id_audit_pages_id_fk",
-          "tableFrom": "audit_page_evaluations",
-          "tableTo": "audit_pages",
-          "columnsFrom": [
-            "page_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.audit_rule_results": {
-      "name": "audit_rule_results",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audit_id": {
-          "name": "audit_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evaluation_id": {
-          "name": "evaluation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "page_url": {
-          "name": "page_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rule_id": {
-          "name": "rule_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "severity": {
-          "name": "severity",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "score": {
-          "name": "score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confidence": {
-          "name": "confidence",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evidence": {
-          "name": "evidence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "remediation": {
-          "name": "remediation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "audit_rule_results_audit_rule_idx": {
-          "name": "audit_rule_results_audit_rule_idx",
-          "columns": [
-            {
-              "expression": "audit_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "rule_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "audit_rule_results_evaluation_id_idx": {
-          "name": "audit_rule_results_evaluation_id_idx",
-          "columns": [
-            {
-              "expression": "evaluation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "audit_rule_results_audit_id_audits_id_fk": {
-          "name": "audit_rule_results_audit_id_audits_id_fk",
-          "tableFrom": "audit_rule_results",
-          "tableTo": "audits",
-          "columnsFrom": [
-            "audit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "audit_rule_results_evaluation_id_audit_page_evaluations_id_fk": {
-          "name": "audit_rule_results_evaluation_id_audit_page_evaluations_id_fk",
-          "tableFrom": "audit_rule_results",
-          "tableTo": "audit_page_evaluations",
-          "columnsFrom": [
-            "evaluation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.agent_readiness_checks": {
-      "name": "agent_readiness_checks",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "scan_id": {
-          "name": "scan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "engine": {
-          "name": "engine",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "check_id": {
-          "name": "check_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence": {
-          "name": "evidence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fix_url": {
-          "name": "fix_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "agent_readiness_checks_scan_idx": {
-          "name": "agent_readiness_checks_scan_idx",
-          "columns": [
-            {
-              "expression": "scan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "agent_readiness_checks_scan_id_agent_readiness_scans_id_fk": {
-          "name": "agent_readiness_checks_scan_id_agent_readiness_scans_id_fk",
-          "tableFrom": "agent_readiness_checks",
-          "tableTo": "agent_readiness_scans",
-          "columnsFrom": [
-            "scan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.agent_readiness_configs": {
-      "name": "agent_readiness_configs",
-      "schema": "",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "profile": {
-          "name": "profile",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'content'"
-        },
-        "schedule_enabled": {
-          "name": "schedule_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "next_run_at": {
-          "name": "next_run_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_skip_reason": {
-          "name": "last_skip_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "agent_readiness_configs_project_id_projects_id_fk": {
-          "name": "agent_readiness_configs_project_id_projects_id_fk",
-          "tableFrom": "agent_readiness_configs",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.agent_readiness_scans": {
-      "name": "agent_readiness_scans",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "origin": {
-          "name": "origin",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "profile": {
-          "name": "profile",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trigger": {
-          "name": "trigger",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'running'"
-        },
-        "passed": {
-          "name": "passed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "applicable": {
-          "name": "applicable",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "cloudflare_status": {
-          "name": "cloudflare_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'skipped'"
-        },
-        "cloudflare_level": {
-          "name": "cloudflare_level",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cloudflare_raw": {
-          "name": "cloudflare_raw",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "agent_readiness_scans_project_started_idx": {
-          "name": "agent_readiness_scans_project_started_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "agent_readiness_scans_project_id_projects_id_fk": {
-          "name": "agent_readiness_scans_project_id_projects_id_fk",
-          "tableFrom": "agent_readiness_scans",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.ai_matches": {
       "name": "ai_matches",
       "schema": "",
@@ -5814,6 +5229,20 @@
         },
         "gemini": {
           "name": "gemini",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "claude": {
+          "name": "claude",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "perplexity": {
+          "name": "perplexity",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

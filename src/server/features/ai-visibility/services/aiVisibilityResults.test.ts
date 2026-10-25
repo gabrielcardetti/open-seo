@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AiVisibilityRepository as repo } from "../repositories/AiVisibilityRepository";
 import type { RunRow } from "../repositories/AiVisibilityRepository";
+import { aiPageResultsSchema } from "@/types/schemas/ai-visibility";
 import {
   loadAiAnswer,
+  loadAiPageResults,
   loadAiResults,
   loadAiSources,
 } from "./aiVisibilityResults";
@@ -14,8 +16,9 @@ const { testDb } = await vi.hoisted(async () => {
   const { createAiVisibilityTestDb } = await import("../aiVisibilityTestDb");
   return { testDb: await createAiVisibilityTestDb() };
 });
+const r2Put = vi.hoisted(() => vi.fn<(key: string, body: string) => void>());
 vi.mock("cloudflare:workers", () => ({
-  env: { DATABASE_PROVIDER: "d1", R2: { put: vi.fn() } },
+  env: { DATABASE_PROVIDER: "d1", R2: { put: r2Put } },
 }));
 vi.mock("@/db", () => ({ db: testDb.db }));
 vi.mock("@/db/runBatch", () => ({ runBatch: testDb.runBatch }));
@@ -25,7 +28,8 @@ const own = { name: "OpenSEO", domain: "openseo.so", own: true };
 const rival = { name: "Ahrefs", domain: "ahrefs.com", own: false };
 type Answer = {
   markdown?: string | null;
-  failed?: boolean;
+  /** The stored error of a failed answer. */
+  failed?: string;
   mentioned?: string[];
   cited?: string[];
   sources?: string[];
@@ -75,7 +79,7 @@ async function seedRun(
     await repo.persistAnswer({
       observationId: id,
       values: answer.failed
-        ? { status: "failed", error: "Provider failed" }
+        ? { status: "failed", error: answer.failed }
         : { status: "completed", answerMarkdown: answer.markdown ?? null },
       sources: (answer.sources ?? []).map((url, position) => ({
         id: crypto.randomUUID(),
@@ -115,7 +119,7 @@ describe("AI visibility results", () => {
       { markdown: "OpenSEO and Ahrefs", mentioned: ["OpenSEO", "Ahrefs"] },
       { markdown: "Ahrefs", mentioned: ["Ahrefs"], cited: ["OpenSEO"] },
       { markdown: null },
-      { failed: true },
+      { failed: "UPSTREAM_UNAVAILABLE" },
     ]);
 
     const results = await loadAiResults({
@@ -145,6 +149,26 @@ describe("AI visibility results", () => {
     ]);
   });
 
+  it("never shows the raw text stored by an older answer", async () => {
+    await seedRun("baseline", [
+      { failed: "Internal SE Server Error." },
+      { failed: "DataForSEO returned an answer we could not read." },
+      { failed: "No answer arrived within the collection window." },
+    ]);
+
+    const results = await loadAiResults({
+      ...query,
+      includeHistory: false,
+      competitorGap: false,
+    });
+
+    expect(results.rows.map((row) => row.error)).toEqual([
+      "UPSTREAM_UNAVAILABLE",
+      "INTERNAL_ERROR",
+      "No answer arrived within the collection window.",
+    ]);
+  });
+
   it("reads the latest scheduled run by default, not a newer manual check", async () => {
     const baseline = await seedRun("baseline", [{ markdown: "x" }]);
     await seedRun("manual", [{ markdown: "y" }], "2026-09-06T12:00:00.000Z");
@@ -154,6 +178,20 @@ describe("AI visibility results", () => {
       competitorGap: false,
     });
     expect(results.runId).toBe(baseline);
+  });
+
+  it("gives the app a run's every answer in one read, past the MCP page size", async () => {
+    await seedRun(
+      "baseline",
+      Array.from({ length: 51 }, () => ({ markdown: "x" })),
+    );
+    // Parsed as the server function parses it, so a default page size shows.
+    const input = aiPageResultsSchema.parse({
+      projectId: crypto.randomUUID(),
+      branded: "all",
+    });
+    const results = await loadAiPageResults({ ...input, projectId });
+    expect(results.rows).toHaveLength(51);
   });
 
   it("finds competitor gaps: a competitor appears where the brand is neither named nor cited", async () => {
@@ -187,7 +225,12 @@ describe("AI visibility results", () => {
       ownership: "all",
     });
     expect(sources.rows).toMatchObject([
-      { url: "https://openseo.so/pricing", ownership: "own", answerCount: 2 },
+      {
+        url: "https://openseo.so/pricing",
+        ownership: "own",
+        answerCount: 2,
+        promptIds: ["prompt-0", "prompt-1"],
+      },
       { url: "https://ahrefs.com/blog", ownership: "competitor" },
     ]);
   });
@@ -237,5 +280,33 @@ describe("AI visibility export", () => {
     expect(url).toMatch(
       /^https:\/\/app\.openseo\.so\/api\/ai-visibility\/download\?projectId=project&exportId=/,
     );
+  });
+
+  it("writes each answer with its own mentions and citations", async () => {
+    await seedRun("baseline", [
+      {
+        markdown: "OpenSEO",
+        mentioned: ["OpenSEO"],
+        sources: ["https://openseo.so/pricing"],
+      },
+      {
+        markdown: "Ahrefs",
+        mentioned: ["Ahrefs"],
+        sources: ["https://ahrefs.com/blog"],
+      },
+    ]);
+    await exportAiData(
+      { ...query, includeHistory: false, competitorGap: false, format: "csv" },
+      "https://app.openseo.so",
+    );
+    const csv = r2Put.mock.calls[0]?.[1];
+    expect(csv?.split("\r\n").slice(1)).toEqual([
+      expect.stringContaining(
+        '"Question 0?","chatgpt","completed","","OpenSEO","https://openseo.so/pricing","OpenSEO"',
+      ),
+      expect.stringContaining(
+        '"Question 1?","chatgpt","completed","","Ahrefs","https://ahrefs.com/blog","Ahrefs"',
+      ),
+    ]);
   });
 });

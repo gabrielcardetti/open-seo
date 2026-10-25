@@ -3,6 +3,9 @@
  *  button) can reference it without importing the server-only auth config. */
 export const GSC_OAUTH_PROVIDER_ID = "google-search-console";
 
+export const GSC_DATA_SCOPE =
+  "https://www.googleapis.com/auth/webmasters.readonly";
+
 /** Write access to Search Console. OpenSEO needs it only to submit sitemaps
  *  (`sitemaps.submit`); every read works with the read-only scope. */
 export const GSC_WRITE_SCOPE = "https://www.googleapis.com/auth/webmasters";
@@ -15,7 +18,7 @@ export const GSC_OAUTH_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/webmasters.readonly",
+  GSC_DATA_SCOPE,
   GSC_WRITE_SCOPE,
 ] as const;
 

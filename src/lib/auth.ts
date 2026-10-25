@@ -1,6 +1,10 @@
 import { env } from "cloudflare:workers";
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import { captcha } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
@@ -11,8 +15,10 @@ import { pgDb } from "@/db/pg/client";
 import * as pgSchema from "@/db/pg/schema";
 import { getDatabaseProvider } from "@/db/provider";
 import { z } from "zod";
+import { CURRENT_TERMS_VERSION } from "@/shared/terms";
 import { isHostedAuthMode } from "@/lib/auth-mode";
 import { createApiKeyPlugin } from "@/lib/auth-api-key";
+import { getActiveOrganizationId } from "@/lib/auth-session";
 import { createBaseAuthConfig } from "@/lib/auth-config";
 import {
   getHostedTurnstileSecretKey,
@@ -22,6 +28,16 @@ import { resolveSignInHostedOrganization } from "@/server/auth/default-hosted-or
 import { onInvitationAccepted } from "@/server/auth/invited-member";
 import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
 import { captureDubReferralSignup } from "@/server/referrals/dub";
+import { captureMetaSignup } from "@/server/referrals/meta";
+import {
+  captureSignUpCompleted,
+  saveSignUpCampaign,
+} from "@/server/auth/sign-up-analytics";
+import {
+  productUpdatesOnByDefault,
+  requestPrivacyChoices,
+} from "@/shared/privacy-choices";
+import { markOnboardingMilestone } from "@/server/email/onboarding-drip";
 import {
   sendHostedPasswordResetEmail,
   sendHostedVerificationEmail,
@@ -38,6 +54,8 @@ const hostedBaseUrlSchema = z
       (url.protocol === "http:" && url.hostname === "localhost")
     );
   }, "BETTER_AUTH_URL must use https or localhost");
+
+const createdApiKeySchema = z.object({ referenceId: z.string() });
 
 function createAuth() {
   // Hosted needs the real configured URL (cookies, callbacks, /api/auth routes
@@ -207,27 +225,107 @@ function createAuth() {
         : []),
       tanstackStartCookies(),
     ],
+    hooks: {
+      // Binds a new MCP API key to the organization the session is working
+      // in, server-side: the /mcp handler reads metadata.organizationId and
+      // bills/authorizes that org for the key's lifetime. The session's
+      // active org is only a hint; the member row is the authorization fact.
+      // Throwing here means an unbound key can never be minted through the
+      // HTTP endpoint. Better Auth merges the returned body over the
+      // request's, so an organizationId the client sends loses to this one.
+      // The owner can still rewrite metadata through /api-key/update, which
+      // gains nothing: a key pointed at an org they are not in fails the
+      // membership check on its next /mcp call, and one pointed at an org
+      // they are in is no different from a key created there.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/api-key/create") return;
+        // Minting a credential must see the stored session, not the cookie
+        // cache: a cookie from a session revoked minutes ago must not mint a
+        // key that outlives the revocation. The plugin reuses this lookup.
+        const session = await getSessionFromCtx(ctx, {
+          disableCookieCache: true,
+        });
+        if (!session) throw new APIError("UNAUTHORIZED");
+        const organizationId = getActiveOrganizationId(session);
+        const membership = organizationId
+          ? await AuthRepository.getMembership(session.user.id, organizationId)
+          : null;
+        if (!organizationId || !membership) {
+          throw new APIError("FORBIDDEN", {
+            message: "Select an organization before creating an API key.",
+          });
+        }
+        return { context: { body: { metadata: { organizationId } } } };
+      }),
+      // Marked when the user creates an MCP API key, the API-key counterpart
+      // of OAuth's authorize step. Not on each /mcp request: isolates share no
+      // memory, so every one would re-send it and hit Loops' team-wide rate
+      // limit.
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/api-key/create") return;
+        const created = createdApiKeySchema.safeParse(ctx.context.returned);
+        if (!created.success) return;
+        const user = await AuthRepository.getHostedUser(
+          created.data.referenceId,
+        );
+        if (!user) return;
+        await markOnboardingMilestone(
+          { userId: user.id, userEmail: user.email },
+          "mcpConnected",
+        );
+      }),
+    },
     databaseHooks: {
       user: {
         create: {
           // Hosted only: keep cheap mass-signups off the free plan by rejecting
           // throwaway-inbox domains before the user row is created. Self-hosted
           // has no shared credit pool to protect, so it's left untouched.
-          before: async (user) => {
-            if (
-              isHostedAuthMode(env.AUTH_MODE) &&
-              isDisposableEmailDomain(user.email)
-            ) {
+          before: async (user, ctx) => {
+            if (!isHostedAuthMode(env.AUTH_MODE)) {
+              return { data: user };
+            }
+            if (isDisposableEmailDomain(user.email)) {
               throw new APIError("BAD_REQUEST", {
                 message: "Please sign up with a non-disposable email address.",
               });
             }
-            return { data: user };
+            // Start new accounts with the analytics choice that applies to
+            // this browser, so server-side analytics doesn't run for a
+            // visitor who hasn't opted in where opt-in is required.
+            const choices = requestPrivacyChoices(ctx?.request);
+            const now = new Date();
+            // Every hosted signup path (email form, Google on the sign-up or
+            // sign-in page) shows the Terms clickwrap next to its button.
+            return {
+              data: {
+                ...user,
+                analyticsOptedOut: !choices.analytics,
+                productUpdatesOptIn: productUpdatesOnByDefault(
+                  ctx?.request?.headers.get("cf-ipcountry"),
+                ),
+                productUpdatesChangedAt: now,
+                termsAcceptedVersion: CURRENT_TERMS_VERSION,
+                termsAcceptedAt: now,
+              },
+            };
           },
           after: async (user, ctx) => {
             await syncHostedSignupContact(user);
             if (isHostedAuthMode(env.AUTH_MODE)) {
-              await captureDubReferralSignup(user.id, ctx?.request);
+              // Partner attribution is a referral choice: an older dub_id
+              // cookie must not credit a partner without it.
+              if (requestPrivacyChoices(ctx?.request).referrals) {
+                await captureDubReferralSignup(user.id, ctx?.request);
+              }
+              // Sent only if the separate advertising (Meta) choice allows it.
+              captureMetaSignup(ctx?.request);
+              await saveSignUpCampaign(user.id, ctx).catch((error) =>
+                console.error("sign-up campaign save failed", error),
+              );
+              await captureSignUpCompleted(user, ctx).catch((error) =>
+                console.error("sign-up analytics failed", error),
+              );
             }
           },
         },
@@ -269,12 +367,14 @@ async function syncHostedSignupContact(user: {
   id: string;
   email: string;
   name?: string | null;
+  productUpdatesOptIn?: unknown;
 }) {
   try {
     await upsertHostedSignupContact({
       userId: user.id,
       email: user.email,
       name: user.name,
+      productUpdates: user.productUpdatesOptIn === true,
     });
   } catch (error) {
     console.error("Failed to sync Loops profile after user creation:", {

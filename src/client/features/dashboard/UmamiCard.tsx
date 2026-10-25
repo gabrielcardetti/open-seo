@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
 import { CardShell } from "@/client/components/CardShell";
 import { GoogleUpdateMarkers } from "@/client/components/GoogleUpdateMarkers";
-import { StatTile } from "@/client/components/StatTile";
+import { MetricsTable, percentChange } from "@/client/components/MetricsTable";
+import { SkeletonTableRows } from "@/client/components/SkeletonPresets";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import {
   ChartContainer,
@@ -11,10 +12,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/client/components/ui/chart";
-import {
-  moreDetailsClass,
-  StatGridSkeleton,
-} from "@/client/features/dashboard/cardParts";
+import { moreDetailsClass } from "@/client/features/dashboard/cardParts";
 import {
   formatCount,
   formatCtr,
@@ -39,6 +37,25 @@ function formatTrendDay(date: string): string {
   });
 }
 
+/** A period-over-period change for MetricsTable; undefined renders "—". */
+function changeCell(change: number | null) {
+  if (change === null) return undefined;
+  return (
+    <span
+      className={
+        change > 0
+          ? "text-success"
+          : change < 0
+            ? "text-destructive"
+            : "text-muted-foreground"
+      }
+    >
+      {change > 0 ? "+" : ""}
+      {change}%
+    </span>
+  );
+}
+
 /** Organic search visitors from the project's Umami website, shown on the
  *  dashboard when Google Analytics isn't connected. */
 export function UmamiCard({ projectId }: { projectId: string }) {
@@ -51,7 +68,6 @@ export function UmamiCard({ projectId }: { projectId: string }) {
   return (
     <CardShell
       title="Organic traffic"
-      stamp="Umami · search engine visits · last 28 days"
       action={
         <Link
           to="/p/$projectId/settings/integrations"
@@ -63,13 +79,16 @@ export function UmamiCard({ projectId }: { projectId: string }) {
         </Link>
       }
     >
+      <p className="mb-4 text-sm text-muted-foreground">
+        Umami · Search engine visits · Last 28 days
+      </p>
       {reportQuery.isError ? (
         <p className="text-sm text-muted-foreground">
           Couldn&rsquo;t load Umami data. Try again shortly.
         </p>
       ) : !report ? (
         <div className="space-y-3" aria-busy>
-          <StatGridSkeleton tileClassName="h-16" />
+          <SkeletonTableRows rows={4} columns={3} />
           <Skeleton className="h-24" />
         </div>
       ) : !report.connected ? (
@@ -83,36 +102,39 @@ export function UmamiCard({ projectId }: { projectId: string }) {
         </p>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <StatTile
-              label="Visitors"
-              value={formatCount(report.totals.visitors)}
-              delta={{
-                current: report.totals.visitors,
-                previous: report.prevTotals.visitors,
-              }}
-            />
-            <StatTile
-              label="Visits"
-              value={formatCount(report.totals.visits)}
-              delta={{
-                current: report.totals.visits,
-                previous: report.prevTotals.visits,
-              }}
-            />
-            <StatTile
-              label="Bounce rate"
-              value={
-                report.totals.bounceRate === null
-                  ? "—"
-                  : formatCtr(report.totals.bounceRate)
-              }
-            />
-            <StatTile
-              label="Avg. visit"
-              value={formatDuration(report.totals.avgVisitSeconds)}
-            />
-          </div>
+          <MetricsTable
+            showChange
+            rows={[
+              {
+                label: "Visitors",
+                value: formatCount(report.totals.visitors),
+                change: changeCell(
+                  percentChange(
+                    report.totals.visitors,
+                    report.prevTotals.visitors,
+                  ),
+                ),
+              },
+              {
+                label: "Visits",
+                value: formatCount(report.totals.visits),
+                change: changeCell(
+                  percentChange(report.totals.visits, report.prevTotals.visits),
+                ),
+              },
+              {
+                label: "Bounce rate",
+                value:
+                  report.totals.bounceRate === null
+                    ? "—"
+                    : formatCtr(report.totals.bounceRate),
+              },
+              {
+                label: "Avg. visit",
+                value: formatDuration(report.totals.avgVisitSeconds),
+              },
+            ]}
+          />
           <ChartContainer config={visitorsChartConfig} className="h-24">
             <AreaChart
               data={report.trend}

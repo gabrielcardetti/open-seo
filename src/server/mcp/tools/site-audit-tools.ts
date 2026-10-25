@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- all site-audit MCP tools are intentionally kept in one module */
 import { z } from "zod";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { AuditService } from "@/server/features/audit/services/AuditService";
@@ -6,6 +7,11 @@ import { captureServerEvent } from "@/server/lib/posthog";
 import { PAGE_FETCH_CLASSES } from "@/shared/audit-fetch-class";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
+import {
+  formatMcpTable,
+  type McpTableColumn,
+  truncatedCell,
+} from "@/server/mcp/table";
 import {
   looseObjectOutputSchema,
   optionalMetaOutputSchema,
@@ -254,7 +260,7 @@ export const getAuditStatusTool = {
           ? ` The audit stopped early but kept results for the ${status.pagesCrawled} pages it crawled — call get_audit_issues for the partial issue report.`
           : "";
     return mcpResponse({
-      text: `Audit ${status.id} (${status.startUrl}): ${status.status} — phase ${status.currentPhase}, ${status.pagesCrawled}/${status.pagesTotal} pages${lighthouseNote}.${nextStep}`,
+      text: `Audit ${status.id} (${status.startUrl}): ${status.status}${status.errorCode ? ` (${status.errorCode})` : ""} — phase ${status.currentPhase}, ${status.pagesCrawled}/${status.pagesTotal} pages${lighthouseNote}.${nextStep}`,
       meta: buildProjectMeta(
         context,
         args.projectId,
@@ -300,6 +306,29 @@ const pagesInputSchema = {
 
 type PagesArgs = z.infer<z.ZodObject<typeof pagesInputSchema>>;
 
+type AuditPageRow = Awaited<
+  ReturnType<typeof AuditRepository.getPagesForAudit>
+>[number];
+
+const PAGE_COLUMNS: McpTableColumn<AuditPageRow>[] = [
+  { header: "url", value: (page) => page.url },
+  { header: "status", value: (page) => page.statusCode },
+  { header: "fetch", value: (page) => page.fetchClass },
+  { header: "title", value: (page) => page.title, format: truncatedCell(70) },
+  {
+    header: "description",
+    value: (page) => page.metaDescription,
+    format: truncatedCell(90),
+  },
+  { header: "words", value: (page) => page.wordCount },
+  { header: "indexable", value: (page) => page.isIndexable },
+  { header: "depth", value: (page) => page.crawlDepth },
+  { header: "in sitemap", value: (page) => page.inSitemap },
+  { header: "internal links", value: (page) => page.internalLinkCount },
+  { header: "ms", value: (page) => page.responseTimeMs },
+  { header: "redirect", value: (page) => page.redirectUrl },
+];
+
 export const getAuditPagesTool = {
   name: "get_audit_pages",
   config: {
@@ -334,16 +363,11 @@ export const getAuditPagesTool = {
     const limit = args.limit ?? 100;
     const pages = filtered.slice(0, limit);
 
-    const text = [
-      `Audit ${audit.id}: ${filtered.length} pages${filtered.length > limit ? ` (showing ${limit})` : ""}.`,
-      ...pages
-        .slice(0, 25)
-        .map(
-          (page) =>
-            `- ${page.statusCode} ${page.url}${page.fetchClass !== "ok" ? ` [${page.fetchClass}]` : ""}  "${page.title ?? ""}"`,
-        ),
-      "Full rows are in structuredContent.pages.",
-    ].join("\n");
+    const header = `Audit ${audit.id}: ${filtered.length} page${filtered.length === 1 ? "" : "s"}${filtered.length > limit ? ` (showing ${limit}; raise limit (max 1000) or narrow with urlContains/fetchClass/statusCode for the rest)` : ""}.`;
+    const text =
+      pages.length === 0
+        ? `${header}\nNo crawled pages match these filters.`
+        : `${header}\n${formatMcpTable(pages, PAGE_COLUMNS)}`;
 
     return mcpResponse({
       text,

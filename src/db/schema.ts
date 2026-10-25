@@ -15,6 +15,7 @@ import * as sqliteBing from "./bing.schema";
 import * as sqliteIndexing from "./indexing.schema";
 import * as sqliteUmami from "./umami.schema";
 import * as sqliteAiVisibility from "./ai-visibility.schema";
+import * as sqliteLocalSeo from "./local-seo.schema";
 import * as pgApp from "./pg/app.schema";
 import * as pgProjectContext from "./pg/project-context.schema";
 import * as pgReports from "./pg/reports.schema";
@@ -31,6 +32,7 @@ import * as pgBing from "./pg/bing.schema";
 import * as pgIndexing from "./pg/indexing.schema";
 import * as pgUmami from "./pg/umami.schema";
 import * as pgAiVisibility from "./pg/ai-visibility.schema";
+import * as pgLocalSeo from "./pg/local-seo.schema";
 
 // Canonical schema barrel. Repositories import their tables from here and the
 // provider-aware `db` from "@/db", so each repository is written ONCE for both
@@ -57,7 +59,8 @@ type AppSchema = typeof sqliteApp &
   typeof sqliteBing &
   typeof sqliteIndexing &
   typeof sqliteUmami &
-  typeof sqliteAiVisibility;
+  typeof sqliteAiVisibility &
+  typeof sqliteLocalSeo;
 
 const runtimeSchema =
   getDatabaseProvider() === "postgres"
@@ -78,6 +81,7 @@ const runtimeSchema =
         ...pgIndexing,
         ...pgUmami,
         ...pgAiVisibility,
+        ...pgLocalSeo,
       }
     : {
         ...sqliteApp,
@@ -96,6 +100,7 @@ const runtimeSchema =
         ...sqliteIndexing,
         ...sqliteUmami,
         ...sqliteAiVisibility,
+        ...sqliteLocalSeo,
       };
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by schema-parity.test.ts
@@ -103,6 +108,7 @@ const schema = runtimeSchema as unknown as AppSchema;
 
 export const {
   userOnboardingAnswers,
+  userSignupCampaigns,
   projects,
   savedKeywords,
   savedKeywordTags,
@@ -116,6 +122,7 @@ export const {
   projectActivationState,
   dashboardStepDismissals,
   backlinkSnapshots,
+  dataRefreshClaims,
   crawlerCredentials,
   projectContextSections,
   projectCompetitors,
@@ -175,4 +182,11 @@ export const {
   aiObservations,
   aiSources,
   aiMatches,
+  localRankTrackers,
+  localRankChecks,
+  localRankKeywords,
+  localRankScans,
+  localRankPoints,
+  localRankBusinesses,
+  localRankResults,
 } = schema;

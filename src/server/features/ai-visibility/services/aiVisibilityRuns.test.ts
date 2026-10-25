@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiObservations, aiRuns } from "@/db/schema";
 import { AiVisibilityRepository as repo } from "../repositories/AiVisibilityRepository";
 import { runCheck } from "./aiVisibilityRuns";
+import { getTracker } from "./aiVisibilityState";
 import { configuration, customer } from "./aiVisibilityTestFixtures";
+import { sendCreditsExhaustedEvent } from "@/server/email/onboarding-drip";
 
-const { testDb, workflow } = await vi.hoisted(async () => {
+const { testDb, workflow, hosted, credits } = await vi.hoisted(async () => {
   const { createAiVisibilityTestDb } = await import("../aiVisibilityTestDb");
   return {
     testDb: await createAiVisibilityTestDb(),
     workflow: { create: vi.fn(), get: vi.fn() },
+    hosted: vi.fn(),
+    credits: vi.fn(),
   };
 });
 vi.mock("cloudflare:workers", () => ({
@@ -19,7 +23,14 @@ vi.mock("@/db", () => ({ db: testDb.db }));
 vi.mock("@/db/runBatch", () => ({ runBatch: testDb.runBatch }));
 vi.mock("@/server/lib/runtime-env", () => ({
   getOptionalEnvValue: async () => "dataforseo-key",
-  isHostedServerAuthMode: async () => false,
+  isHostedServerAuthMode: hosted,
+}));
+vi.mock("@/server/billing/subscription", () => ({
+  getOrCreateOrganizationCustomer: async () => ({ id: "organization" }),
+  getUsageCreditsRemaining: credits,
+}));
+vi.mock("@/server/email/onboarding-drip", () => ({
+  sendCreditsExhaustedEvent: vi.fn(),
 }));
 
 const projectId = "project";
@@ -35,6 +46,8 @@ beforeEach(async () => {
     }),
   );
   workflowStatus("running");
+  hosted.mockResolvedValue(false);
+  credits.mockResolvedValue({ monthlyRemaining: 0, topupRemaining: 0 });
 });
 
 describe("AI visibility checks", () => {
@@ -72,10 +85,60 @@ describe("AI visibility checks", () => {
     ).toEqual([{ status: "failed" }]);
   });
 
+  it("marks only prompts with collected answer text as having results", async () => {
+    const run = await runCheck({ projectId, maxCostUsd: 1 }, customer);
+    const answers = await repo.getObservations([run.id]);
+    for (const answer of answers)
+      await testDb.db
+        .update(aiObservations)
+        .set({
+          status: "completed",
+          // A completed collection without text means no answer was shown.
+          answerMarkdown:
+            answer.prompt === "Is OpenSEO good?" ? "OpenSEO is good." : null,
+        })
+        .where(eq(aiObservations.id, answer.id));
+
+    const { prompts } = await getTracker({ projectId });
+
+    expect(
+      Object.fromEntries(
+        prompts.map((prompt) => [prompt.text, prompt.hasResults]),
+      ),
+    ).toEqual({ "Is OpenSEO good?": true, "Which SEO tools?": false });
+  });
+
   it("refuses a check that now costs more than the approved maximum", async () => {
     await expect(
       runCheck({ projectId, maxCostUsd: 0.001 }, customer),
     ).rejects.toMatchObject({ reason: "COST_LIMIT_EXCEEDED" });
     expect(await repo.listRuns(projectId)).toEqual([]);
+  });
+
+  it("refuses a check the credits cannot cover before it starts, and says why on the tracker", async () => {
+    hosted.mockResolvedValue(true);
+
+    await expect(
+      runCheck({ projectId, maxCostUsd: 1 }, customer),
+    ).rejects.toMatchObject({ code: "INSUFFICIENT_CREDITS" });
+
+    expect(await repo.listRuns(projectId)).toEqual([]);
+    expect(workflow.create).not.toHaveBeenCalled();
+    expect((await repo.getTracker(projectId))?.lastSkipReason).toBe(
+      "INSUFFICIENT_CREDITS",
+    );
+    expect(sendCreditsExhaustedEvent).toHaveBeenCalledWith(customer);
+  });
+
+  it("starts a check that top-up credits cover after research overdrew monthly credits", async () => {
+    hosted.mockResolvedValue(true);
+    credits.mockResolvedValue({
+      monthlyRemaining: -1000,
+      topupRemaining: 1000,
+    });
+
+    const run = await runCheck({ projectId, maxCostUsd: 1 }, customer);
+
+    expect(run.status).toBe("queued");
   });
 });

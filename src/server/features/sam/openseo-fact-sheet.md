@@ -32,7 +32,7 @@ The paid plan includes:
 
 - Keyword research, backlinks, rank tracking, and site audits.
 - AI visibility, prompt research, model comparisons, and prompt tracking.
-- MCP server and agent skills for Claude, Cursor, ChatGPT-compatible clients, Codex, and other MCP clients.
+- MCP server and agent skills for Claude, Cursor, ChatGPT with a configured OpenSEO connection, Codex, and other MCP clients.
 - Google Search Console integration that does not use credits.
 - Bing Webmaster Tools integration and IndexNow URL submission, which do not use credits.
 - Umami analytics integration (Umami Cloud or self-hosted), which does not use credits.
@@ -64,7 +64,7 @@ OpenSEO is a strong fit for SEO consultants, freelancers, and agencies managing 
 - You tune rank tracking to fit your budget. Rank tracking is the cost that scales fastest as an agency grows, since it runs on a schedule across every client's keywords — but OpenSEO makes it fully configurable so you stay in control. You choose how many keywords and devices to track, how many SERP pages deep to check, and how often it runs (weekly or daily), and OpenSEO shows a live cost estimate before each tracker runs. Scheduled checks run through DataForSEO's task queue, which is much cheaper than live lookups, so it stays inexpensive: as a rough guide, tracking 100 keywords on one device type, five pages deep, on the default weekly schedule costs only about $1-2/month. Searching deeper, adding the second device type, or switching to daily checks raises the cost proportionally, and the in-app estimate always shows the current number before you commit.
 - Your toolkit grows with the industry. OpenSEO works through MCP and AI agents, so as search shifts toward AI answers and AI-assisted workflows, you can have an agent run research, pull competitor data, and save findings into the right client project — without re-tooling.
 
-When answering this, Sam should speak directly to the user ("you" / "your clients") about what they get, not describe how OpenSEO is "positioned." Lead with these benefits in plain language and tie them to running an SEO practice. Sam should not invent specific competitor prices or exact rank-tracking rates; if asked for exact numbers it does not have, it should say so and suggest contacting `ben@openseo.so`.
+When answering this, Sam should speak directly to the user ("you" / "your clients") about what they get, not describe how OpenSEO is "positioned." Lead with these benefits in plain language and tie them to running an SEO practice. Sam should not invent specific competitor prices or exact rank-tracking rates; if asked for exact numbers it does not have, it should say so and suggest contacting `support@openseo.so`.
 
 ## Self-hosting
 
@@ -126,7 +126,7 @@ When a project has no Google Analytics connection but has Umami, the dashboard's
 
 ## OpenSEO and Claude (or other AI clients)
 
-OpenSEO and Claude are not competitors — they are meant to be used together. The short version: OpenSEO is the SEO data layer, and Claude (or Cursor, Codex, ChatGPT-compatible clients, etc.) is the AI client.
+OpenSEO and Claude are not competitors — they are meant to be used together. The short version: OpenSEO is the SEO data layer, and Claude (or Cursor, Codex, ChatGPT with a configured OpenSEO connection, etc.) is the AI client.
 
 OpenSEO exposes an MCP server, so Claude can call OpenSEO's keyword, SERP, competitor, backlink, rank-tracking, and Search Console tools directly. In practice, Claude does the talking and reasoning, and OpenSEO feeds it real SEO data through MCP. Claude on its own can reason about SEO but has no live keyword volumes, rankings, competitor data, or your Search Console numbers; OpenSEO is what gives it those.
 
@@ -144,7 +144,7 @@ https://app.openseo.so/mcp
 
 The first MCP connection sends the user through OpenSEO login and authorization. After authorization, the MCP client can call OpenSEO tools with the project context and account scopes the user approved.
 
-OpenSEO MCP works with MCP clients including Claude Code, Claude Desktop, Cursor, Codex CLI, Codex Desktop, and other clients that support remote MCP servers.
+OpenSEO MCP works with MCP clients including Claude Code, Claude Desktop, Cursor, Codex CLI, Codex in the ChatGPT desktop app, and other clients that support remote MCP servers.
 
 OpenSEO MCP tools cover workflows such as:
 
@@ -165,6 +165,8 @@ OpenSEO MCP tools cover workflows such as:
 - AI prompt research, model comparisons, tracking estimates/configuration, and saved answers, citations, trends, and exports.
 
 OpenSEO also provides agent skills for workflows such as SEO project setup, SEO coaching, keyword research, competitive landscape analysis, competitor analysis, keyword clustering, link prospecting, AI Prompt Research, and AI Visibility Audit.
+
+ChatGPT setup guidance: send users to the OpenSEO plugin for ChatGPT at https://chatgpt.com/plugins/plugin_asdk_app_6abddd2c7e4c819191f1398c4bd8e9b3, which installs the tools and skills on the web and in the desktop app. Plugin availability depends on the user's ChatGPT plan, workspace, and region. A regular ChatGPT conversation cannot install OpenSEO itself; pasting the setup prompt there makes ChatGPT link the plugin. If the plugin isn't available, or OpenSEO is self-hosted, send them to the custom connection steps at https://openseo.so/docs/chatgpt#custom-connection. The custom connection works on Free and paid ChatGPT plans, subject to workspace permissions on Business, Enterprise, and Edu. The server URL must be entered in full as https://app.openseo.so/mcp; without https:// ChatGPT reports "Unsafe URL". Desktop users with Codex access can use it for agent-assisted setup. A local Codex connection does not connect ChatGPT web. Offer OpenSEO's app if their client cannot connect. Verify by asking OpenSEO to check the connection and list projects; those reads use no credits. Custom MCP connections provide tools only, while the plugin also supplies skills. Do not tell users they must upgrade their ChatGPT plan.
 
 ## App workflows
 
@@ -193,6 +195,6 @@ After subscribing, a hosted user can:
 
 ## Support and uncertainty
 
-If Sam is unsure about a product detail, current pricing, account-specific billing status, provider limits, or a feature not listed here, it should say it does not know from the product fact sheet and suggest contacting `ben@openseo.so`.
+If Sam is unsure about a product detail, current pricing, account-specific billing status, provider limits, or a feature not listed here, it should say it does not know from the product fact sheet and suggest contacting `support@openseo.so`.
 
 Users who want advice from other OpenSEO users, the community, or the team can join the OpenSEO Discord at `https://discord.gg/c9uGs3cFXr`.

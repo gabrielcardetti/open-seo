@@ -12,7 +12,7 @@ import {
   setAiScheduleSchema,
   runAiCheckSchema,
   getAiRunSchema,
-  aiResultsSchema,
+  aiPageResultsSchema,
   aiSourcesSchema,
   aiAnswerSchema,
   aiExportSchema,
@@ -53,6 +53,7 @@ export const startAiResearchSetup = createServerFn({ method: "POST" })
     AiVisibilityService.startResearchSetup(
       { projectId: context.projectId },
       context,
+      { runSeededTracking: true },
     ),
   );
 
@@ -113,7 +114,7 @@ export const getAiVisibilityRun = createServerFn({ method: "POST" })
 
 export const getAiVisibilityResults = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .validator(aiResultsSchema)
+  .validator(aiPageResultsSchema)
   .handler(({ data, context }) =>
     AiVisibilityService.getPageResults({
       ...data,

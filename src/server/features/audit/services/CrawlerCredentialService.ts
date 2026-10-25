@@ -42,6 +42,7 @@ type CrawlerCredentialProblem =
   | CloudflareAccessProblem;
 
 const SECRET_PURPOSE = "crawler access credentials";
+const SECRET_KEY = "CRAWLER_ACCESS_SECRET";
 
 /**
  * What the client is allowed to see. The stored values are access
@@ -127,8 +128,8 @@ async function saveCrawlerCredential(input: {
     projectId: input.projectId,
     host: input.host,
     provider: values.provider,
-    signatureInput: await sealSecret(stored.first, SECRET_PURPOSE),
-    signature: await sealSecret(stored.second, SECRET_PURPOSE),
+    signatureInput: await sealSecret(stored.first, SECRET_PURPOSE, SECRET_KEY),
+    signature: await sealSecret(stored.second, SECRET_PURPOSE, SECRET_KEY),
     expiresAt: stored.expiresAt,
     createdByUserId: input.userId,
   });
@@ -185,8 +186,16 @@ async function openCrawlerAccess(
 ): Promise<CrawlerAccess | null> {
   if (!sealed) return null;
   try {
-    const first = await openSecret(sealed.signatureInput, SECRET_PURPOSE);
-    const second = await openSecret(sealed.signature, SECRET_PURPOSE);
+    const first = await openSecret(
+      sealed.signatureInput,
+      SECRET_PURPOSE,
+      SECRET_KEY,
+    );
+    const second = await openSecret(
+      sealed.signature,
+      SECRET_PURPOSE,
+      SECRET_KEY,
+    );
     return {
       host: sealed.host,
       expiresAt: sealed.expiresAt,
@@ -197,9 +206,13 @@ async function openCrawlerAccess(
           ? cloudflareAccessHeaders(first, second)
           : shopifyCrawlerHeaders(first, second),
     };
-  } catch {
-    // A rotated BETTER_AUTH_SECRET makes stored credentials unreadable. Crawl
-    // without them rather than fail the audit; the report asks for new ones.
+  } catch (error) {
+    // A worker deployed without the key is a config bug that must fail the
+    // audit loudly, not crawl unsigned as if nothing were saved.
+    if (error instanceof AppError) throw error;
+    // A rotated CRAWLER_ACCESS_SECRET makes stored credentials unreadable.
+    // Crawl without them rather than fail the audit; the report asks for new
+    // ones.
     console.warn(`Could not decrypt crawler access for ${sealed.host}`);
     return null;
   }
