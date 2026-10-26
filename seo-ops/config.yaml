@@ -1,0 +1,12 @@
+# Opciones por defecto de seo-review-cycle.
+# En modo interactivo son las recomendadas; en modo `auto` se usan tal cual.
+
+sitios: todos                # todos | lista de slugs
+auditoria: ligera            # ninguna | ligera (misma config + compare_audits) | completa (full-site-audit)
+competidores: false          # qué hicieron los competidores desde la última corrida (cuesta créditos)
+keywords_nuevas: false       # investigar demanda nueva (cuesta créditos)
+rank_tracker: si_toca        # no | si_toca (si pasó su intervalo) | forzar
+ai_visibility: false         # comprar respuestas nuevas cuesta créditos
+salida: pr                   # informe | plan | pr  (la ficha de cada sitio puede bajarla)
+presupuesto_creditos: 1500   # tope de DataForSEO para toda la corrida
+max_acciones_por_sitio: 3

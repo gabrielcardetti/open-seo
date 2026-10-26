@@ -17,3 +17,6 @@ drizzle/pg/
 planning/
 src/worker-configuration.d.ts
 web/
+
+# seo-review-cycle run history written by agents (fork-only); plain text, not formatted
+seo-ops/
