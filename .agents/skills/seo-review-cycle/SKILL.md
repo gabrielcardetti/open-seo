@@ -51,7 +51,9 @@ Por sitio, con el `projectId` de su `SITIO.md`. Todo esto no gasta créditos:
 - **Rank tracker:** `get_rank_tracker` (posición actual y anterior por keyword). Correr uno nuevo (`run_rank_tracker`, cuesta créditos) solo según la opción elegida.
 - **Indexación:** `get_indexing_status` (problemas: `lost_indexing`, `noindex`, `fetch_error`, `canonical_mismatch`, `not_indexed_after_days`), `get_sitemaps`, `get_indexing_log` (últimos 7/30 días), `get_indexing_candidates`.
 - **Auditoría** (según opción):
-  - `ligera`: `run_site_audit` con la config de auditoría de `SITIO.md` (mismo `maxPages`, `includePaths`/`excludePaths`, motores) y `compare_audits` contra la última auditoría registrada. Mirá `issues.new`, `issues.resolved` y `drift` (canonical, noindex, title, h1 que cambiaron sin querer).
+  - `ligera`: `run_site_audit` con la config de auditoría de `SITIO.md` (mismo `maxPages`, `includePaths`/`excludePaths`, motores) y `compare_audits` contra la última auditoría registrada. Compará por `issues.common` (las URLs que crawlearon las dos) y mirá los introducidos, los resueltos y `drift` (canonical, noindex, title, h1 que cambiaron sin querer).
+    - **Antes de tratar un issue como regresión**, separá los tipos que en la auditoría anterior estaban en 0 en todo el sitio: casi siempre son cambios del auditor, no del sitio. Comprobá cuándo entró la regla (`git log --date=short -S'"<tipo>"' -- src` en este repo, contra la fecha de la auditoría anterior) y si el dato que usa estaba vacío antes (p. ej. `crawl_depth` nulo en `audit_pages` de la auditoría anterior, consultando la D1 en solo lectura). Si es del auditor, anotalo como cambio de medición y no armes candidatos con eso.
+    - Si `pagesCrawled` llega a `maxPages`, el crawl se recortó: subí el tope en `SITIO.md` para la próxima.
   - `completa`: seguí la skill `full-site-audit` para ese sitio.
 - **AI** (gratis, si hay datos): `get_umami_ai_referrals`, `get_agent_readiness`, `get_ai_visibility_trend` (solo cuando dice `comparable`).
 

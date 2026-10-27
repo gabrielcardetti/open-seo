@@ -70,7 +70,7 @@ auditoria_referencia: { id: 3c1ae162-116d-43e6-af19-05ca4bb2a0d5, fecha: 2026-10
 - Indexación general: 682 de 1.212 URLs sin indexar (27-oct), indexadas en subida (488 → 530 desde el 21-oct). Vigilar la tendencia antes de actuar.
 - Posible causa de Soft 404 en todo el codebase (también OSK): tras un deploy, un trozo de JS viejo da 404 y el `ErrorBoundary` reemplaza la página por «Algo salió mal». Arreglo invisible: recargar al fallar la carga de un chunk. Sin probar; después de la congelación de OSK.
 - Marca del proyecto en OpenSEO escrita «Aprubeatuope»: corregirla antes de cualquier AI visibility.
-- AI visibility: no hay tracker. Estimación 5 prompts × 3 motores: 0,212 $ por chequeo programado. Decisión de Gabriel.
+- AI visibility: tracker creado el 2026-10-27 (`56e90d7c`), 12 preguntas neutras en 3 temas (tests de sanidad, bolsas de empleo sanitario, oposiciones administrativas), ChatGPT + Gemini + AI Overviews + Perplexity, España/es. Semanal (~0,52 $ por chequeo, ~2,1 $/mes), primer chequeo programado el 4-nov. Primer chequeo puntual (0,62 $) pendiente de renombrar el proyecto a «ApruebaTuOPE» (la marca sale del nombre del proyecto). Las corridas leen `get_ai_visibility_trend` cuando sea comparable.
 
 ## Descartado (no volver a proponer sin datos nuevos)
 
