@@ -90,6 +90,9 @@ auditoria_referencia: { id: <id o null>, maxPages: <n>, includePaths: [], exclud
 | Cambio | PR | Deploy | Revisar | Métrica y línea base |
 ## Revisiones agendadas
 ## Backlog
+## Decisiones pendientes de Gabriel
+## Descartado (no volver a proponer sin datos nuevos)
+- AAAA-MM-DD: <candidato> — <motivo>
 ## Ruido propio del sitio
 ## Documentos
 ~~~
