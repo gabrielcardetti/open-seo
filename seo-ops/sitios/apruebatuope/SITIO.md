@@ -57,6 +57,7 @@ auditoria_referencia: { id: 3c1ae162-116d-43e6-af19-05ca4bb2a0d5, fecha: 2026-10
 - 4-nov: #94 (Bing) y #95 (fichas de Canarias; si siguen sin rastreo, pedir las 3–5 con más impresiones). Con el resultado de #94, decidir el snippet de /guias/bolsa-trabajo-gobierno-vasco (ESPERAR desde 2026-10-27).
 - 10-nov: #105. 15-nov: #126. 24-nov: guías indexadas que Google no muestra (sanidad-gva, ics, rioja-salud, principado-asturias, sermas).
 - Antes de noviembre: páginas /festivos. ~nov: calendario 2027 con Open Data Euskadi.
+- **Páginas nuevas** (plan en `investigaciones/2026-10-27-oportunidades/PLAN.md`): 3-nov decidir `/guias/oposiciones-sms` (si ≥2 de las guías de #132 están indexadas; publicar ~10-nov con `bolsaSlug: null` hasta el 15-nov). Después del 4-nov: Auxiliar Administrativo Gobierno de Canarias (C2). Después del 24-nov: `/guias/oposiciones-ses`, calculadora de nota dentro de la guía de penalización y, si el formato funcionó, `/guias/oposiciones-sespa`.
 
 ## Línea base
 
@@ -66,6 +67,8 @@ auditoria_referencia: { id: 3c1ae162-116d-43e6-af19-05ca4bb2a0d5, fecha: 2026-10
 ## Backlog
 
 - Justicia como próximo curso por demanda.
+- Producto: tests por ley con preguntas oficiales (Constitución, Ley 39/2015, Ley 40/2015, TREBEP…; ≈13–17k/mes, KD 0). Requiere filtrar el banco por ley.
+- «test tcae / test celador / test auxiliar de enfermería»: las páginas existen pero están en posición 30–80; falta autoridad (enlaces), no páginas.
 - Convocatorias duplicadas en el portal de empleo (mismo título o description con slug `-2`): higiene del import. Detectadas en la auditoría 3c1ae162.
 - Indexación general: 682 de 1.212 URLs sin indexar (27-oct), indexadas en subida (488 → 530 desde el 21-oct). Vigilar la tendencia antes de actuar.
 - Posible causa de Soft 404 en todo el codebase (también OSK): tras un deploy, un trozo de JS viejo da 404 y el `ErrorBoundary` reemplaza la página por «Algo salió mal». Arreglo invisible: recargar al fallar la carga de un chunk. Sin probar; después de la congelación de OSK.
@@ -76,6 +79,9 @@ auditoria_referencia: { id: 3c1ae162-116d-43e6-af19-05ca4bb2a0d5, fecha: 2026-10
 
 - 2026-10-27: CTR de /boletines/bog — intención navegacional al boletín oficial (la sede ocupa 1.º y 2.º, AI Overview).
 - 2026-10-27: caída del calendario laboral (−20 clics 7/7) — demanda tras el pico de los calendarios 2027.
+- 2026-10-27: hub `/tests` — el 404 es intencional (solo 6 páginas cuelgan de `/tests/<categoría>`; canibalizaría la portada).
+- 2026-10-27: páginas por examen oficial y año — demanda de 20–50/mes y partirían `/sas/tcae`.
+- 2026-10-27: página propia de Administrativo Gobierno de Canarias (C1) — navegacional; va como sección del hub.
 
 ## Ruido propio del sitio
 
