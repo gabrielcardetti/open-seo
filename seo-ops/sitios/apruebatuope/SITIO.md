@@ -38,13 +38,13 @@ auditoria_referencia: { id: 3c1ae162-116d-43e6-af19-05ca4bb2a0d5, fecha: 2026-10
 
 ## Estado del repo
 
-- 2026-10-27: `main` en rojo desde la PR #132 (22-oct) por tests de D1 ajenos a SEO (`CHECK constraint failed: ok=1`). `npm run deploy` corre esos tests, así que **#132 está mergeada pero no desplegada** (sus 4 URLs nuevas dan 404). Una PR del ciclo sobre este `main` saldría en rojo.
+- 2026-10-27: el CI de `main` sigue en rojo desde la PR #132 (tests de D1 ajenos a SEO, `CHECK constraint failed: ok=1`). #132 se desplegó el 27-oct a las ~08:56 (estaba mergeada desde el 22-oct sin deployar). Revisar el estado del CI antes de abrir una PR del ciclo.
 
 ## Experimentos abiertos
 
 | Cambio | PR | Deploy | Revisar | Métrica y línea base |
 | --- | --- | --- | --- | --- |
-| Oposiciones SESCAM/SERMAS/SERGAS, pilar /sas, temario del Estado, calculadora del baremo SAS, práctica directa en bolsa-sas, SESPA con la consulta oficial primero | #132 | **no desplegada** (mergeada 22-oct) | al desplegar: post-deploy; luego 7 y 28 días | impresiones de las 4 URLs nuevas; embudo bolsa-sas → demo; CTR de SESPA |
+| Oposiciones SESCAM/SERMAS/SERGAS, pilar /sas, temario del Estado, calculadora del baremo SAS, práctica directa en bolsa-sas, SESPA con la consulta oficial primero | #132 | **2026-10-27 ~08:56** (verificado con curl: 4 URLs nuevas 200, index, en el sitemap; títulos nuevos en vivo) | 7 d = 3-nov · 28 d = 24-nov | impresiones de las 4 URLs nuevas; embudo bolsa-sas → demo; CTR de SESPA. Post-deploy: IndexNow hecho el 27-oct (6 recibidas, 3 ya avisadas en 24 h); pedido manual en GSC de las 4 nuevas a cargo de Gabriel |
 | Guías de bolsas y del Estado al día, tráfico interno a cursos | #126 | 18-oct | 28 d = 15-nov | bolsa-sas 10 → 73 clics/sem (pos 11,3 → 6,8), SESPA 36 → 80 (pos 7,5 → 5,6) a 7 días, con pico de demanda |
 | Títulos y descriptions de 9 guías de bolsas para el CTR de Bing | #94 | ~7-oct | 28 d = 4-nov (semana 24–30 oct) | tratado/control de CTR en Bing 0,72 → 0,68 → 1,23 (mezclado con #126). Control: sespa, sanidad-gva, ingesa, rioja, gobierno-vasco, cantabria — **no tocar esas guías antes de la lectura** |
 | Ronda 6: fichas de test indexables, snippets, CTR | #95 | 7-oct | 28 d = 4-nov | fichas de Osakidetza en ATP 28 → 91 clics/sem; 85 fichas de Canarias en «Página con redirección» sin re-rastreo |
@@ -52,7 +52,7 @@ auditoria_referencia: { id: 3c1ae162-116d-43e6-af19-05ca4bb2a0d5, fecha: 2026-10
 
 ## Revisiones agendadas
 
-- Al desplegar #132: curl de las 4 URLs nuevas y de los títulos de /sas, /guias/bolsa-sas, /guias/bolsa-sespa y /estado/auxiliar-administrativo-estado; IndexNow; petición manual en GSC de las 4 nuevas; juez de guías. A los 7 días: CTR de SESPA y embudo bolsa-sas → demo.
+- #132 (desplegada el 27-oct): 3-nov, indexación de las 4 URLs nuevas, CTR de SESPA y embudo bolsa-sas → demo; 24-nov, revisión a 28 días. Juez de guías de las 4 páginas nuevas pendiente.
 - 3-nov: `inspect_urls` de las 4 guías de bolsas (si Gabriel pidió la indexación).
 - 4-nov: #94 (Bing) y #95 (fichas de Canarias; si siguen sin rastreo, pedir las 3–5 con más impresiones). Con el resultado de #94, decidir el snippet de /guias/bolsa-trabajo-gobierno-vasco (ESPERAR desde 2026-10-27).
 - 10-nov: #105. 15-nov: #126. 24-nov: guías indexadas que Google no muestra (sanidad-gva, ics, rioja-salud, principado-asturias, sermas).
