@@ -1,14 +1,18 @@
 import { isAuditRenderingAllowed } from "@/server/lib/audit/rendering-policy";
+import { CrawlerCredentialService } from "@/server/features/audit/services/CrawlerCredentialService";
 import { createServerFn } from "@tanstack/react-start";
 import { waitUntil } from "cloudflare:workers";
 import { requireOrgPermission } from "@/server/auth/org-gate";
 import { AuditService } from "@/server/features/audit/services/AuditService";
+import { AuditResultsService } from "@/server/features/audit/services/AuditResultsService";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { requireProjectContext } from "@/serverFunctions/middleware";
 import {
   deleteAuditSchema,
   getAuditHistorySchema,
-  getAuditResultsSchema,
+  getAuditIssuesSchema,
+  getAuditPagesSchema,
+  getAuditSummarySchema,
   getGuidelineResultsSchema,
   getAuditStatusSchema,
   getCrawlProgressSchema,
@@ -35,9 +39,9 @@ export const startAudit = createServerFn({ method: "POST" })
       lighthouseStrategy: data.lighthouseStrategy,
       guidelinesStrategy: data.guidelinesStrategy,
       guidelineEngines: data.guidelineEngines,
-      excludedPaths: data.excludedPaths,
       limitTier,
       renderJavaScript,
+      excludePaths: data.excludePaths,
     });
 
     waitUntil(
@@ -64,20 +68,34 @@ export const getAuditStatus = createServerFn({ method: "POST" })
     return AuditService.getStatus(data.auditId, context.projectId);
   });
 
-export const getAuditResults = createServerFn({ method: "POST" })
+export const getAuditSummary = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .validator(getAuditResultsSchema)
+  .validator(getAuditSummarySchema)
   .handler(async ({ data, context }) => {
-    return AuditService.getResults(data.auditId, context.projectId);
+    return AuditResultsService.getSummary(data.auditId, context.projectId);
+  });
+
+export const getAuditPages = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getAuditPagesSchema)
+  .handler(async ({ data, context }) => {
+    const { projectId: _projectId, ...input } = data;
+    return AuditResultsService.getPages(input, context.projectId);
+  });
+
+export const getAuditIssues = createServerFn({ method: "POST" })
+  .middleware(requireProjectContext)
+  .validator(getAuditIssuesSchema)
+  .handler(async ({ data, context }) => {
+    const { projectId: _projectId, ...input } = data;
+    return AuditResultsService.getIssues(input, context.projectId);
   });
 
 /**
  * Guideline evaluations for one audit.
  *
- * Deliberately its own server function rather than another field on
- * getAuditResults: that one already ships every page, every Lighthouse row and
- * every issue in a single unpaginated payload, and the guideline tab is only
- * opened when someone asks for it.
+ * Its own server function rather than another field on the audit summary:
+ * the guideline tab is only opened when someone asks for it.
  */
 export const getGuidelineResults = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
@@ -121,4 +139,7 @@ export const getAuditCapabilities = createServerFn({ method: "POST" })
   .validator(getAuditHistorySchema)
   .handler(async () => ({
     canRenderJavaScript: await isAuditRenderingAllowed(),
+    // Saving and replaying Shopify crawler access needs the optional
+    // CRAWLER_ACCESS_SECRET.
+    canStoreCrawlerAccess: await CrawlerCredentialService.hasEncryptionKey(),
   }));

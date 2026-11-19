@@ -11,7 +11,6 @@ import {
 import {
   DEFAULT_LAUNCH_FORM_VALUES,
   getMaxPagesLimit,
-  parseExcludedPathsInput,
   clampMaxPagesInput,
   type LaunchFormValues,
 } from "@/client/features/audit/launch/types";
@@ -25,24 +24,41 @@ import {
 } from "@/client/lib/error-messages";
 import { renderingCreditsNeededText } from "@/shared/audit-rendering";
 import { useAuditCapabilities } from "@/client/features/audit/shared";
+import {
+  excludePathsSchema,
+  findExcludingPath,
+  splitExcludePathsInput,
+} from "@/shared/audit-exclude-paths";
 
 function getLaunchValidationErrors(
   value: LaunchFormValues,
-  shouldValidateUntouchedField: boolean,
+  // Untouched fields stay quiet until the form is submitted.
+  validate: { url: boolean; excludePaths: boolean },
 ) {
-  if (value.url.trim()) {
-    return null;
-  }
-
-  if (!shouldValidateUntouchedField) {
-    return null;
-  }
-
   return createFormValidationErrors({
     fields: {
-      url: "Please enter a URL.",
+      url: !value.url.trim() && validate.url ? "Please enter a URL." : null,
+      excludePathsInput: validate.excludePaths
+        ? getExcludePathsError(value)
+        : null,
     },
   });
+}
+
+function getExcludePathsError(value: LaunchFormValues) {
+  const parsed = excludePathsSchema.safeParse(
+    splitExcludePathsInput(value.excludePathsInput),
+  );
+  if (!parsed.success) return parsed.error.issues[0].message;
+  // The form takes a bare domain; the server adds the scheme the same way.
+  const url = value.url.trim();
+  const excludingPath = findExcludingPath(
+    parsed.data,
+    /^https?:\/\//i.test(url) ? url : `https://${url}`,
+  );
+  return excludingPath
+    ? `"${excludingPath}" excludes the URL the audit starts from.`
+    : null;
 }
 
 export function useLaunchController({
@@ -76,16 +92,20 @@ export function useLaunchController({
     defaultValues: { ...DEFAULT_LAUNCH_FORM_VALUES, url: initialUrl },
     validators: {
       onChange: ({ formApi, value }) =>
-        getLaunchValidationErrors(
-          value,
-          shouldValidateFieldOnChange(formApi, "url"),
-        ),
-      onSubmit: ({ value }) => getLaunchValidationErrors(value, true),
+        getLaunchValidationErrors(value, {
+          url: shouldValidateFieldOnChange(formApi, "url"),
+          excludePaths: shouldValidateFieldOnChange(
+            formApi,
+            "excludePathsInput",
+          ),
+        }),
+      onSubmit: ({ value }) =>
+        getLaunchValidationErrors(value, { url: true, excludePaths: true }),
     },
     onSubmit: async ({ formApi, value }) => {
       const effectiveMaxPages = commitMaxPagesInput(
         launchForm,
-        getMaxPagesLimit(isFreePlan, value.renderJavaScript),
+        getMaxPagesLimit(isFreePlan),
       );
       formApi.setErrorMap({ onSubmit: undefined });
 
@@ -106,8 +126,8 @@ export function useLaunchController({
             value.evaluateContent && value.includeBing
               ? ["google", "bing"]
               : undefined,
-          excludedPaths: parseExcludedPathsInput(value.excludedPathsInput),
           renderJavaScript: value.renderJavaScript,
+          excludePaths: splitExcludePathsInput(value.excludePathsInput),
         });
         toast.success("Audit started!");
         onAuditStarted(result.auditId);
@@ -132,17 +152,14 @@ export function useLaunchController({
     launchForm.store,
     (state) => state.values.renderJavaScript,
   );
-  const maxPagesLimit = getMaxPagesLimit(isFreePlan, renderJavaScript);
-  // What an upgrade offers with the current options, so the upgrade hint
-  // never promises pages a rendered audit cannot crawl.
-  const paidMaxPagesLimit = getMaxPagesLimit(false, renderJavaScript);
+  const maxPagesLimit = getMaxPagesLimit(isFreePlan);
 
   return {
     launchForm,
     historyQuery,
     canRenderJavaScript: capabilitiesQuery.data?.canRenderJavaScript,
     maxPagesLimit,
-    paidMaxPagesLimit,
+    renderJavaScript,
     commitMaxPagesInput: () => commitMaxPagesInput(launchForm, maxPagesLimit),
     deleteAudit: (auditId: string) => deleteMutation.mutate(auditId),
     largeCrawlPages,
@@ -172,8 +189,8 @@ function useLaunchMutations({ projectId }: { projectId: string }) {
       lighthouseStrategy: "auto" | "none";
       guidelinesStrategy: "none" | "sample" | "all";
       guidelineEngines?: Engine[];
-      excludedPaths: string[];
       renderJavaScript: boolean;
+      excludePaths: string[];
     }) => startAudit({ data }),
     onSuccess: () => {
       void invalidateHistory();

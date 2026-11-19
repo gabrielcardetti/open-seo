@@ -30,18 +30,15 @@ describe("crawl scope", () => {
 
   // The crawl seeds sitemaps and follows links through robots.isAllowed, so
   // this is the one gate an out-of-scope page has to fail.
-  it("disallows everything out of scope on top of the site's robots rules", () => {
+  it("disallows everything outside the included paths on top of the site's robots rules", () => {
     const robots = scopeRobots(
       {
         isAllowed: (url) => !url.includes("/private"),
         sitemapUrls: [],
       },
-      { includedPaths: ["/bopv"], excludedPaths: ["/bopv/archivo"] },
+      ["/bopv"],
     );
     expect(robots.isAllowed("https://example.com/bopv/1")).toBe(true);
-    expect(robots.isAllowed("https://example.com/bopv/archivo/2023")).toBe(
-      false,
-    );
     expect(robots.isAllowed("https://example.com/guias/x")).toBe(false);
     expect(robots.isAllowed("https://example.com/bopv/private")).toBe(false);
   });

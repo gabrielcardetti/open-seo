@@ -3,7 +3,10 @@ import {
   normalizeScopePaths,
 } from "@/server/lib/audit/crawl-scope";
 import { markOnboardingMilestone } from "@/server/email/onboarding-drip";
-import { isAuditRenderingAllowed } from "@/server/lib/audit/rendering-policy";
+import {
+  auditRenderingUnavailableMessage,
+  isAuditRenderingAllowed,
+} from "@/server/lib/audit/rendering-policy";
 import {
   lockRenderingCredits,
   releaseRenderingLocks,
@@ -25,7 +28,6 @@ import {
 } from "@/server/features/audit/services/audit-capacity";
 import { AppError } from "@/server/lib/errors";
 import { deleteR2Prefix } from "@/server/lib/r2";
-import { RENDERED_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 import { AuditProgressKV } from "@/server/lib/audit/progress-kv";
 import {
   parseAuditConfig,
@@ -38,6 +40,7 @@ import { reconcileRunningAudit } from "@/server/features/audit/services/auditRec
 import { isHostedServerAuthMode } from "@/server/lib/runtime-env";
 import { DEFAULT_ENGINES, type Engine } from "@/shared/guidelines/engines";
 import { startWorkflow } from "@/server/lib/startWorkflow";
+import { findExcludingPath } from "@/shared/audit-exclude-paths";
 
 // Free accounts keep bounded audit capacity; rendering reserves usage credits.
 async function resolveAuditLimitTier(
@@ -48,10 +51,7 @@ async function resolveAuditLimitTier(
   return (await customerHasPaidPlan(customer.organizationId)) ? "paid" : "free";
 }
 
-function parseScopePaths(
-  raw: readonly string[] | undefined,
-  label: "Included" | "Excluded",
-): string[] {
+function parseIncludedPaths(raw: readonly string[] | undefined): string[] {
   // Checked one entry at a time: the normalized list is deduplicated, so its
   // length says nothing about whether an entry was rejected.
   const invalid = (raw ?? []).find(
@@ -60,7 +60,7 @@ function parseScopePaths(
   if (invalid !== undefined) {
     throw new AppError(
       "VALIDATION_ERROR",
-      `${label} paths must be sections of the site, such as "/archive"; "${invalid}" is not one.`,
+      `Included paths must be sections of the site, such as "/blog"; "${invalid}" is not one.`,
     );
   }
   return normalizeScopePaths(raw ?? []);
@@ -76,27 +76,21 @@ async function startAudit(input: {
   guidelinesStrategy?: GuidelinesStrategy;
   guidelineEngines?: Engine[];
   includedPaths?: string[];
-  excludedPaths?: string[];
   limitTier: AuditLimitTier;
   renderJavaScript?: boolean;
+  excludePaths?: string[];
 }) {
   const renderJavaScript = input.renderJavaScript ?? false;
   if (renderJavaScript && !(await isAuditRenderingAllowed())) {
     throw new AppError(
       "AUDIT_RENDERING_UNAVAILABLE",
-      "JavaScript rendering is not available on this deployment. It needs a Cloudflare deployment with Browser Run, or CONTEXT_API_KEY. Run the audit without rendering instead.",
+      await auditRenderingUnavailableMessage(),
     );
   }
   const limits = AUDIT_LIMITS[input.limitTier];
   const maxPages = clampAuditMaxPages(input.maxPages);
   if (maxPages > limits.maxPagesPerAudit) {
     throw new AppError("AUDIT_PAGE_LIMIT_EXCEEDED");
-  }
-  if (renderJavaScript && maxPages > RENDERED_MAX_AUDIT_PAGES) {
-    throw new AppError(
-      "AUDIT_PAGE_LIMIT_EXCEEDED",
-      `Audits that render JavaScript are limited to ${RENDERED_MAX_AUDIT_PAGES.toLocaleString("en-US")} pages.`,
-    );
   }
 
   const lighthouseStrategy = input.lighthouseStrategy ?? "auto";
@@ -109,12 +103,19 @@ async function startAudit(input: {
   });
 
   const auditId = crypto.randomUUID();
-  const includedPaths = parseScopePaths(input.includedPaths, "Included");
-  const excludedPaths = parseScopePaths(input.excludedPaths, "Excluded");
+  const includedPaths = parseIncludedPaths(input.includedPaths);
   const organizationId = input.billingCustomer.organizationId;
   // The site itself is first contacted by the workflow's first step
   // (resolveAuditStart), so starting an audit never waits on a slow site.
   const startUrl = await normalizeAndValidateStartUrl(input.startUrl);
+  const excludePaths = Array.from(new Set(input.excludePaths));
+  const excludingPath = findExcludingPath(excludePaths, startUrl);
+  if (excludingPath) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `The start URL is excluded by "${excludingPath}". Remove that path or start from a different URL.`,
+    );
+  }
   const credential = await CrawlerCredentialService.resolveCrawlerAccess(
     organizationId,
     input.projectId,
@@ -139,9 +140,9 @@ async function startAudit(input: {
       ? [...new Set(input.guidelineEngines)]
       : [...DEFAULT_ENGINES],
     includedPaths,
-    excludedPaths,
     renderJavaScript,
     crawlerCredentialId: credential?.id,
+    ...(excludePaths.length > 0 && { excludePaths }),
   };
 
   await AuditRepository.createAudit({
@@ -247,37 +248,10 @@ async function getStatus(auditId: string, projectId: string) {
     lighthouseCompleted: audit.lighthouseCompleted,
     lighthouseFailed: audit.lighthouseFailed,
     currentPhase: audit.currentPhase,
+    excludePaths: parseAuditConfig(audit.config)?.excludePaths ?? [],
     errorCode: audit.errorCode,
     startedAt: audit.startedAt,
     completedAt: audit.completedAt,
-  };
-}
-
-async function getResults(auditId: string, projectId: string) {
-  const { audit, pages, lighthouse, issues } =
-    await AuditRepository.getAuditResultsForProject(auditId, projectId);
-
-  if (!audit) throw new AppError("NOT_FOUND");
-
-  const parsedConfig = parseAuditConfig(audit.config);
-  if (!parsedConfig) {
-    throw new AppError("INTERNAL_ERROR", "Invalid audit configuration");
-  }
-
-  return {
-    audit: {
-      id: audit.id,
-      startUrl: audit.startUrl,
-      status: audit.status,
-      pagesCrawled: audit.pagesCrawled,
-      pagesTotal: audit.pagesTotal,
-      startedAt: audit.startedAt,
-      completedAt: audit.completedAt,
-      config: parsedConfig,
-    },
-    pages,
-    lighthouse,
-    issues,
   };
 }
 
@@ -360,7 +334,7 @@ async function remove(auditId: string, projectId: string) {
     console.warn(`Failed to destroy audit scratchpad ${auditId}:`, error);
   }
   // Best-effort: the stored Lighthouse reports. A miss is swept when the
-  // account is erased (storage-erasure.ts).
+  // account is erased (account-deletion/storage.ts).
   try {
     await deleteR2Prefix(env.R2, `site-audit/${projectId}/${auditId}/`);
   } catch (error) {
@@ -373,7 +347,6 @@ export const AuditService = {
   startAudit,
   getStatus,
   getCrawlProgress,
-  getResults,
   getHistory,
   remove,
 } as const;

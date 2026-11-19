@@ -446,63 +446,133 @@
     {
       "idx": 63,
       "version": "6",
-      "when": 1792713963596,
-      "tag": "0048_funny_miek",
+      "when": 1793683954987,
+      "tag": "0063_account_deletion_requests",
       "breakpoints": true
     },
     {
       "idx": 64,
       "version": "6",
-      "when": 1792713964596,
-      "tag": "0049_typical_magus",
+      "when": 1793817732491,
+      "tag": "0064_adorable_devos",
       "breakpoints": true
     },
     {
       "idx": 65,
       "version": "6",
-      "when": 1792713965596,
-      "tag": "0053_cynical_roughhouse",
+      "when": 1793842519449,
+      "tag": "0065_guest_accounts",
       "breakpoints": true
     },
     {
       "idx": 66,
       "version": "6",
-      "when": 1792713966596,
-      "tag": "0054_fixed_midnight",
+      "when": 1793943058991,
+      "tag": "0066_guest_account_slots",
       "breakpoints": true
     },
     {
       "idx": 67,
       "version": "6",
-      "when": 1792713967596,
-      "tag": "0055_umami_connections",
+      "when": 1793947511393,
+      "tag": "0067_signup_sources",
       "breakpoints": true
     },
     {
       "idx": 68,
       "version": "6",
-      "when": 1792713968596,
-      "tag": "0056_audit_page_signals",
+      "when": 1793950088872,
+      "tag": "0068_guest_claimed_by",
       "breakpoints": true
     },
     {
       "idx": 69,
       "version": "6",
-      "when": 1792713969596,
-      "tag": "0057_upstream_breakers",
+      "when": 1794425608056,
+      "tag": "0069_ai_mode_engine",
       "breakpoints": true
     },
     {
       "idx": 70,
       "version": "6",
-      "when": 1792713970596,
-      "tag": "0058_url_inspections",
+      "when": 1794438903013,
+      "tag": "0070_trustpilot_invited_at",
       "breakpoints": true
     },
     {
       "idx": 71,
       "version": "6",
-      "when": 1792713971596,
+      "when": 1794544101554,
+      "tag": "0071_stripe_projects_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1795027967479,
+      "tag": "0072_project_embeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "6",
+      "when": 1795027968479,
+      "tag": "0048_funny_miek",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1795027969479,
+      "tag": "0049_typical_magus",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "6",
+      "when": 1795027970479,
+      "tag": "0053_cynical_roughhouse",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1795027971479,
+      "tag": "0054_fixed_midnight",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1795027972479,
+      "tag": "0055_umami_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1795027973479,
+      "tag": "0056_audit_page_signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "6",
+      "when": 1795027974479,
+      "tag": "0057_upstream_breakers",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "6",
+      "when": 1795027975479,
+      "tag": "0058_url_inspections",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "6",
+      "when": 1795027976479,
       "tag": "0061_google_indexing_connections",
       "breakpoints": true
     }

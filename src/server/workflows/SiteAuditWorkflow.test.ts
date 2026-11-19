@@ -81,7 +81,6 @@ function run() {
           lighthouseStrategy: "none",
           guidelinesStrategy: "none",
           includedPaths: [],
-          excludedPaths: [],
         },
         renderLocks: locks,
       },

@@ -76,6 +76,9 @@ vi.mock("@/server/features/projects/services/ProjectService", () => ({
 vi.mock("@/server/features/audit/repositories/AuditRepository", () => ({
   AuditRepository: mocks,
 }));
+vi.mock("@/server/features/audit/repositories/auditIssueQueries", () => ({
+  getIssuesForAudit: mocks.getIssuesForAudit,
+}));
 vi.mock(
   "@/server/features/audit/repositories/GuidelineEvaluationRepository",
   () => ({ GuidelineEvaluationRepository: mocks }),

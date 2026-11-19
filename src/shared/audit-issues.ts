@@ -7,6 +7,8 @@
  */
 
 import { PAGE_SIGNAL_ISSUE_TYPES } from "./audit-issues-page-signals";
+// Relative: tests/badseo type-checks this file without the @ alias.
+import { RENDERED_CRAWL_TIME_LIMIT_HOURS } from "./audit-limits";
 
 export type IssueSeverity = "critical" | "warning" | "info";
 
@@ -49,6 +51,29 @@ export const AUDIT_ISSUE_TYPES = {
       "The site refused several pages in a row with 429 Too Many Requests, or kept the crawler waiting for too long, so we stopped requesting pages. This report is incomplete; URLs we did not fetch are not recorded as broken or rate limited.",
     howToFix:
       "Re-run the audit after the site's rate limit resets, or ask the site owner to allow the OpenSEO-Audit crawler (https://openseo.so/docs/crawler). On Shopify, use Crawler access instead (Online Store → Preferences → Crawler access) and paste the signature into OpenSEO under Settings → Crawler access.",
+  },
+  "crawl-time-limit": {
+    severity: "warning",
+    title: "Crawl stopped early: time limit",
+    explanation: `Audits that render JavaScript stop crawling after ${RENDERED_CRAWL_TIME_LIMIT_HOURS} hours, and this one reached that limit. This report is incomplete; URLs we did not fetch are not recorded as broken.`,
+    howToFix:
+      "Re-run the audit with a lower page limit, or without Render JavaScript if the site's content and links are in its HTML. Rendering is billed only for pages actually rendered.",
+  },
+  "crawl-credits-exhausted": {
+    severity: "warning",
+    title: "Crawl stopped early: cost limit reached",
+    explanation:
+      "Many pages on this site needed our advanced renderer, so the audit reached its cost limit and stopped. You were only charged for the pages we rendered.",
+    howToFix:
+      "If the site doesn't need JavaScript to show its content, re-run with Render JavaScript off.",
+  },
+  "crawl-page-limit": {
+    severity: "warning",
+    title: "Crawl stopped early: page limit",
+    explanation:
+      "The audit reached its page limit before visiting every URL it found, so this report covers part of the site. Orphan pages are not checked on a partial crawl.",
+    howToFix:
+      'Re-run the audit with a higher page limit. If it is already at the maximum, add a robots.txt group for the "OpenSEO-Audit" user agent that disallows sections you don\'t need audited, such as tag archives or filtered listings, so the limit goes to the pages that matter: https://openseo.so/docs/crawler',
   },
   "server-error": {
     severity: "critical",
@@ -286,6 +311,14 @@ export const AUDIT_ISSUE_TYPES = {
 } as const satisfies Record<string, AuditIssueDescriptor>;
 
 export type AuditIssueType = keyof typeof AUDIT_ISSUE_TYPES;
+
+/** Issue types a crawl raises when it stops with URLs left unvisited. */
+export const CRAWL_STOP_ISSUE_TYPES = [
+  "crawl-rate-limited",
+  "crawl-time-limit",
+  "crawl-credits-exhausted",
+  "crawl-page-limit",
+] as const satisfies readonly AuditIssueType[];
 
 export const ISSUE_SEVERITY_ORDER: Record<IssueSeverity, number> = {
   critical: 0,

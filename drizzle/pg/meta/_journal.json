@@ -292,64 +292,134 @@
     {
       "idx": 41,
       "version": "7",
-      "when": 1792713962615,
-      "tag": "0041_hot_meltdown",
+      "when": 1793683955459,
+      "tag": "0041_account_deletion_requests",
       "breakpoints": true
     },
     {
       "idx": 42,
       "version": "7",
-      "when": 1792713963615,
-      "tag": "0042_simple_famine",
+      "when": 1793817733136,
+      "tag": "0042_hard_ultimates",
       "breakpoints": true
     },
     {
       "idx": 43,
       "version": "7",
-      "when": 1792713964615,
-      "tag": "0043_youthful_wrecker",
+      "when": 1793842519859,
+      "tag": "0043_guest_accounts",
       "breakpoints": true
     },
     {
       "idx": 44,
       "version": "7",
-      "when": 1792713965615,
-      "tag": "0044_parched_thor_girl",
+      "when": 1793943059414,
+      "tag": "0044_guest_account_slots",
       "breakpoints": true
     },
     {
       "idx": 45,
       "version": "7",
-      "when": 1792713966615,
-      "tag": "0045_umami_connections",
+      "when": 1793947511819,
+      "tag": "0045_signup_sources",
       "breakpoints": true
     },
     {
       "idx": 46,
       "version": "7",
-      "when": 1792713967615,
-      "tag": "0046_audit_page_signals",
+      "when": 1793950089330,
+      "tag": "0046_guest_claimed_by",
       "breakpoints": true
     },
     {
       "idx": 47,
       "version": "7",
-      "when": 1792713968615,
-      "tag": "0047_upstream_breakers",
+      "when": 1794425608859,
+      "tag": "0047_ai_mode_engine",
       "breakpoints": true
     },
     {
       "idx": 48,
       "version": "7",
-      "when": 1792713969615,
-      "tag": "0048_url_inspections",
+      "when": 1794438904256,
+      "tag": "0048_trustpilot_invited_at",
       "breakpoints": true
     },
     {
       "idx": 49,
       "version": "7",
-      "when": 1792713970615,
-      "tag": "0049_google_indexing_connections",
+      "when": 1794544102556,
+      "tag": "0049_stripe_projects_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795027971256,
+      "tag": "0050_project_embeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795027972256,
+      "tag": "0051_hot_meltdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795027973256,
+      "tag": "0052_simple_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795027974256,
+      "tag": "0053_youthful_wrecker",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795027975256,
+      "tag": "0054_parched_thor_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795027976256,
+      "tag": "0055_umami_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795027977256,
+      "tag": "0056_audit_page_signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795027978256,
+      "tag": "0057_upstream_breakers",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795027979256,
+      "tag": "0058_url_inspections",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795027980256,
+      "tag": "0059_google_indexing_connections",
       "breakpoints": true
     }
   ]

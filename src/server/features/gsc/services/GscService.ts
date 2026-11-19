@@ -5,6 +5,11 @@ import { account } from "@/db/schema";
 import { GSC_OAUTH_PROVIDER_ID, GSC_WRITE_SCOPE } from "@/shared/gsc";
 import { canMintGoogleAccessToken } from "@/server/features/google/googleOAuth";
 import { AppError } from "@/server/lib/errors";
+import { getGoogleAccessMode } from "@/server/features/google/googleAccess";
+import {
+  GATEWAY_GOOGLE_ACCOUNT_ID,
+  getGatewayGoogleStatus,
+} from "@/server/features/google/gatewayGoogle";
 import {
   createGscClient,
   type GscSite,
@@ -60,6 +65,9 @@ async function getConnection(projectId: string): Promise<GscConnection | null> {
 /** Whether this user has linked a google-search-console grant (regardless of
  *  whether they've picked a property yet). Drives the connect-vs-pick UI. */
 async function userHasGrant(userId: string): Promise<boolean> {
+  if ((await getGoogleAccessMode()) === "gateway") {
+    return (await getGatewayGoogleStatus()).connected;
+  }
   const rows = await db
     .select({ id: account.id })
     .from(account)
@@ -73,7 +81,22 @@ async function userHasGrant(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * The Google accounts a member may pick a property from. Behind the gateway
+ * there is one, their gateway connection (gatewayGoogle.ts), and only while
+ * it is connected.
+ */
 async function listGrantsForUser(userId: string) {
+  if ((await getGoogleAccessMode()) === "gateway") {
+    return (await getGatewayGoogleStatus()).connected
+      ? [
+          {
+            id: GATEWAY_GOOGLE_ACCOUNT_ID,
+            accountId: GATEWAY_GOOGLE_ACCOUNT_ID,
+          },
+        ]
+      : [];
+  }
   return db
     .select({ id: account.id, accountId: account.accountId })
     .from(account)
@@ -250,15 +273,18 @@ type GscInspectUrlsResult = {
   results: GscUrlInspection[];
 };
 
-/** URL Inspection calls in flight at once: well under Google's 600 per
- *  minute per property, and enough that ten URLs answer in a few seconds. */
+/** A Worker opens at most 6 outbound connections at once and queues the
+ *  rest, so a wider fan-out only makes the extra inspections wait. It is also
+ *  well under Google's 600 inspections per minute per property. */
 const INSPECT_CONCURRENCY = 5;
 
 /** Inspect 1–N URLs against a project's connected property, a few at a
- *  time. Per-URL failures are captured inline so one bad URL doesn't fail
- *  the batch; once Google rate-limits, the URLs not yet sent are skipped.
- *  Token/grant failures propagate so the caller can prompt a reconnect.
- *  Every answer is stored for the project's indexing monitor. */
+ *  time: Google answers each inspection in ~6 s, so a serial batch of ten
+ *  held the request open for a minute. Per-URL failures are captured inline
+ *  so one bad URL doesn't fail the batch; once Google rate-limits, the URLs
+ *  not yet sent are skipped. Token/grant failures propagate so the caller can
+ *  prompt a reconnect. Every answer is stored for the project's indexing
+ *  monitor. */
 async function inspectUrls(input: {
   projectId: string;
   urls: string[];

@@ -11,8 +11,10 @@ import {
   normalizeAndValidateStartUrl,
   resolveStartUrlRedirects,
 } from "./url-policy";
+import { publicFetch } from "@/server/lib/public-fetch";
 import { createRateLimitWait, type RateLimitWait } from "./crawl-throttle";
 import type { CrawlerAccess } from "@/shared/crawler-access";
+import { findExcludingPath } from "@/shared/audit-exclude-paths";
 import {
   auditRequestHeaders,
   CRAWL_USER_AGENT,
@@ -88,7 +90,7 @@ async function fetchFollowingRedirects(
   const deadline = Date.now() + timeoutMs;
   let current = url;
   for (let hop = 0; hop <= MAX_DISCOVERY_REDIRECT_HOPS; hop++) {
-    const response = await fetch(current, {
+    const response = await publicFetch(current, {
       headers: await auditRequestHeaders(current, access),
       redirect: "manual",
       signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
@@ -114,19 +116,27 @@ async function fetchFollowingRedirects(
   return null;
 }
 
-/** Deterministic: same text in, same result out. Null = everything allowed. */
+/**
+ * Deterministic: same text in, same result out. Null = robots.txt allows
+ * everything. The audit's own excluded paths are folded into `isAllowed`, so
+ * every place that respects robots.txt also skips them.
+ */
 export function parseRobotsTxt(
   origin: string,
   text: string | null,
+  excludePaths: readonly string[] = [],
 ): RobotsResult {
+  const isExcluded = (url: string) =>
+    findExcludingPath(excludePaths, url) !== undefined;
   if (text === null) {
-    return { isAllowed: () => true, sitemapUrls: [] };
+    return { isAllowed: (url) => !isExcluded(url), sitemapUrls: [] };
   }
 
   const robots = robotsParser(`${origin}/robots.txt`, text);
   return {
     // Our UA so an `OpenSEO-Audit` group wins over `*`.
-    isAllowed: (url: string) => robots.isAllowed(url, CRAWL_USER_AGENT) ?? true,
+    isAllowed: (url: string) =>
+      !isExcluded(url) && (robots.isAllowed(url, CRAWL_USER_AGENT) ?? true),
     sitemapUrls: robots.getSitemaps(),
   };
 }

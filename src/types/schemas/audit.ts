@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { PAGE_FETCH_CLASSES } from "@/shared/audit-fetch-class";
 import {
   DEFAULT_AUDIT_PAGES,
   MIN_AUDIT_PAGES,
   PAID_MAX_AUDIT_PAGES,
 } from "@/shared/audit-limits";
 import { ENGINES } from "@/shared/guidelines/engines";
+import { excludePathsSchema } from "@/shared/audit-exclude-paths";
 
 // ─── Server function input schemas ──────────────────────────────────────────
 
@@ -29,8 +31,7 @@ export const startAuditSchema = z.object({
   // Whose guidelines that phase judges against; the service defaults to
   // Google's.
   guidelineEngines: z.array(z.enum(ENGINES)).min(1).max(2).optional(),
-  // Sections the crawl leaves out, as path prefixes ("/archive").
-  excludedPaths: z.array(z.string().max(2048)).max(20).optional().default([]),
+  excludePaths: excludePathsSchema.optional(),
 });
 
 export const getGuidelineResultsSchema = z.object({
@@ -43,9 +44,53 @@ export const getAuditStatusSchema = z.object({
   auditId: z.string().min(1),
 });
 
-export const getAuditResultsSchema = z.object({
+export const getAuditSummarySchema = z.object({
   projectId: z.string().min(1),
   auditId: z.string().min(1),
+});
+
+export const auditPagesSortFields = [
+  "url",
+  "statusCode",
+  "title",
+  "h1Count",
+  "wordCount",
+  "images",
+  "responseTimeMs",
+] as const;
+
+// Big enough for exports to page through a 10,000-page audit in a few
+// requests, small enough that one request stays far below Worker memory.
+export const AUDIT_ROWS_MAX_PAGE_SIZE = 2_000;
+
+const optionalBound = z.number().finite().nullable().optional();
+
+export const getAuditPagesSchema = z.object({
+  projectId: z.string().min(1),
+  auditId: z.string().min(1),
+  page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(AUDIT_ROWS_MAX_PAGE_SIZE),
+  sort: z.enum(auditPagesSortFields).default("url"),
+  order: z.enum(["asc", "desc"]).default("asc"),
+  query: z.string().trim().max(200).optional(),
+  status: z.enum(["all", "ok", "redirect", "error", "missing"]).default("all"),
+  fetchClass: z.enum(["all", ...PAGE_FETCH_CLASSES]).default("all"),
+  minWords: optionalBound,
+  maxWords: optionalBound,
+  minResponseMs: optionalBound,
+  maxResponseMs: optionalBound,
+  missingAlt: z.enum(["all", "yes", "no"]).default("all"),
+});
+
+export type GetAuditPagesInput = z.input<typeof getAuditPagesSchema>;
+
+export const getAuditIssuesSchema = z.object({
+  projectId: z.string().min(1),
+  auditId: z.string().min(1),
+  /** One issue type (an expanded group), or every issue for exports. */
+  issueType: z.string().min(1).max(100).optional(),
+  page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(AUDIT_ROWS_MAX_PAGE_SIZE),
 });
 
 export const getAuditHistorySchema = z.object({

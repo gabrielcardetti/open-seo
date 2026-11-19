@@ -125,7 +125,6 @@ const PARAMS: Parameters<typeof runGuidelinesPhase>[1] = {
     lighthouseStrategy: "none",
     guidelinesStrategy: "all",
     includedPaths: [],
-    excludedPaths: [],
   },
   crawlCompleted: true,
   robotsText: null,

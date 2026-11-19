@@ -2,6 +2,7 @@
  * Shared plumbing for the guideline MCP tools.
  */
 import { z } from "zod";
+import { getIssuesForAudit } from "@/server/features/audit/repositories/auditIssueQueries";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
 import { parseAuditConfig } from "@/server/lib/audit/types";
@@ -169,7 +170,7 @@ async function storedCrawlCompleted(audit: StoredAudit): Promise<boolean> {
   const maxPages = parseAuditConfig(audit.config)?.maxPages;
   if (audit.status !== "completed" || !maxPages) return false;
   if (audit.pagesCrawled >= maxPages) return false;
-  const rateLimited = await AuditRepository.getIssuesForAudit(audit.id, {
+  const rateLimited = await getIssuesForAudit(audit.id, {
     issueType: "crawl-rate-limited",
   });
   return rateLimited.length === 0;

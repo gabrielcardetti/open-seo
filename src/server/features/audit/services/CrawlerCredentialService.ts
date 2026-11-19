@@ -9,6 +9,8 @@ import {
 } from "@/server/features/audit/services/shopifySignature";
 import { AppError } from "@/server/lib/errors";
 import { openSecret, sealSecret } from "@/server/lib/secretBox";
+import { getOptionalEnvValue } from "@/server/lib/runtime-env";
+import { MIN_BETTER_AUTH_SECRET_LENGTH } from "@/shared/selfhost-checks";
 import {
   cloudflareAccessHeaders,
   isCrawlerAccessExpired,
@@ -43,6 +45,16 @@ type CrawlerCredentialProblem =
 
 const SECRET_PURPOSE = "crawler access credentials";
 const SECRET_KEY = "CRAWLER_ACCESS_SECRET";
+
+/**
+ * Whether crawler access can be saved and replayed here: the optional
+ * CRAWLER_ACCESS_SECRET is set. The crawler-access form asks before it
+ * offers to save a credential.
+ */
+async function hasEncryptionKey(): Promise<boolean> {
+  const secret = (await getOptionalEnvValue(SECRET_KEY))?.trim();
+  return Boolean(secret && secret.length >= MIN_BETTER_AUTH_SECRET_LENGTH);
+}
 
 /**
  * What the client is allowed to see. The stored values are access
@@ -219,6 +231,7 @@ async function openCrawlerAccess(
 }
 
 export const CrawlerCredentialService = {
+  hasEncryptionKey,
   listCrawlerCredentials,
   saveCrawlerCredential,
   deleteCrawlerCredential,

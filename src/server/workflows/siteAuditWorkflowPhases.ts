@@ -15,11 +15,7 @@ import {
   normalizeUrl,
 } from "@/server/lib/audit/url-utils";
 import { isCrawlableUrl } from "@/server/lib/audit/url-policy";
-import {
-  isScopedCrawl,
-  scopeRobots,
-  type CrawlScope,
-} from "@/server/lib/audit/crawl-scope";
+import { scopeRobots } from "@/server/lib/audit/crawl-scope";
 import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
 import { collectBingAuditIssues } from "@/server/features/bing/bingAuditIssues";
 import { getAuditScratchpad } from "@/server/features/audit/AuditScratchpad";
@@ -63,6 +59,8 @@ type AuditPhasesParams = {
   config: AuditConfig;
   access?: CrawlerAccess | null;
   renderUsage: RenderUsage;
+  /** A metered rendered audit's credit hold, which the crawl must stay in. */
+  renderHold?: { deadlineAt: number; credits: number };
 };
 
 export async function runAuditPhases(
@@ -79,24 +77,24 @@ export async function runAuditPhases(
     access,
   } = params;
   const origin = getOrigin(startUrl);
-  const maxPages = config.maxPages;
+  const { maxPages, excludePaths } = config;
 
   const discovery = await runDiscoveryPhase(step, {
     auditId,
     workflowInstanceId,
     origin,
     startUrl,
-    maxPages,
-    scope: config,
+    config,
     access,
   });
   // Parsed outside the step from checkpointed text, so replays see the exact
   // robots rules the original run used (a live re-fetch could differ and
   // desync the frontier from already-persisted crawl batches). The audit's
-  // path scope rides on the same gate, so links out of it are not followed.
+  // included paths ride on the same gate, so links out of them are not
+  // followed.
   const robots = scopeRobots(
-    parseRobotsTxt(origin, discovery.robotsText),
-    config,
+    parseRobotsTxt(origin, discovery.robotsText, excludePaths),
+    config.includedPaths,
   );
   const crawl = await runCrawlPhase(step, {
     ...params,
@@ -179,13 +177,12 @@ async function runDiscoveryPhase(
     workflowInstanceId: string;
     origin: string;
     startUrl: string;
-    maxPages: number;
-    scope: CrawlScope;
+    config: AuditConfig;
     access?: CrawlerAccess | null;
   },
 ) {
-  const { auditId, workflowInstanceId, origin, startUrl, maxPages, access } =
-    input;
+  const { auditId, workflowInstanceId, origin, startUrl, access } = input;
+  const { maxPages, excludePaths } = input.config;
   // "-v2": the checkpoint shape changed (seeds now live in the scratchpad DO
   // instead of the step return). A pre-refactor instance replayed under this
   // code must re-run discovery — resuming from the old cached {sitemapUrls}
@@ -193,8 +190,8 @@ async function runDiscoveryPhase(
   return pgStep(step, "discover-urls-v2", DISCOVERY_STEP, async () => {
     const result = await discoverUrls(origin, maxPages, access);
     const robots = scopeRobots(
-      parseRobotsTxt(origin, result.robotsText),
-      input.scope,
+      parseRobotsTxt(origin, result.robotsText, excludePaths),
+      input.config.includedPaths,
     );
     const scratchpad = getAuditScratchpad(auditId);
 
@@ -431,24 +428,24 @@ async function finalizeAudit(args: {
       issueCount: issues.length,
     });
     const linksStartedAt = Date.now();
-    const linkIssues = await runScratchpadLinkChecks(
-      auditId,
-      startUrl,
-      { ...crawl, completed: crawl.completed && !hasUnreadShells },
-      isScopedCrawl(config),
-    );
+    const linkIssues = await runScratchpadLinkChecks(auditId, startUrl, {
+      ...crawl,
+      // Pages left out of the crawl are never read, so their links are
+      // unknown: a page linked only from them would be reported as an orphan.
+      completed:
+        crawl.completed &&
+        !hasUnreadShells &&
+        !config.excludePaths?.length &&
+        config.includedPaths.length === 0,
+    });
     console.info("Audit link checks completed", {
       auditId,
       durationMs: Date.now() - linksStartedAt,
       issueCount: linkIssues.length,
     });
     issues.push(...linkIssues);
-    if (crawl.rateLimited) {
-      issues.push({
-        issueType: "crawl-rate-limited",
-        pageId: null,
-        pageUrl: startUrl,
-      });
+    if (crawl.stopIssue) {
+      issues.push({ ...crawl.stopIssue, pageId: null, pageUrl: startUrl });
     }
     issues.push(...(await bingIssuesForAudit(projectId, auditId)));
     const persistStartedAt = Date.now();
@@ -519,7 +516,6 @@ async function runScratchpadLinkChecks(
   auditId: string,
   startUrl: string,
   crawl: CrawlPhaseResult,
-  scoped: boolean,
 ): Promise<DetectedIssue[]> {
   const scratchpad = getAuditScratchpad(auditId);
   const { brokenLinks, orphanPages } = await scratchpad.runFinalizeChecks({
@@ -527,9 +523,8 @@ async function runScratchpadLinkChecks(
     // so the orphan exclusion matches.
     startUrl: normalizeUrl(startUrl) ?? startUrl,
     // Orphan detection only makes sense on the whole site's link graph: a
-    // truncated crawl, or one kept to some sections, never saw the pages
-    // outside it that may link in.
-    crawlCompleted: crawl.completed && !scoped,
+    // truncated crawl never saw the pages that may link in.
+    crawlCompleted: crawl.completed,
   });
 
   return [

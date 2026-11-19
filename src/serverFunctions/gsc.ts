@@ -5,6 +5,8 @@ import { z } from "zod";
 import { GscService } from "@/server/features/gsc/services/GscService";
 import { SitemapRegistryService } from "@/server/features/sitemaps/SitemapRegistryService";
 import { hasGoogleOAuthConfig } from "@/server/features/google/oauth-config";
+import { getGoogleAccessMode } from "@/server/features/google/googleAccess";
+import { getGatewayGoogleConnectUrl } from "@/server/features/google/gatewayGoogle";
 import {
   createGoogleAuthorizationUrl,
   GSC_INTEGRATION,
@@ -14,6 +16,7 @@ import { requireOrgPermission } from "@/server/auth/org-gate";
 import { captureServerEvent } from "@/server/lib/posthog";
 import { markOnboardingMilestone } from "@/server/email/onboarding-drip";
 import { getPublicOrigin } from "@/server/mcp/public-origin";
+import { captureMetaSetupStep, MetaSetupEvent } from "@/server/referrals/meta";
 import {
   requireAuthenticatedContext,
   requireProjectContext,
@@ -126,6 +129,11 @@ export const setGscSite = createServerFn({ method: "POST" })
         console.warn("Sitemap detection after connecting failed", error),
       ),
     );
+    await captureMetaSetupStep(
+      MetaSetupEvent.SearchConsoleConnected,
+      context.organizationId,
+      getRequest(),
+    );
     waitUntil(
       captureServerEvent({
         distinctId: context.userId,
@@ -159,14 +167,20 @@ export const disconnectGsc = createServerFn({ method: "POST" })
     return { connected: false as const };
   });
 
+// Behind the gateway the connect page is the gateway's: one Google
+// connection per member serves Search Console and Analytics alike, and the
+// gateway sends the person back to `callbackURL` afterwards.
 export const startGscLink = createServerFn({ method: "POST" })
   .middleware(requireAuthenticatedContext)
   .validator(startLinkSchema)
   .handler(async ({ data, context }) => ({
-    url: await createGoogleAuthorizationUrl({
-      integration: GSC_INTEGRATION,
-      userId: context.userId,
-      callbackURL: data.callbackURL,
-      publicOrigin: getPublicOrigin(getRequest()),
-    }),
+    url:
+      (await getGoogleAccessMode()) === "gateway"
+        ? await getGatewayGoogleConnectUrl(data.callbackURL)
+        : await createGoogleAuthorizationUrl({
+            integration: GSC_INTEGRATION,
+            userId: context.userId,
+            callbackURL: data.callbackURL,
+            publicOrigin: getPublicOrigin(getRequest()),
+          }),
   }));

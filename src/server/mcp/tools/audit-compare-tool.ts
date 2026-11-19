@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AuditComparisonRepository } from "@/server/features/audit/repositories/AuditComparisonRepository";
-import { AuditRepository } from "@/server/features/audit/repositories/AuditRepository";
+import { getIssuesForAudit } from "@/server/features/audit/repositories/auditIssueQueries";
 import { GuidelineEvaluationRepository } from "@/server/features/audit/repositories/GuidelineEvaluationRepository";
 import { compareAudits } from "@/server/lib/audit/compare";
 import { mcpResponse } from "@/server/mcp/formatters";
@@ -92,7 +92,7 @@ async function snapshot(audit: { id: string; config: string }) {
   const [pages, schemaTypes, issues, guidelines] = await Promise.all([
     AuditComparisonRepository.getPageSignalsForAudit(audit.id),
     AuditComparisonRepository.getSchemaTypesForAudit(audit.id),
-    AuditRepository.getIssuesForAudit(audit.id, {}),
+    getIssuesForAudit(audit.id, {}),
     guidelineVerdicts(audit),
   ]);
   const typesByUrl = new Map<string, string[]>();

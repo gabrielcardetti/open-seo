@@ -46,7 +46,7 @@ export function GoogleConnectionCard({
   projectId: string;
   /** Shown under the connected property, such as a sitemap coverage alert. */
   notice?: React.ReactNode;
-  /** Shows the connect button as a large primary call to action. */
+  /** Sells the connection with the standard empty state and a primary button. */
   prominent?: boolean;
   /** Adds a Dismiss button while the project is not connected. */
   onDismiss?: () => void;
@@ -141,9 +141,7 @@ export function GoogleConnectionCard({
   const dismissButton = onDismiss ? (
     <Button
       type="button"
-      variant="ghost"
-      size="sm"
-      className="text-muted-foreground"
+      variant="outline"
       onClick={onDismiss}
       disabled={dismissing || changingConnection}
     >
@@ -163,12 +161,13 @@ export function GoogleConnectionCard({
       title={config.title}
       icon={<Logo className="size-5" />}
       action={
-        connectionQuery.isPending || connectionUnavailable ? undefined : (
-          <ConnectionStatusPill
-            connection={connection}
-            setupRequired={needsGoogleOAuthSetup}
-          />
-        )
+        <ConnectionStatusPill
+          hidden={connectionQuery.isPending || connectionUnavailable}
+          prominent={prominent}
+          connected={connected}
+          requiresReconnect={Boolean(connection?.requiresReconnect)}
+          setupRequired={needsGoogleOAuthSetup}
+        />
       }
     >
       <GoogleLinkErrorAlert provider={provider} className="mb-4" />
@@ -255,42 +254,56 @@ export function GoogleConnectionCard({
       ) : (
         <GoogleProjectEmptyState
           name={config.name}
+          pitch={prominent ? config.pitch : undefined}
           hasGrant={hasGrant}
           canManage={canManage}
           disabled={linking}
-          prominent={prominent}
           onLink={handleConnect}
           onChoose={startPicking}
         >
           {dismissButton}
         </GoogleProjectEmptyState>
       )}
-      {setPropertyMutation.isError || disconnectMutation.isError ? (
-        <p role="alert" className="mt-3 text-sm text-destructive">
-          {getStandardErrorMessage(
-            setPropertyMutation.error ?? disconnectMutation.error,
-          )}
-        </p>
-      ) : null}
+      <ConnectionChangeError
+        error={setPropertyMutation.error ?? disconnectMutation.error}
+      />
       {connectionQuery.isSuccess && !needsGoogleOAuthSetup && !canManage ? (
         <PermissionHint
           action="change this project's connection"
-          className="mt-3"
+          className={prominent && !connected ? "mt-3 text-center" : "mt-3"}
         />
       ) : null}
     </CardShell>
   );
 }
 
+function ConnectionChangeError({ error }: { error: unknown }) {
+  if (!error) return null;
+  return (
+    <p role="alert" className="mt-3 text-sm text-destructive">
+      {getStandardErrorMessage(error)}
+    </p>
+  );
+}
+
 function ConnectionStatusPill({
-  connection,
+  hidden,
+  prominent,
+  connected: linked,
+  requiresReconnect,
   setupRequired,
 }: {
-  connection: GoogleConnection | undefined;
+  hidden: boolean;
+  prominent?: boolean;
+  connected: boolean;
+  /** Google revoked or expired the grant behind the connection. */
+  requiresReconnect: boolean;
   setupRequired: boolean;
 }) {
-  const connected = Boolean(connection?.connected) && !setupRequired;
-  const healthy = connected && !connection?.requiresReconnect;
+  // The pitch already says it isn't connected.
+  if (hidden || (prominent && !linked && !setupRequired)) return null;
+  const connected = linked && !setupRequired;
+  const healthy = connected && !requiresReconnect;
   return (
     <Badge
       variant={

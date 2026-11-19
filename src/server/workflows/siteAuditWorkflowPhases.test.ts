@@ -86,7 +86,6 @@ const PHASE_PARAMS = {
     lighthouseStrategy: "auto" as const,
     guidelinesStrategy: "none" as const,
     includedPaths: [],
-    excludedPaths: [],
   },
 };
 

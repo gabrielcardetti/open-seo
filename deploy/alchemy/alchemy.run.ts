@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- one deploy stack: upstream's stages plus the fork's Bing, Umami, Google API and indexing bindings */
+/* eslint-disable max-lines -- the one production stack: every Worker, binding, var and secret is declared here, plus the fork's Bing, Umami, Google API and indexing bindings */
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as CfWorkers from "@distilled.cloud/cloudflare/workers";
@@ -125,6 +125,13 @@ const makeResources = (stage: string, usesD1: boolean) => {
     OAUTH_KV: Cloudflare.KV.Namespace("OAUTH_KV", {
       title: prod ? PROD_NAMES.oauthKv : `open-seo-oauth-kv-${stage}`,
     }).pipe(keep),
+    // Feature flags (src/server/lib/featureFlags.ts), app worker and prod
+    // only: every other stage, and every self-host, reads them all as off.
+    // Alchemy owns just the app. The flags themselves are created and flipped
+    // in the Cloudflare dashboard: a managed Flag resource would push its
+    // declared state back over a flip made during an outage whenever a deploy
+    // updated it.
+    ...(prod ? { FLAGS: Cloudflare.Flagship.App("FLAGS", {}).pipe(keep) } : {}),
   };
 };
 
@@ -144,11 +151,56 @@ const optionalVar = (name: string) =>
     Config.map((value) => value.trim()),
   );
 
+/**
+ * A self-host's own hostname (seo.example.com), in a zone on this account. The
+ * Worker must list it, or each deploy detaches it. In Cloudflare Access mode
+ * the deploy-created Access application protects it too. Hosted prod serves
+ * its fixed domains instead.
+ */
+const readCustomDomain = (prod: boolean) =>
+  Effect.gen(function* () {
+    if (prod) return "";
+    // SELFHOST_DOMAIN is the fork's older name for the same setting.
+    const domain =
+      (yield* optionalVar("CUSTOM_DOMAIN")) ||
+      (yield* optionalVar("SELFHOST_DOMAIN"));
+    if (domain && !/^[a-z0-9.-]+$/i.test(domain)) {
+      return yield* Effect.die(
+        new Error("CUSTOM_DOMAIN must be a bare hostname (seo.example.com)."),
+      );
+    }
+    return domain;
+  });
+
 const optionalSecret = (name: string) =>
-  Config.redacted(name).pipe(Config.withDefault(Redacted.make("")));
+  Config.redacted(name).pipe(
+    Config.withDefault(Redacted.make("")),
+    Config.map((value) => Redacted.make(Redacted.value(value).trim())),
+  );
 
 const accessScopeHint =
-  " (if this is a permissions error, re-run `pnpm alchemy login --configure`, answer yes to “Customize OAuth scopes?”, and select access:write alongside the defaults)";
+  " (if this is a permissions error, re-run `pnpm alchemy login deploy/alchemy/alchemy.run.ts --configure`, answer yes to “Customize OAuth scopes?”, and select access:write alongside the defaults)";
+
+/**
+ * The account's workers.dev subdomain (`<name>.workers.dev`): the configured
+ * WORKERS_SUBDOMAIN when set, else one API read. Every worker hostname this
+ * stack deploys derives from it.
+ */
+const resolveWorkersSubdomain = (configured: string, scopeHint: string) =>
+  Effect.gen(function* () {
+    if (configured) return configured;
+    const { accountId } = yield* yield* Cloudflare.CloudflareEnvironment;
+    const observed = yield* CfWorkers.getSubdomain({ accountId }).pipe(
+      Effect.catch((error) =>
+        Effect.die(
+          new Error(
+            `Could not read the workers.dev subdomain: ${String(error)}${scopeHint}`,
+          ),
+        ),
+      ),
+    );
+    return `${observed.subdomain}.workers.dev`;
+  });
 
 /**
  * Self-host auth (AUTH_MODE=cloudflare_access): derive the Access values
@@ -176,20 +228,11 @@ const resolveSelfHostAccess = (
 
     // The workers.dev subdomain names both the Access application's hostname
     // (which must exist before the Worker resource does) and an auto-created
-    // Zero Trust team; it is deterministic from the account.
-    let subdomain = workersSubdomain;
-    if (!subdomain) {
-      const observed = yield* CfWorkers.getSubdomain({ accountId }).pipe(
-        Effect.catch((error) =>
-          Effect.die(
-            new Error(
-              `Could not read the workers.dev subdomain: ${String(error)}${accessScopeHint}`,
-            ),
-          ),
-        ),
-      );
-      subdomain = `${observed.subdomain}.workers.dev`;
-    }
+    // Zero Trust team.
+    const subdomain = yield* resolveWorkersSubdomain(
+      workersSubdomain,
+      accessScopeHint,
+    );
 
     if (!teamDomain) {
       const organization = yield* ZeroTrust.listOrganizationsForAccount({
@@ -199,7 +242,11 @@ const resolveSelfHostAccess = (
         Effect.catch((error) =>
           Effect.die(
             new Error(
-              `Could not read the Zero Trust organization: ${String(error)}${accessScopeHint}`,
+              // A 403 access.api.error.not_enabled means Zero Trust was never
+              // turned on for the account, not a missing login scope.
+              String(error).includes("not_enabled")
+                ? "Zero Trust isn't enabled on this Cloudflare account yet. Open https://one.dash.cloudflare.com once and pick the Free plan (Cloudflare creates the team for you), then redeploy."
+                : `Could not read the Zero Trust organization: ${String(error)}${accessScopeHint}`,
             ),
           ),
         ),
@@ -242,8 +289,10 @@ const resolveSelfHostAccess = (
         applicationId: "SelfHostAccess",
         policyName: `open-seo ${stage} self-host users`,
         applicationName: `open-seo ${stage}`,
-        domain,
+        domain: `${workerName(stage)}.${subdomain}`,
+        extraDomain: customDomain || undefined,
         emails: allowedEmails,
+        managedOAuth: true,
       });
       policyAud = application.aud;
 
@@ -274,9 +323,11 @@ const resolveSelfHostAccess = (
 // an `--env-file`, which the alchemy CLI loads into Config, NOT process.env;
 // the production workflow exports them as job/step env instead.
 const dataEnv = {
-  // AUTH_MODE, DATABASE_PROVIDER, BETTER_AUTH_URL, TEAM_DOMAIN, and
-  // POLICY_AUD are stage-dependent and set in the stack body below.
-  DATAFORSEO_API_KEY: Config.redacted("DATAFORSEO_API_KEY"),
+  // AUTH_MODE, DATABASE_PROVIDER, BETTER_AUTH_URL, TEAM_DOMAIN, POLICY_AUD,
+  // and OPENSEO_OPERATOR_SECRET are stage-dependent and set in the stack body
+  // below, which also replaces an unset BETTER_AUTH_SECRET in password mode.
+  DATAFORSEO_API_KEY: optionalSecret("DATAFORSEO_API_KEY"),
+  TREG_API_TOKEN: optionalSecret("TREG_API_TOKEN"),
   BYPASS_EMAIL_VERIFICATION: optionalVar("BYPASS_EMAIL_VERIFICATION"),
   BETTER_AUTH_SECRET: optionalSecret("BETTER_AUTH_SECRET"),
   CRAWLER_ACCESS_SECRET: optionalSecret("CRAWLER_ACCESS_SECRET"),
@@ -287,15 +338,21 @@ const dataEnv = {
   // docs/SELF_HOSTING_GOOGLE_CORE_WEB_VITALS.md.
   GOOGLE_API_KEY: optionalSecret("GOOGLE_API_KEY"),
   GOOGLE_MAPS_API_KEY: optionalSecret("GOOGLE_MAPS_API_KEY"),
+  // Sign in with ChatGPT (hosted only). Unset = no button.
+  OPENAI_SIWC_CLIENT_ID: optionalVar("OPENAI_SIWC_CLIENT_ID"),
+  OPENAI_SIWC_CLIENT_SECRET: optionalSecret("OPENAI_SIWC_CLIENT_SECRET"),
   OPENROUTER_API_KEY: optionalSecret("OPENROUTER_API_KEY"),
+  OPENROUTER_BASE_URL: optionalVar("OPENROUTER_BASE_URL"),
   OPENROUTER_MODEL: optionalVar("OPENROUTER_MODEL"),
   CONTEXT_API_KEY: optionalSecret("CONTEXT_API_KEY"),
   AUTUMN_SECRET_KEY: optionalSecret("AUTUMN_SECRET_KEY"),
   AUTUMN_WEBHOOK_SECRET: optionalSecret("AUTUMN_WEBHOOK_SECRET"),
   DUB_API_KEY: optionalSecret("DUB_API_KEY"),
+  STRIPE_PROJECTS_SIGNING_SECRET: optionalSecret(
+    "STRIPE_PROJECTS_SIGNING_SECRET",
+  ),
   META_PIXEL_ID: optionalVar("META_PIXEL_ID"),
   META_CONVERSIONS_API_TOKEN: optionalSecret("META_CONVERSIONS_API_TOKEN"),
-  GDPR_ERASURE_SECRET: optionalSecret("GDPR_ERASURE_SECRET"),
   LOOPS_API_KEY: optionalSecret("LOOPS_API_KEY"),
   LOOPS_TRANSACTIONAL_VERIFY_EMAIL_ID: optionalVar(
     "LOOPS_TRANSACTIONAL_VERIFY_EMAIL_ID",
@@ -307,10 +364,23 @@ const dataEnv = {
     "LOOPS_TRANSACTIONAL_INVITATION_ID",
   ),
   LOOPS_PRODUCT_UPDATES_LIST_ID: optionalVar("LOOPS_PRODUCT_UPDATES_LIST_ID"),
+  LOOPS_TRANSACTIONAL_ACCOUNT_DELETION_ID: optionalVar(
+    "LOOPS_TRANSACTIONAL_ACCOUNT_DELETION_ID",
+  ),
   POSTHOG_PUBLIC_KEY: optionalVar("POSTHOG_PUBLIC_KEY"),
   POSTHOG_HOST: optionalVar("POSTHOG_HOST"),
+  POSTHOG_PROJECT_ID: optionalVar("POSTHOG_PROJECT_ID"),
+  POSTHOG_ACCOUNT_DELETION_API_KEY: optionalSecret(
+    "POSTHOG_ACCOUNT_DELETION_API_KEY",
+  ),
   TURNSTILE_SECRET_KEY: optionalSecret("TURNSTILE_SECRET_KEY"),
   TURNSTILE_SITE_KEY: optionalVar("TURNSTILE_SITE_KEY"),
+  // Trustpilot review invitations (src/server/trustpilot). Unset = inert.
+  TRUSTPILOT_API_KEY: optionalSecret("TRUSTPILOT_API_KEY"),
+  TRUSTPILOT_API_SECRET: optionalSecret("TRUSTPILOT_API_SECRET"),
+  TRUSTPILOT_BUSINESS_UNIT_ID: optionalVar("TRUSTPILOT_BUSINESS_UNIT_ID"),
+  TRUSTPILOT_BUSINESS_USER_ID: optionalVar("TRUSTPILOT_BUSINESS_USER_ID"),
+  TRUSTPILOT_TEMPLATE_ID: optionalVar("TRUSTPILOT_TEMPLATE_ID"),
   // Alchemy reconciles worker vars and secrets on every deploy, so every value
   // must come from the env file / GitHub environment — a dashboard-set one
   // would be wiped.
@@ -323,6 +393,33 @@ const dataEnv = {
   INDEXNOW_API_BASE_URL: optionalVar("INDEXNOW_API_BASE_URL"),
   INDEXNOW_RELAY_SECRET: optionalSecret("INDEXNOW_RELAY_SECRET"),
 };
+
+const requireDataForSeoCredentials = (prod: boolean) =>
+  Effect.gen(function* () {
+    const dataforseoApiKey = Redacted.value(yield* dataEnv.DATAFORSEO_API_KEY);
+    const tregApiToken = Redacted.value(yield* dataEnv.TREG_API_TOKEN);
+    if (prod && !dataforseoApiKey) {
+      return yield* Effect.die(
+        new Error("hosted-prod requires DATAFORSEO_API_KEY."),
+      );
+    }
+    if (!dataforseoApiKey && !tregApiToken) {
+      return yield* Effect.die(
+        new Error(
+          "Set DATAFORSEO_API_KEY or TREG_API_TOKEN — see docs/DATAFORSEO_API_KEY.md.",
+        ),
+      );
+    }
+  });
+
+const aiGatewayName = (stage: string, prod: boolean) =>
+  prod ? "open-seo" : `open-seo-${stage}`;
+
+// The fork's Access application is managed outside this stack and gates only
+// the custom hostname, so the workers.dev URL would serve the app ungated:
+// turn it off whenever there is a custom domain.
+const workersDevUrl = (customDomain: string) =>
+  customDomain ? { url: false as const } : {};
 
 export default Alchemy.Stack(
   "open-seo",
@@ -338,6 +435,7 @@ export default Alchemy.Stack(
     const prod = stage === HOSTED_PROD_STAGE;
     // Fail closed: an unset AUTH_MODE gets the Access-gated mode (matching the
     // app's own default in src/lib/auth-mode.ts), never public hosted signup.
+    // New self-host deployments get AUTH_MODE=password from deploy/.env.selfhost.example;
     // hosted/local_noauth must be set explicitly.
     const authMode = yield* Config.string("AUTH_MODE").pipe(
       Config.withDefault("cloudflare_access"),
@@ -351,7 +449,9 @@ export default Alchemy.Stack(
         ),
       );
     }
+    yield* requireDataForSeoCredentials(prod);
     const workersSubdomain = yield* readWorkersSubdomain({ required: false });
+    const customDomain = yield* readCustomDomain(prod);
 
     // Auth needs an absolute BETTER_AUTH_URL. Prod sets it explicitly;
     // previews always derive it from the deterministic worker name — a wrong
@@ -366,8 +466,16 @@ export default Alchemy.Stack(
           ),
         );
       }
+    } else if (customDomain) {
+      authUrl = `https://${customDomain}`;
     } else if (workersSubdomain) {
       authUrl = `https://${workerName(stage)}.${workersSubdomain}`;
+    } else if (authMode === "password") {
+      // Password accounts need the real public URL (session cookies, the
+      // OAuth callbacks MCP clients use). The self-host env file sets no
+      // WORKERS_SUBDOMAIN, so read it from the account.
+      const subdomain = yield* resolveWorkersSubdomain(workersSubdomain, "");
+      authUrl = `https://${workerName(stage)}.${subdomain}`;
     } else if (authMode === "hosted") {
       return yield* Effect.die(
         new Error(
@@ -380,19 +488,34 @@ export default Alchemy.Stack(
       authUrl = "";
     }
 
-    // Self-host on a domain of your own: the worker serves it and the Access
-    // application gates it. The zone must live in the same Cloudflare account.
-    const selfHostDomain = prod ? "" : yield* optionalVar("SELFHOST_DOMAIN");
-
     const access = yield* resolveSelfHostAccess(
       stage,
       authMode === "cloudflare_access" && !prod,
       workersSubdomain,
-      selfHostDomain,
+      customDomain,
     );
 
+    // Password accounts need a session secret. The self-host env file sets
+    // none: the deploy mints one and keeps it in alchemy state, so redeploys
+    // keep every session valid. An explicit BETTER_AUTH_SECRET always wins.
+    const configuredAuthSecret = yield* dataEnv.BETTER_AUTH_SECRET;
+    const betterAuthSecret =
+      authMode === "password" && !Redacted.value(configuredAuthSecret)
+        ? yield* Alchemy.makeRandom("BetterAuthSecret")
+        : configuredAuthSecret;
+    // Operator account commands (`pnpm selfhost:admin`: password resets,
+    // accounts outside the invitation flow) stay off until the self-hoster
+    // sets a secret for them.
+    const operatorSecret = yield* optionalSecret("OPENSEO_OPERATOR_SECRET");
+
+    // Self-host deploys may run on the free Workers plan, which rejects the
+    // paid-plan CPU limits below.
+    const selfHostPlan =
+      authMode === "cloudflare_access" || authMode === "password";
+
     // Created once and bound into BOTH workers — they share the same
-    // D1/KV/R2 (and prod Hyperdrive). OAUTH_KV stays app-worker-only.
+    // D1/KV/R2 (and prod Hyperdrive). OAUTH_KV and FLAGS stay
+    // app-worker-only.
     const resources = makeResources(stage, databaseProvider !== "postgres");
 
     // Workers AI, reached through a gateway because that is the only shape
@@ -400,7 +523,7 @@ export default Alchemy.Stack(
     // the guideline phase issues one judge call per sampled page, and this is
     // where those calls become observable (logs) and capped (spend limit)
     // without touching the audit code.
-    const aiGatewayId = prod ? "open-seo" : `open-seo-${stage}`;
+    const aiGatewayId = aiGatewayName(stage, prod);
     const aiGateway = yield* Cloudflare.AI.Gateway("AI_GATEWAY", {
       id: aiGatewayId,
       collectLogs: true,
@@ -427,12 +550,14 @@ export default Alchemy.Stack(
         flags: wrangler.compatibility_flags,
       },
       // Audit workflow steps parse and persist batches of HTML — the same
-      // CPU allowance the app worker used to carry for them. Configurable
-      // CPU limits are a paid-plan feature; self-host deploys
-      // (cloudflare_access) may run on the free plan, which rejects them.
-      ...(authMode === "cloudflare_access"
+      // CPU allowance the app worker used to carry for them. A workflow run
+      // shares one subrequest budget across its steps, and a 10,000-page
+      // audit spent the 10,000 default before its Lighthouse and billing
+      // calls. Configurable limits are a paid-plan feature (see
+      // selfHostPlan).
+      ...(selfHostPlan
         ? {}
-        : { limits: { cpuMs: 300_000 } }),
+        : { limits: { cpuMs: 300_000, subrequests: 200_000 } }),
       observability: {
         enabled: wrangler.observability?.enabled ?? true,
         traces: { enabled: wrangler.observability?.traces?.enabled ?? false },
@@ -443,8 +568,8 @@ export default Alchemy.Stack(
         R2: resources.R2,
         // Deliberately NOT ...dataEnv: this worker crawls and parses
         // attacker-influenced HTML, so it gets only the secrets its code
-        // path reads — DataForSEO (Lighthouse), Autumn (metering), PostHog
-        // (capture), CRAWLER_ACCESS_SECRET (Shopify signatures),
+        // path reads — DataForSEO / treg (Lighthouse), Autumn (metering),
+        // PostHog (capture), CRAWLER_ACCESS_SECRET (Shopify signatures),
         // WEB_BOT_AUTH_JWK (request signing), and the guideline judge's model
         // key. No auth/OAuth/Loops/Turnstile secrets.
         BROWSER: Cloudflare.Browser(),
@@ -452,6 +577,7 @@ export default Alchemy.Stack(
         WEB_BOT_AUTH_JWK: dataEnv.WEB_BOT_AUTH_JWK,
         CONTEXT_API_KEY: dataEnv.CONTEXT_API_KEY,
         DATAFORSEO_API_KEY: dataEnv.DATAFORSEO_API_KEY,
+        TREG_API_TOKEN: dataEnv.TREG_API_TOKEN,
         AUTUMN_SECRET_KEY: dataEnv.AUTUMN_SECRET_KEY,
         POSTHOG_PUBLIC_KEY: dataEnv.POSTHOG_PUBLIC_KEY,
         POSTHOG_HOST: dataEnv.POSTHOG_HOST,
@@ -502,10 +628,8 @@ export default Alchemy.Stack(
       // Prod serves the real domains; the zone is inferred from the hostname.
       domain: prod
         ? ["app.openseo.so", "www.app.openseo.so"]
-        : selfHostDomain || undefined,
-      // The Access application gates exactly one hostname. On a custom domain
-      // the workers.dev URL would keep serving the app ungated, so turn it off.
-      ...(selfHostDomain ? { url: false as const } : {}),
+        : customDomain || undefined,
+      ...workersDevUrl(customDomain),
       // Prebuilt worker from `vite build` (@cloudflare/vite-plugin). The entry
       // exports the DO + WorkflowEntrypoint classes (re-exported by
       // src/server.ts), which `bundle: false` requires. Sibling chunks under
@@ -522,12 +646,9 @@ export default Alchemy.Stack(
       // Site audits moved to the open-seo-audit worker, but RankCheckWorkflow
       // still parses SERP batches here — keep the CPU allowance until that
       // workflow's per-tick CPU is measured or it moves too. Configurable CPU
-      // limits are a paid-plan feature, and self-host deploys
-      // (cloudflare_access) may run on the free plan — which rejects them —
-      // so those get the plan default instead.
-      ...(authMode === "cloudflare_access"
-        ? {}
-        : { limits: { cpuMs: 300_000 } }),
+      // limits are a paid-plan feature; self-host deploys get the plan
+      // default instead (see selfHostPlan).
+      ...(selfHostPlan ? {} : { limits: { cpuMs: 300_000 } }),
       observability: {
         enabled: wrangler.observability?.enabled ?? true,
         traces: { enabled: wrangler.observability?.traces?.enabled ?? false },
@@ -549,15 +670,18 @@ export default Alchemy.Stack(
         AUTH_MODE: authMode,
         DATABASE_PROVIDER: databaseProvider || "d1",
         BETTER_AUTH_URL: authUrl,
+        BETTER_AUTH_SECRET: betterAuthSecret,
+        ...(authMode === "password" && Redacted.value(operatorSecret)
+          ? { OPENSEO_OPERATOR_SECRET: operatorSecret }
+          : {}),
         // The audit worker above always binds BROWSER; the app worker checks
         // this before it offers "Render JavaScript".
         AUDIT_BROWSER_RENDERING: "true",
         TEAM_DOMAIN: access.teamDomain,
         POLICY_AUD: access.policyAud,
 
-        // Service binding to the audit worker's AuditEngine entrypoint
-        // (cancel + GDPR erasure of scratchpad state; env key = binding
-        // name).
+        // Service binding to the audit worker's AuditEngine entrypoint (cancel
+        // and account deletion's scratchpad wipe; env key = binding name).
         AUDIT_ENGINE: auditWorker,
 
         // Per-user throttle for /mcp API-key auth (see
@@ -569,11 +693,37 @@ export default Alchemy.Stack(
           simple: { limit: 5000, period: 60 },
         }),
 
-        // Per-IP throttle for email sign-in (see src/routes/api/auth/$.ts).
-        // Generous enough that no real person or shared office IP hits it.
+        // Throttle for password sign-in and the reset and verification
+        // emails, per IP and per email address (see
+        // src/server/auth/auth-rate-limit.ts). Generous enough that no real
+        // person or shared office IP hits it.
         AUTH_RATE_LIMIT: Cloudflare.RateLimit("AUTH_RATE_LIMIT", {
           namespaceId: 1002,
           simple: { limit: 20, period: 60 },
+        }),
+
+        // Per-organization throttle on saving keywords (see
+        // src/server/features/keywords/services/research/saved-keywords.ts).
+        // One call per 50 keywords: 60 a minute is 3,000 keywords a minute.
+        SAVE_KEYWORDS_RATE_LIMIT: Cloudflare.RateLimit(
+          "SAVE_KEYWORDS_RATE_LIMIT",
+          { namespaceId: 1003, simple: { limit: 60, period: 60 } },
+        ),
+
+        // Per-IP throttle on the reports browsers post about the report-only
+        // Content-Security-Policy (see src/server/lib/csp.ts). A page that
+        // trips the policy sends a handful at once.
+        CSP_REPORT_RATE_LIMIT: Cloudflare.RateLimit("CSP_REPORT_RATE_LIMIT", {
+          namespaceId: 1004,
+          simple: { limit: 30, period: 60 },
+        }),
+
+        // Per-link throttle on embed links' widget calls (see
+        // src/server/features/embeds/embedRoutes.ts). A page load makes a few;
+        // this bounds the Search Console calls one public link can make.
+        EMBED_RATE_LIMIT: Cloudflare.RateLimit("EMBED_RATE_LIMIT", {
+          namespaceId: 1005,
+          simple: { limit: 60, period: 60 },
         }),
 
         // Durable Objects (the chat agents; the audit scratchpad lives

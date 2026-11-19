@@ -30,13 +30,13 @@ export interface AuditConfig {
   guidelineEngines?: Engine[];
   /** When non-empty, the only path prefixes the crawl covers (see crawl-scope.ts). */
   includedPaths: string[];
-  /** Path prefixes the crawl leaves out, e.g. "/archive" (see crawl-scope.ts). */
-  excludedPaths: string[];
   renderJavaScript?: boolean;
   /** Detected from the start URL's `powered-by` response header. */
   sitePlatform?: "shopify";
   /** Which crawler-access credential the crawl replayed, if any. */
   crawlerCredentialId?: string;
+  /** Paths the crawl skips; see `@/shared/audit-exclude-paths`. */
+  excludePaths?: string[];
 }
 
 // Read-side only (writes stringify a typed AuditConfig). Stored rows may hold
@@ -60,25 +60,34 @@ const guidelinesStrategySchema = z
   .enum(["none", "sample", "all"])
   .catch("none");
 
-const auditConfigSchema = z.object({
-  maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
-  lighthouseStrategy: lighthouseStrategySchema,
-  guidelinesStrategy: guidelinesStrategySchema.default("none"),
-  // Audits predating Bing's rules judged Google's only.
-  guidelineEngines: z
-    .array(z.enum(ENGINES))
-    .min(1)
-    .catch([...DEFAULT_ENGINES])
-    .default([...DEFAULT_ENGINES]),
-  // Audits predating path scoping have no such keys: they crawled everything.
-  includedPaths: z.array(z.string()).catch([]).default([]),
-  excludedPaths: z.array(z.string()).catch([]).default([]),
-  renderJavaScript: z.boolean().optional().default(false),
-  // Absent on every audit stored before crawler access shipped, and a future
-  // platform value must not make an old report unviewable.
-  sitePlatform: z.literal("shopify").optional().catch(undefined),
-  crawlerCredentialId: z.string().optional().catch(undefined),
-});
+const auditConfigSchema = z
+  .object({
+    maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
+    lighthouseStrategy: lighthouseStrategySchema,
+    guidelinesStrategy: guidelinesStrategySchema.default("none"),
+    // Audits predating Bing's rules judged Google's only.
+    guidelineEngines: z
+      .array(z.enum(ENGINES))
+      .min(1)
+      .catch([...DEFAULT_ENGINES])
+      .default([...DEFAULT_ENGINES]),
+    // Audits predating path scoping have no such key: they crawled everything.
+    includedPaths: z.array(z.string()).catch([]).default([]),
+    // The name `excludePaths` had on audits stored before 2026-11.
+    excludedPaths: z.array(z.string()).optional().catch(undefined),
+    renderJavaScript: z.boolean().optional().default(false),
+    // Absent on every audit stored before crawler access shipped, and a future
+    // platform value must not make an old report unviewable.
+    sitePlatform: z.literal("shopify").optional().catch(undefined),
+    crawlerCredentialId: z.string().optional().catch(undefined),
+    excludePaths: z.array(z.string()).optional().catch(undefined),
+  })
+  .transform(({ excludedPaths, ...config }) => ({
+    ...config,
+    excludePaths:
+      config.excludePaths ??
+      (excludedPaths?.length ? excludedPaths : undefined),
+  }));
 
 const auditConfigCodec = jsonCodec(auditConfigSchema);
 

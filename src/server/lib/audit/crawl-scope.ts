@@ -1,26 +1,16 @@
 /**
  * The sections of a site an audit covers.
  *
- * A site can carry a section that should not be audited with the rest: a
- * generated archive of thousands of pages, a section handled elsewhere, one
- * being rebuilt. Crawling it spends the page budget on it and buries the rest
- * of the site's findings under its own. The opposite also happens: only one
- * section is being worked on, and the crawl should stay inside it. Both are
- * applied where the crawl already decides what it may fetch — alongside
- * robots.txt — so an out-of-scope page is never seeded from a sitemap nor
- * followed from a link.
+ * Sometimes only one section of a site is being worked on, and the crawl
+ * should stay inside it. That is applied where the crawl already decides what
+ * it may fetch — alongside robots.txt — so a page outside the section is never
+ * seeded from a sitemap nor followed from a link. Leaving sections out is the
+ * other half, and lives in `@/shared/audit-exclude-paths`.
  */
 import type { RobotsResult } from "./discovery";
 
 const MAX_SCOPE_PATHS = 20;
 const MAX_PATH_LENGTH = 200;
-
-export interface CrawlScope {
-  /** When non-empty, only pages under these path prefixes are crawled. */
-  includedPaths: readonly string[];
-  /** Pages under these path prefixes are never crawled. */
-  excludedPaths: readonly string[];
-}
 
 /**
  * A path prefix as the crawl compares it: leading slash, no trailing slash,
@@ -69,27 +59,18 @@ export function isUnderPaths(url: string, paths: readonly string[]): boolean {
   );
 }
 
-export function isScopedCrawl(scope: CrawlScope): boolean {
-  return scope.includedPaths.length > 0 || scope.excludedPaths.length > 0;
-}
-
-/** Whether a URL is inside the audit's scope (robots.txt aside). */
-function isInScope(url: string, scope: CrawlScope): boolean {
-  return (
-    (scope.includedPaths.length === 0 ||
-      isUnderPaths(url, scope.includedPaths)) &&
-    !isUnderPaths(url, scope.excludedPaths)
-  );
-}
-
-/** The site's robots rules, with everything out of scope disallowed on top. */
+/**
+ * The site's robots rules, with everything outside the included path prefixes
+ * disallowed on top. No prefixes means the whole site.
+ */
 export function scopeRobots(
   robots: RobotsResult,
-  scope: CrawlScope,
+  includedPaths: readonly string[],
 ): RobotsResult {
-  if (!isScopedCrawl(scope)) return robots;
+  if (includedPaths.length === 0) return robots;
   return {
     ...robots,
-    isAllowed: (url) => robots.isAllowed(url) && isInScope(url, scope),
+    isAllowed: (url) =>
+      robots.isAllowed(url) && isUnderPaths(url, includedPaths),
   };
 }

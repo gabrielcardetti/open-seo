@@ -1,4 +1,5 @@
 import { queryOptions, type QueryKey } from "@tanstack/react-query";
+import { ChartLine, Search, type LucideIcon } from "lucide-react";
 import type {
   GooglePickerAccount,
   GooglePickerSelection,
@@ -47,6 +48,8 @@ type PickerOptions = {
 type ProviderConfig = {
   title: string;
   name: string;
+  /** What the dashboard's connect state promises. */
+  pitch: { icon: LucideIcon; title: string };
   Logo: typeof GoogleSearchConsoleLogo;
   docsUrl: string;
   getConnection: (projectId: string) => Promise<GoogleConnection>;
@@ -112,6 +115,7 @@ export const googleProviders: Record<GoogleProvider, ProviderConfig> = {
   gsc: {
     title: "Google Search Console",
     name: "Search Console",
+    pitch: { icon: Search, title: "See how people find you on Google" },
     Logo: GoogleSearchConsoleLogo,
     docsUrl: GSC_SELF_HOSTED_SETUP_DOCS_URL,
     getConnection: async (projectId) => {
@@ -152,6 +156,10 @@ export const googleProviders: Record<GoogleProvider, ProviderConfig> = {
   ga4: {
     title: "Google Analytics",
     name: "Google Analytics",
+    pitch: {
+      icon: ChartLine,
+      title: "See your organic traffic and conversions",
+    },
     Logo: GoogleAnalyticsLogo,
     docsUrl: GA4_SELF_HOSTED_SETUP_DOCS_URL,
     getConnection: async (projectId) => {
