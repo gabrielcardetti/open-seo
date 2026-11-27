@@ -64,6 +64,7 @@ const SITE_SYSTEM_PROMPT = `You evaluate a whole website against the official GU
 4. If the inventory cannot show the answer, use status "unknown". Never guess; titles do not show a page's quality.
 5. Using AI is not a violation. Producing many pages with no original value is.
 6. Never recommend llms.txt, content chunking, word-count targets, faking dates, or manufacturing mentions.
+7. When SITE CONTEXT is provided, check whether large URL sections (SECTIONS / TEMPLATES) drift away from the site's core purpose (topic drift under PF-W02 / PF-W03) or repackage external records at scale without original value (SPAM-11), especially when GSC INDEXING shows high Crawled/Discovered-not-indexed rates in those sections.
 
 Return ONLY the rules that do NOT pass. Any rule you do not mention counts as a pass.
 Answer with a JSON object: {"findings":[{"id":"RULE-ID","status":"fail"|"warn"|"unknown","clusters":["C1"],"evidence":"quoted URLs or titles","reason":"one sentence"}]}`;

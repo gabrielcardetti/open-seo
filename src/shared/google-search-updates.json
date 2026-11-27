@@ -1,7 +1,7 @@
 {
   "source": "https://github.com/AgriciDaniel/claude-seo/blob/main/data/google-updates.json",
   "license": "MIT License, Copyright (c) 2026 agricidaniel",
-  "last_verified": "2026-09-28",
+  "last_verified": "2026-11-27",
   "updates": [
     {
       "date": "2024-03-05",
@@ -407,7 +407,77 @@
       "name": "September 2026 Spam Update",
       "kind": "spam",
       "source": "https://status.search.google.com/incidents/XhUDXP7A67iHCD2kmbVu",
-      "notes": "Global, all-language rollout began September 24 at 09:15 PDT and was still active on September 28, 2026; Google estimates up to two weeks and named no specific target."
+      "notes": "Global, all-language rollout from September 24 at 09:15 PDT to October 8, 2026 (13 days 16 hours on the dashboard); Google named no specific target."
+    },
+    {
+      "date": "2026-10-01",
+      "name": "Generative AI content guidance updated",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/docs/fundamentals/using-gen-ai-content",
+      "notes": "The guide on using generative AI content was updated with information from the Search Quality Rater Guidelines."
+    },
+    {
+      "date": "2026-10-06",
+      "name": "Retry-After added to the reduce crawl rate docs",
+      "kind": "documentation",
+      "source": "https://developers.google.com/crawling/docs/crawlers-fetchers/reduce-crawl-rate",
+      "notes": "The emergency crawl rate reduction section was restructured and now documents the Retry-After HTTP header with examples."
+    },
+    {
+      "date": "2026-10-08",
+      "name": "UGC Fresh Data Program documented",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/docs/appearance/ugc-fresh-data-program",
+      "notes": "New page describing Google's UGC Fresh Data Program for user-generated content sites."
+    },
+    {
+      "date": "2026-10-16",
+      "name": "Indexing API quota page updated",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/apis/indexing-api/v3/quota-pricing",
+      "notes": "Current quota limits and process documented (default 200 publish requests per day, 180 getMetadata and 380 total requests per minute); the outdated quota request form was removed. Quota is viewed in the Google API Console."
+    },
+    {
+      "date": "2026-10-21",
+      "name": "Control what you share with Google Search docs updated",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/docs/crawling-indexing/control-what-you-share",
+      "notes": "The page now covers existing options such as the robots meta tag, data-nosnippet, and X-Robots-Tag alongside the Search generative AI control."
+    },
+    {
+      "date": "2026-10-23",
+      "name": "URL structure guidance on hyphens and underscores clarified",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/docs/crawling-indexing/url-structure",
+      "notes": "The URL structure best practices were updated to clarify the word separation guidelines on hyphens versus underscores; the page recommends hyphens instead of underscores to separate words in URLs."
+    },
+    {
+      "date": "2026-10-26",
+      "name": "User-generated spam prevention guide updated",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/docs/monitor-debug/prevent-abuse",
+      "notes": "The guide now includes guidance on blocking indexing of link-shared content (noindex, or a robots.txt block, by default for pages created for direct sharing rather than search discovery) and on monitoring abuse in Search Console."
+    },
+    {
+      "date": "2026-11-09",
+      "name": "Aggregator and supplier units add things to do queries",
+      "kind": "documentation",
+      "source": "https://developers.google.com/search/docs/appearance/aggregator-unit",
+      "notes": "The aggregator unit and supplier unit documentation now include support for 'things to do' queries. The supplier unit page is https://developers.google.com/search/docs/appearance/supplier-unit."
+    },
+    {
+      "date": "2026-11-10",
+      "name": "November 2026 Core Update",
+      "kind": "core",
+      "source": "https://status.search.google.com/products/rGHU1u87FJnkP6W2GwMi/history",
+      "notes": "Global, all-language core update rollout from November 10 to November 24, 2026 (13 days 20 hours on the Search Status Dashboard)."
+    },
+    {
+      "date": "2026-11-24",
+      "name": "December 2026 Core Update preannounced",
+      "kind": "documentation",
+      "source": "https://status.search.google.com/products/rGHU1u87FJnkP6W2GwMi/history",
+      "notes": "Preannounced on November 24, 2026 for rollout in December 2026; focuses on ranking relevance for longer/more complex queries and personalization."
     }
   ]
 }

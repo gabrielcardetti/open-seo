@@ -189,16 +189,30 @@ export async function loadSiteInputs(
   audit: StoredAudit,
   engines: readonly Engine[] = DEFAULT_ENGINES,
 ) {
-  const { ProjectContextRepository } =
-    await import("@/server/features/project-context/repositories/ProjectContextRepository");
-  const [pages, sections, crawlCompleted, robotsText] = await Promise.all([
-    GuidelineEvaluationRepository.getSiteInventory(audit.id),
-    ProjectContextRepository.listSections(projectId),
-    storedCrawlCompleted(audit),
-    // The crawl's copy of robots.txt is not stored; Bing's robots rules read
-    // it fresh, once per call, and only when Bing is asked for.
-    engines.includes("bing") ? fetchRobotsTxt(audit.startUrl) : undefined,
-  ]);
+  const [{ ProjectContextRepository }, { UrlInspectionRepository }] =
+    await Promise.all([
+      import("@/server/features/project-context/repositories/ProjectContextRepository"),
+      import("@/server/features/gsc/repositories/UrlInspectionRepository"),
+    ]);
+  const [pages, sections, crawlCompleted, robotsText, gscInspections] =
+    await Promise.all([
+      GuidelineEvaluationRepository.getSiteInventory(audit.id),
+      ProjectContextRepository.listSections(projectId),
+      storedCrawlCompleted(audit),
+      // The crawl's copy of robots.txt is not stored; Bing's robots rules read
+      // it fresh, once per call, and only when Bing is asked for.
+      engines.includes("bing") ? fetchRobotsTxt(audit.startUrl) : undefined,
+      UrlInspectionRepository.listMonitored(projectId)
+        .then((rows) =>
+          rows.map((row) => ({
+            url: row.url,
+            inSitemap: row.inSitemap,
+            verdict: row.verdict,
+            coverageState: row.coverageState,
+          })),
+        )
+        .catch(() => null),
+    ]);
   const businessOverview =
     sections.find((section) => section.key === "business_overview")?.content ??
     null;
@@ -208,6 +222,7 @@ export async function loadSiteInputs(
     crawlCompleted,
     startUrl: audit.startUrl,
     robotsText,
+    gscInspections,
   };
 }
 
@@ -232,6 +247,7 @@ export async function siteFactsFor(
     businessOverview: inputs.businessOverview,
     memberUrlFilter: new Set(memberUrls),
     robotsText: inputs.robotsText,
+    gscInspections: inputs.gscInspections,
   });
 }
 
@@ -306,7 +322,7 @@ export async function judgeSite({
  * guard, so a caller knows why its fail may be stored as a warning.
  */
 const SITE_JUDGING_NOTE =
-  'Judge this item from its crawl inventory, not page text. Evidence quotes the inventory exactly: URLs, titles, title patterns or cluster ids, separated by "; ". Cite every cluster a finding rests on in `clusters`. Templated catalogs of genuinely different items (products, listings, recipes, places with their own content) are not doorways; a pattern is a problem when pages differ only in a swapped word and exist to catch each query. A doorway or scaled-content fail stands only when a cited cluster of at least 8 pages has identical text or word counts within 40 words of each other; otherwise it is stored as a warning. When the inventory cannot show the answer, answer unknown.';
+  'Judge this item from its crawl inventory, not page text. Evidence quotes the inventory exactly: URLs, titles, title patterns, section paths, or cluster ids, separated by "; ". Cite every cluster a finding rests on in `clusters`. Templated catalogs of genuinely different items (products, listings, recipes, places with their own content) are not doorways; a pattern is a problem when pages differ only in a swapped word and exist to catch each query. When SITE CONTEXT is given, also check whether large URL sections drift off-topic (PF-W02/PF-W03) or repackage external records without original value (SPAM-11), especially where GSC INDEXING shows high Crawled/Discovered-not-indexed rates. A doorway or scaled-content fail stands when a cited cluster of at least 8 pages has identical text, word counts within 40 words, or >=50% median body overlap across sampled siblings; otherwise it is stored as a warning. When the inventory cannot show the answer, answer unknown.';
 
 /** The whole-site item of a batch, and the rules it asks. */
 export async function siteBatchItem(

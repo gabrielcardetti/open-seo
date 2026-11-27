@@ -77,11 +77,13 @@ async function evaluateOnePage(input: {
     { evaluatePage },
     { resolveJudges },
     { siteContextFor },
+    { bodyShingleFingerprint },
   ] = await Promise.all([
     import("@/server/lib/guidelines/page-fetch"),
     import("@/server/lib/guidelines/page-evaluator"),
     import("@/server/lib/guidelines/judge-config"),
     import("@/server/lib/guidelines/site-evaluator"),
+    import("@/server/lib/guidelines/body-fingerprint"),
   ]);
 
   const page = await fetchPageForEvaluation(input.url);
@@ -104,7 +106,12 @@ async function evaluateOnePage(input: {
       ? siteContextFor(input.site.facts, input.site.evaluation, input.url)
       : null,
   });
-  return { pageId: input.pageId, evaluation };
+  return {
+    pageId: input.pageId,
+    url: input.url,
+    bodyFingerprint: bodyShingleFingerprint(page.bodyText),
+    evaluation,
+  };
 }
 
 export async function runGuidelinesPhase(
@@ -158,6 +165,7 @@ export async function runGuidelinesPhase(
 
   const site = await runSitePass(step, {
     auditId,
+    projectId,
     startUrl,
     crawlCompleted: params.crawlCompleted,
     businessOverview,
@@ -235,7 +243,12 @@ export async function runGuidelinesPhase(
     );
     for (const outcome of outcomes) {
       if (outcome.status === "fulfilled") {
-        pages.push(summarizePage(outcome.value.evaluation));
+        pages.push(
+          summarizePage(outcome.value.evaluation, {
+            url: outcome.value.url,
+            bodyFingerprint: outcome.value.bodyFingerprint,
+          }),
+        );
       }
     }
 

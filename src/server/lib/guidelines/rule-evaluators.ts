@@ -194,9 +194,86 @@ function tripwireWarning(
   };
 }
 
+/**
+ * SITE-06: thin ratio / crawled-not-indexed across monitored sitemap URLs from
+ * Search Console. Conservative floor (20 inspected URLs) so tiny samples stay
+ * `unknown`. Fails when >=35% of inspected sitemap URLs sit in Crawled or
+ * Discovered - currently not indexed, or when a single section accounts for
+ * >=25% of the sitemap with >=50% quality-excluded.
+ */
+const MIN_SITE06_INSPECTED = 20;
+const formatPct = (ratio: number) => `${Math.round(ratio * 100)}%`;
+
+const evaluateSiteIndexingRatio: SiteEvaluator = (facts) => {
+  const gsc = facts?.gscIndexing;
+  if (!gsc || gsc.inspected < MIN_SITE06_INSPECTED) {
+    return {
+      status: "unknown",
+      reason: `Search Console indexing monitor has ${gsc?.inspected ?? 0} inspected sitemap URLs (need at least ${MIN_SITE06_INSPECTED} to judge site-wide thin ratio).`,
+    };
+  }
+  const qualityExcluded = gsc.crawledNotIndexed + gsc.discoveredNotIndexed;
+  const qualityRatio = qualityExcluded / gsc.inspected;
+  const indexedRatio = gsc.indexed / gsc.inspected;
+
+  const sectionSummary = gsc.problemSections
+    .slice(0, 3)
+    .map(
+      (s) =>
+        `${s.section} (${s.indexed}/${s.inspected} indexed, ${s.crawledNotIndexed} crawled-not-indexed, ${s.discoveredNotIndexed} discovered-not-indexed, ${formatPct(s.sitemapShare)} of sitemap)`,
+    )
+    .join("; ");
+
+  const evidence = [
+    `${gsc.indexed}/${gsc.inspected} inspected sitemap URLs indexed (${formatPct(indexedRatio)}); ${gsc.crawledNotIndexed} crawled-not-indexed, ${gsc.discoveredNotIndexed} discovered-not-indexed (${formatPct(qualityRatio)} quality-excluded)`,
+    sectionSummary ? `worst sections: ${sectionSummary}` : null,
+  ]
+    .filter(Boolean)
+    .join(" — ")
+    .slice(0, 1000);
+
+  const bloatedSection = gsc.problemSections.find(
+    (s) =>
+      s.sitemapShare >= 0.25 &&
+      (s.crawledNotIndexed + s.discoveredNotIndexed) / s.inspected >= 0.5,
+  );
+
+  if (qualityRatio >= 0.35 || bloatedSection) {
+    return {
+      status: "fail",
+      evidence,
+      reason: bloatedSection
+        ? `Section ${bloatedSection.section} makes up ${formatPct(bloatedSection.sitemapShare)} of the sitemap with ${formatPct((bloatedSection.crawledNotIndexed + bloatedSection.discoveredNotIndexed) / bloatedSection.inspected)} in Crawled/Discovered - not indexed; prune, noindex, or remove unhelpful URLs from sitemaps.`
+        : `${formatPct(qualityRatio)} of inspected sitemap URLs are Crawled or Discovered - currently not indexed, indicating thin or low-value sections diluting site quality signals.`,
+    };
+  }
+
+  if (qualityRatio >= 0.2 || gsc.problemSections.length > 0) {
+    return {
+      status: "warn",
+      evidence,
+      reason:
+        gsc.problemSections.length > 0
+          ? `One or more sitemap sections show >=40% non-indexed URLs (${gsc.problemSections.map((s) => s.section).join(", ")}); review whether they add unique value or should be pruned.`
+          : `${formatPct(qualityRatio)} of inspected sitemap URLs are Crawled or Discovered - currently not indexed; monitor and prune low-value templates.`,
+    };
+  }
+
+  if (indexedRatio < 0.7) {
+    return {
+      status: "warn",
+      evidence,
+      reason: `Only ${formatPct(indexedRatio)} of inspected sitemap URLs are indexed (${gsc.otherNotIndexed} excluded for redirects, canonicals, or errors); clean non-indexable URLs out of sitemaps.`,
+    };
+  }
+
+  return { status: "pass", evidence };
+};
+
 const siteEvaluators: Record<string, SiteEvaluator> = {
   // Trust signals a reader expects to be able to find.
   "EAT-06": evaluateAboutAndContact,
+  "SITE-06": evaluateSiteIndexingRatio,
 
   // UGC spam needs somewhere users can post. Where there is one, whether it
   // is moderated is not something titles and URLs show.

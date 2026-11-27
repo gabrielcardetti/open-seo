@@ -33,9 +33,11 @@ export interface SitePass {
 
 /** What the site row needs from one judged page. */
 export interface PageSummary {
+  url?: string;
   pageType: string;
   who01Status: RuleStatus | null;
   ymylTopics: PageEvaluation["classification"]["ymylTopics"];
+  bodyFingerprint?: readonly number[];
 }
 
 /** The rule SITE-04 is read off: whether the page names its author. */
@@ -44,17 +46,24 @@ const AUTHOR_RULE = "WHO-01";
 export const errorMessage = (reason: unknown) =>
   reason instanceof Error ? reason.message : String(reason);
 
-export function summarizePage(evaluation: PageEvaluation): PageSummary {
+export function summarizePage(
+  evaluation: PageEvaluation,
+  extra?: { url?: string; bodyFingerprint?: readonly number[] },
+): PageSummary {
   const asked = evaluation.applicableRuleIds.includes(AUTHOR_RULE);
   const finding = evaluation.findings.find(
     (candidate) => candidate.ruleId === AUTHOR_RULE,
   );
   return {
+    ...(extra?.url ? { url: extra.url } : {}),
     pageType: evaluation.classification.pageType,
     // Only non-passing rules are stored as findings, so an asked rule with no
     // finding passed.
     who01Status: asked ? (finding?.status ?? "pass") : null,
     ymylTopics: evaluation.classification.ymylTopics,
+    ...(extra?.bodyFingerprint?.length
+      ? { bodyFingerprint: extra.bodyFingerprint }
+      : {}),
   };
 }
 
@@ -70,6 +79,7 @@ export function summarizePage(evaluation: PageEvaluation): PageSummary {
  */
 async function buildFacts(input: {
   auditId: string;
+  projectId?: string;
   startUrl: string;
   crawlCompleted: boolean;
   businessOverview: string | null;
@@ -92,6 +102,32 @@ async function buildFacts(input: {
       error,
     );
   }
+  let gscInspections: Array<{
+    url: string;
+    inSitemap: boolean;
+    verdict: string | null;
+    coverageState: string | null;
+  }> | null = null;
+  if (input.projectId) {
+    try {
+      const { UrlInspectionRepository } =
+        await import("@/server/features/gsc/repositories/UrlInspectionRepository");
+      const rows = await UrlInspectionRepository.listMonitored(input.projectId);
+      if (rows.length > 0) {
+        gscInspections = rows.map((row) => ({
+          url: row.url,
+          inSitemap: row.inSitemap,
+          verdict: row.verdict,
+          coverageState: row.coverageState,
+        }));
+      }
+    } catch (error) {
+      console.warn(
+        `Guideline site pass for audit ${input.auditId}: GSC indexing snapshot unavailable`,
+        error,
+      );
+    }
+  }
   return buildSiteFacts({
     pages,
     startUrl: input.startUrl,
@@ -100,6 +136,7 @@ async function buildFacts(input: {
     businessOverview: input.businessOverview,
     memberUrlFilter: new Set(input.sampledUrls),
     robotsText: input.robotsText,
+    gscInspections,
   });
 }
 
@@ -149,6 +186,7 @@ export async function runSitePass(
   step: WorkflowStep,
   params: {
     auditId: string;
+    projectId?: string;
     startUrl: string;
     crawlCompleted: boolean;
     businessOverview: string | null;
@@ -211,7 +249,11 @@ export async function persistSitePass(
     async () => {
       const { finalizeSite } =
         await import("@/server/lib/guidelines/site-evaluator");
-      const finalized = finalizeSite(input.site.evaluation, input.pages);
+      const finalized = finalizeSite(
+        input.site.evaluation,
+        input.pages,
+        input.site.facts,
+      );
       const ymylTopics = Array.from(
         new Set(input.pages.flatMap((page) => page.ymylTopics)),
       );
