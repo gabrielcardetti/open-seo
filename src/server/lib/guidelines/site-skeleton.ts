@@ -257,3 +257,38 @@ export function skeletonGroups(
   }
   return groups;
 }
+
+/** `/abogados/madrid` + `/abogados/sevilla` -> `/abogados/:*`. */
+export function commonTemplate(templates: readonly string[]): string {
+  const distinct = Array.from(new Set(templates));
+  if (distinct.length === 1) return distinct[0];
+  const split = distinct.map((template) => template.split("/"));
+  if (split.some((parts) => parts.length !== split[0].length)) return "(mixed)";
+  return split[0]
+    .map((part, i) => (split.every((parts) => parts[i] === part) ? part : ":*"))
+    .join("/");
+}
+
+/**
+ * `budget` split fairly: small clusters keep every member and the budget they
+ * leave goes to the larger ones, which split it evenly.
+ */
+export function memberShares(
+  sizes: readonly number[],
+  budget: number,
+): number[] {
+  const shares = sizes.map(() => 0);
+  const smallestFirst = sort(
+    sizes.map((_, i) => i),
+    (a, b) => sizes[a] - sizes[b],
+  );
+  let left = budget;
+  smallestFirst.forEach((i, done) => {
+    shares[i] = Math.min(
+      sizes[i],
+      Math.floor(left / (smallestFirst.length - done)),
+    );
+    left -= shares[i];
+  });
+  return shares;
+}

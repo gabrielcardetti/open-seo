@@ -20,6 +20,15 @@ import {
   type BingSiteFacts,
 } from "./bing-site-facts";
 import {
+  buildSectionShares,
+  buildSiteGscIndexing,
+  type SiteGscIndexing,
+  type SiteGscInspectionInput,
+  type SiteSectionShare,
+} from "./site-gsc-facts";
+import {
+  commonTemplate,
+  memberShares,
   normalizeText,
   skeletonGroups,
   templateTitleSkeleton,
@@ -137,6 +146,10 @@ export interface SiteFacts {
   tripwires: SiteTripwire[];
   /** What Bing's site rules read: robots.txt, sitemap, redirects, duplicates. */
   bing: BingSiteFacts;
+  /** Top first-level sections by share of indexable pages (for topic-drift visibility). */
+  sectionShares?: SiteSectionShare[];
+  /** Monitored GSC sitemap indexing summary, when Search Console data is available. */
+  gscIndexing?: SiteGscIndexing | null;
 }
 
 /** A cluster smaller than this is a coincidence, not a pattern. */
@@ -332,38 +345,6 @@ function slugDrafts(live: readonly Row[]): ClusterDraft[] {
   }));
 }
 
-/** `/abogados/madrid` + `/abogados/sevilla` -> `/abogados/:*`. */
-function commonTemplate(templates: readonly string[]): string {
-  const distinct = Array.from(new Set(templates));
-  if (distinct.length === 1) return distinct[0];
-  const split = distinct.map((template) => template.split("/"));
-  if (split.some((parts) => parts.length !== split[0].length)) return "(mixed)";
-  return split[0]
-    .map((part, i) => (split.every((parts) => parts[i] === part) ? part : ":*"))
-    .join("/");
-}
-
-/**
- * `MAX_MEMBER_URLS` split fairly: small clusters keep every member and the
- * budget they leave goes to the larger ones, which split it evenly.
- */
-function memberShares(sizes: readonly number[]): number[] {
-  const shares = sizes.map(() => 0);
-  const smallestFirst = sort(
-    sizes.map((_, i) => i),
-    (a, b) => sizes[a] - sizes[b],
-  );
-  let budget = MAX_MEMBER_URLS;
-  smallestFirst.forEach((i, done) => {
-    shares[i] = Math.min(
-      sizes[i],
-      Math.floor(budget / (smallestFirst.length - done)),
-    );
-    budget -= shares[i];
-  });
-  return shares;
-}
-
 function buildClusters(
   live: readonly Row[],
   memberUrlFilter: ReadonlySet<string> | undefined,
@@ -376,7 +357,10 @@ function buildClusters(
       a.key.localeCompare(b.key),
   ).slice(0, MAX_CLUSTERS);
 
-  const shares = memberShares(drafts.map((draft) => draft.members.length));
+  const shares = memberShares(
+    drafts.map((draft) => draft.members.length),
+    MAX_MEMBER_URLS,
+  );
   return drafts.map((draft, i) => {
     // With a filter: the sampled members, plus the cluster's first few so the
     // caller can add them to the sample when the site pass flags the cluster.
@@ -441,6 +425,8 @@ export function buildSiteFacts(input: {
    * judge reviews). Cluster member lists then keep just those, uncapped.
    */
   memberUrlFilter?: ReadonlySet<string>;
+  /** Monitored GSC URL inspections for SITE-06 and the site judge. */
+  gscInspections?: readonly SiteGscInspectionInput[] | null;
 }): SiteFacts {
   const origin = new URL(input.startUrl).origin;
   const rows = toRows(input.pages);
@@ -499,6 +485,8 @@ export function buildSiteFacts(input: {
       robotsText: input.robotsText,
       memberUrlFilter: input.memberUrlFilter,
     }),
+    sectionShares: buildSectionShares(live.map((row) => row.path)),
+    gscIndexing: buildSiteGscIndexing(input.gscInspections),
   };
 }
 

@@ -32,6 +32,7 @@ import {
   unjudgeableReason,
 } from "@/shared/guidelines/judge-map";
 import { detectUrlTemplate } from "../audit/url-utils";
+import { findCorroboratingClusterOverlap } from "./body-fingerprint";
 import {
   withoutUngroundedSiteFails,
   type JudgedRule,
@@ -78,12 +79,14 @@ const AUTHORS_RULE = "SITE-04";
 const BYLINED_PAGE_TYPES = new Set(["article", "review"]);
 
 /**
- * The site-scope rules plus the `both` rules that ask about a pattern. No
- * site precondition input is known here, so `{}` keeps the gated rules
- * (SITE-06 on Search Console) out, as on pages.
+ * The site-scope rules plus the `both` rules that ask about a pattern.
+ * Enables `hasGsc` (SITE-06) when Search Console indexing data is present.
  */
-function siteRules(engines: readonly Engine[]): GuidelineRule[] {
-  return rulesForContext({}, "site", engines).filter(
+function siteRules(
+  engines: readonly Engine[],
+  hasGsc: boolean,
+): GuidelineRule[] {
+  return rulesForContext({ hasGsc }, "site", engines).filter(
     (rule) => rule.scope === "site" || SITE_PATTERN_RULES.has(rule.id),
   );
 }
@@ -159,7 +162,8 @@ export async function evaluateSite({
   /** Whose guidelines to judge against; Google's by default. */
   engines?: readonly Engine[];
 }): Promise<PageEvaluation> {
-  const applicable = siteRules(engines);
+  const hasGsc = Boolean(facts.gscIndexing && facts.gscIndexing.inspected > 0);
+  const applicable = siteRules(engines, hasGsc);
   const settled = new Map<string, JudgedRule>();
 
   // 1. What the inventory proves outright.
@@ -256,6 +260,10 @@ export interface SitePageResult {
   pageType: string;
   /** WHO-01's status on the page (a pass when it has no finding); null when not asked. */
   who01Status: RuleStatus | null;
+  /** Crawled URL of the sampled page, used to match against cluster members. */
+  url?: string;
+  /** Compact 5-word shingle fingerprint of visible body text, for overlap corroboration. */
+  bodyFingerprint?: readonly number[];
 }
 
 const toJudged = (finding: EvaluatedRule): JudgedRule => ({
@@ -268,46 +276,107 @@ const toJudged = (finding: EvaluatedRule): JudgedRule => ({
   clusters: finding.clusters,
 });
 
+const UNCORROBORATED_PREFIX =
+  "Flagged from URLs and titles, not confirmed: no cited cluster has identical text or near-identical word counts.";
+
+function corroborateWarningsFromBodies(
+  findings: readonly EvaluatedRule[],
+  pageResults: readonly SitePageResult[],
+  facts: SiteFacts | undefined,
+): { outcomes: JudgedRule[]; changed: boolean } {
+  if (!facts) return { outcomes: findings.map(toJudged), changed: false };
+  const fingerprints = new Map<string, readonly number[]>();
+  for (const page of pageResults) {
+    if (page.url && page.bodyFingerprint?.length) {
+      fingerprints.set(page.url, page.bodyFingerprint);
+    }
+  }
+  if (fingerprints.size < 2) {
+    return { outcomes: findings.map(toJudged), changed: false };
+  }
+
+  let changed = false;
+  const outcomes = findings.map((finding): JudgedRule => {
+    const base = toJudged(finding);
+    if (
+      finding.status !== "warn" ||
+      !CORROBORATED_RULES.has(finding.ruleId) ||
+      !finding.reason?.startsWith(UNCORROBORATED_PREFIX)
+    ) {
+      return base;
+    }
+    const hit = findCorroboratingClusterOverlap({
+      citedClusterIds: citedClusters(finding, facts),
+      clusters: facts.clusters,
+      minClusterSize: CLUSTER_MIN_SIZE,
+      fingerprints,
+    });
+    if (!hit) return base;
+
+    changed = true;
+    const pct = Math.round(hit.overlap.medianOverlap * 100);
+    const note = `Corroborated from sampled body text: ${hit.clusterId} siblings share ${pct}% body shingle overlap (max ${Math.round(hit.overlap.maxOverlap * 100)}% across ${hit.overlap.sampledPages} sampled pages).`;
+    const cleaned = finding.reason.slice(UNCORROBORATED_PREFIX.length).trim();
+    return {
+      ...base,
+      status: "fail",
+      evidence: [finding.evidence, `${hit.clusterId} body overlap ${pct}%`]
+        .filter(Boolean)
+        .join(" — ")
+        .slice(0, 1000),
+      reason: [note, cleaned].filter(Boolean).join(" "),
+    };
+  });
+  return { outcomes, changed };
+}
+
 /**
- * Settles SITE-04 from the evaluated pages and recomputes the verdict.
- *
- * "Real authors where a reader expects them" depends on which pages call for
- * one, and that is what the page pass decided: an article or review whose
- * WHO-01 passed names its author. Half of them doing so passes; none of at
- * least three warns (the rule is low severity, and a sample is a sample);
- * anything in between stays unknown.
+ * Settles SITE-04 from the evaluated pages, corroborates body-overlap warnings
+ * on cited doorway/scaled-content clusters when sampled fingerprints are
+ * available, and recomputes the verdict.
  */
 export function finalizeSite(
   evaluation: PageEvaluation,
   pageResults: readonly SitePageResult[],
+  facts?: SiteFacts,
 ): PageEvaluation {
+  const { outcomes: bodyOutcomes, changed: bodyChanged } =
+    corroborateWarningsFromBodies(evaluation.findings, pageResults, facts);
+
   const current = evaluation.findings.find(
     (finding) => finding.ruleId === AUTHORS_RULE,
   );
-  if (current?.status !== "unknown") return evaluation;
-
-  const bylineExpected = pageResults.filter(
-    (page) =>
-      BYLINED_PAGE_TYPES.has(page.pageType) && page.who01Status !== null,
-  );
-  const bylined = bylineExpected.filter(
-    (page) => page.who01Status === "pass",
-  ).length;
-  const summary = `${bylined} of ${bylineExpected.length} evaluated articles and reviews name an author`;
-  let authors: JudgedRule;
-  if (bylineExpected.length > 0 && bylined / bylineExpected.length >= 0.5) {
-    authors = { ruleId: AUTHORS_RULE, status: "pass", evidence: summary };
-  } else if (bylineExpected.length >= 3 && bylined === 0) {
-    authors = {
-      ruleId: AUTHORS_RULE,
-      status: "warn",
-      evidence: summary,
-      reason:
-        "None of the sampled articles or reviews says who wrote it, where a reader would ask.",
-    };
-  } else {
-    return evaluation;
+  let authors: JudgedRule | null = null;
+  if (current?.status === "unknown") {
+    const bylineExpected = pageResults.filter(
+      (page) =>
+        BYLINED_PAGE_TYPES.has(page.pageType) && page.who01Status !== null,
+    );
+    const bylined = bylineExpected.filter(
+      (page) => page.who01Status === "pass",
+    ).length;
+    const summary = `${bylined} of ${bylineExpected.length} evaluated articles and reviews name an author`;
+    if (bylineExpected.length > 0 && bylined / bylineExpected.length >= 0.5) {
+      authors = { ruleId: AUTHORS_RULE, status: "pass", evidence: summary };
+    } else if (bylineExpected.length >= 3 && bylined === 0) {
+      authors = {
+        ruleId: AUTHORS_RULE,
+        status: "warn",
+        evidence: summary,
+        reason:
+          "None of the sampled articles or reviews says who wrote it, where a reader would ask.",
+      };
+    }
   }
+
+  if (!authors && !bodyChanged) return evaluation;
+
+  const finalOutcomes = authors
+    ? [
+        ...bodyOutcomes.filter((finding) => finding.ruleId !== AUTHORS_RULE),
+        authors,
+      ]
+    : bodyOutcomes;
 
   return summarizeEvaluation({
     page: { finalUrl: evaluation.url },
@@ -316,12 +385,7 @@ export function finalizeSite(
       const rule = RULES_BY_ID.get(id);
       return rule ? [rule] : [];
     }),
-    outcomes: [
-      ...evaluation.findings
-        .filter((finding) => finding.ruleId !== AUTHORS_RULE)
-        .map(toJudged),
-      authors,
-    ],
+    outcomes: finalOutcomes,
     judge: evaluation.judge,
     level: "site",
   });

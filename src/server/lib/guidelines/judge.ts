@@ -191,8 +191,28 @@ export function renderSiteState(
   const found = (url: string | null) => (url ? pathOf(url) : "(none found)");
   lines.push(
     `TRUST PAGES: about=${found(trust.about)} contact=${found(trust.contact)} privacy=${found(trust.privacy)} terms=${found(trust.terms)} authors=${trust.authorTemplate ? `${trust.authorTemplate.template} (${trust.authorTemplate.count})` : "(none found)"}`,
-    "TEMPLATES (by size):",
   );
+  if (facts.sectionShares && facts.sectionShares.length > 0) {
+    lines.push(
+      `SECTIONS (share of indexable): ${facts.sectionShares
+        .map(
+          (s) => `${s.section} ${s.indexable} (${Math.round(s.share * 100)}%)`,
+        )
+        .join(", ")}`,
+    );
+  }
+  if (facts.gscIndexing && facts.gscIndexing.inspected > 0) {
+    const g = facts.gscIndexing;
+    lines.push(
+      `GSC INDEXING: ${g.indexed}/${g.inspected} indexed (${Math.round((g.indexed / g.inspected) * 100)}%), ${g.crawledNotIndexed} crawled-not-indexed, ${g.discoveredNotIndexed} discovered-not-indexed, ${g.otherNotIndexed} other-not-indexed (${g.monitored} monitored in sitemaps)`,
+    );
+    for (const s of g.problemSections) {
+      lines.push(
+        `  GSC section ${s.section}: ${s.indexed}/${s.inspected} indexed, ${s.crawledNotIndexed} crawled-not-indexed, ${s.discoveredNotIndexed} discovered-not-indexed (${Math.round(s.sitemapShare * 100)}% of sitemap)`,
+      );
+    }
+  }
+  lines.push("TEMPLATES (by size):");
   for (const group of facts.templates) {
     const skeleton = group.titleSkeleton
       ? `, title pattern "${group.titleSkeleton.pattern}" ${Math.round(group.titleSkeleton.coverage * 100)}%`
@@ -387,6 +407,8 @@ function siteEvidenceText(facts: SiteFacts): string {
       ...cluster.memberUrls.flatMap((url) => [url, pathOf(url)]),
     ]),
     ...facts.ugcSurfaces,
+    ...(facts.sectionShares?.map((s) => s.section) ?? []),
+    ...(facts.gscIndexing?.problemSections.map((s) => s.section) ?? []),
     ...facts.titleSample,
   ]
     .filter(Boolean)
